@@ -1,4 +1,4 @@
-# spr26-Team-26 — Autonomous ML Training Agent
+# spr26-Team-26 — Nemoral: An Autonomous Self-Improving ML Training Agent
 
 Welcome to the repository for **Team Nemoral** — Stanford CS194, Spring 2026.
 
