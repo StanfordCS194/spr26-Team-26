@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0a0a0f;
+  --foreground: #e8e8ed;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* Markdown content styles */
+.prose-spec h1 { font-size: 1.875rem; font-weight: 700; margin: 2rem 0 1rem; color: #f1f1f5; }
+.prose-spec h2 { font-size: 1.375rem; font-weight: 600; margin: 1.75rem 0 0.75rem; color: #e8e8ed; border-bottom: 1px solid #2a2a3a; padding-bottom: 0.4rem; }
+.prose-spec h3 { font-size: 1.1rem; font-weight: 600; margin: 1.5rem 0 0.5rem; color: #c4b5fd; }
+.prose-spec p { margin: 0.75rem 0; line-height: 1.75; color: #c8c8d4; }
+.prose-spec ul { margin: 0.75rem 0 0.75rem 1.25rem; list-style: disc; }
+.prose-spec ol { margin: 0.75rem 0 0.75rem 1.25rem; list-style: decimal; }
+.prose-spec li { margin: 0.35rem 0; line-height: 1.7; color: #c8c8d4; }
+.prose-spec strong { color: #f1f1f5; font-weight: 600; }
+.prose-spec em { color: #a5b4fc; font-style: italic; }
+.prose-spec code { font-family: var(--font-geist-mono), monospace; background: #1a1a2e; color: #a5b4fc; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.85em; }
+.prose-spec pre { background: #111122; border: 1px solid #2a2a3a; border-radius: 8px; padding: 1rem 1.25rem; overflow-x: auto; margin: 1rem 0; }
+.prose-spec pre code { background: none; padding: 0; color: #cbd5e1; font-size: 0.82rem; }
+.prose-spec blockquote { border-left: 3px solid #6d28d9; padding-left: 1rem; margin: 1rem 0; color: #a78bfa; background: #1a1030; border-radius: 0 6px 6px 0; padding: 0.75rem 1rem; }
+.prose-spec table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+.prose-spec th { background: #1e1e30; color: #c4b5fd; padding: 0.6rem 0.9rem; text-align: left; font-weight: 600; border: 1px solid #2a2a3a; }
+.prose-spec td { padding: 0.55rem 0.9rem; border: 1px solid #2a2a3a; color: #c8c8d4; vertical-align: top; }
+.prose-spec tr:nth-child(even) td { background: #13131f; }
+.prose-spec a { color: #818cf8; text-decoration: underline; text-underline-offset: 2px; }
+.prose-spec hr { border: none; border-top: 1px solid #2a2a3a; margin: 1.5rem 0; }
