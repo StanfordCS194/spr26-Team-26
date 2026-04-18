@@ -29,19 +29,41 @@ export default function FeatureSection({ feature }: { feature: FeatureSpec }) {
           </span>
         </div>
         <p className="text-sm text-neutral-400 leading-relaxed">{feature.description}</p>
-        <p className="mt-2 text-xs text-neutral-600">{feature.functions.length} functions</p>
       </div>
 
-      {/* Function cards */}
-      <div className="space-y-3 pl-3 border-l-2 border-neutral-800">
-        {feature.functions.map((fn) => (
-          <div key={fn.name} id={`fn-${fn.name}`} className="scroll-mt-8">
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-xs font-mono font-semibold text-neutral-300">{fn.name}</span>
+      {/* Architecture / control flow */}
+      <div className="border border-neutral-800 rounded-xl overflow-hidden">
+        <div className="bg-neutral-900/80 px-4 py-2.5 border-b border-neutral-800">
+          <span className="text-xs font-semibold uppercase tracking-widest text-neutral-400">How it works</span>
+        </div>
+        <div className="p-5 space-y-4 bg-neutral-950/40">
+          <p className="text-sm text-neutral-300 leading-relaxed whitespace-pre-wrap">{feature.architecture}</p>
+          {feature.flowDiagram && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-2">Control Flow</p>
+              <pre className="text-xs text-neutral-300 font-mono leading-relaxed overflow-x-auto bg-neutral-900 border border-neutral-800 rounded-lg p-4">
+                {feature.flowDiagram}
+              </pre>
             </div>
-            <FunctionCard fn={fn} />
-          </div>
-        ))}
+          )}
+        </div>
+      </div>
+
+      {/* Function reference */}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3 px-1">
+          Functions ({feature.functions.length})
+        </p>
+        <div className="space-y-3 pl-3 border-l-2 border-neutral-800">
+          {feature.functions.map((fn) => (
+            <div key={fn.name} id={`fn-${fn.name}`} className="scroll-mt-8">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-xs font-mono font-semibold text-neutral-300">{fn.name}</span>
+              </div>
+              <FunctionCard fn={fn} />
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );

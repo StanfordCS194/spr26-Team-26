@@ -3,8 +3,10 @@
 import { useState, useEffect } from "react";
 import { features } from "@/content/spec";
 
+const ALL_IDS = ["architecture", "types", ...features.map((f) => f.id)];
+
 export default function Sidebar() {
-  const [active, setActive] = useState<string>(features[0].id);
+  const [active, setActive] = useState<string>("architecture");
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -14,37 +16,40 @@ export default function Sidebar() {
       },
       { rootMargin: "-15% 0px -75% 0px" }
     );
-    features.forEach((f) => {
-      const el = document.getElementById(f.id);
+    ALL_IDS.forEach((id) => {
+      const el = document.getElementById(id);
       if (el) observer.observe(el);
     });
     return () => observer.disconnect();
   }, []);
 
+  const linkClass = (id: string) =>
+    `block px-3 py-1.5 rounded-md text-sm transition-colors ${
+      active === id
+        ? "bg-violet-900/60 text-violet-200 font-medium"
+        : "text-neutral-400 hover:text-neutral-200 hover:bg-white/5"
+    }`;
+
   const Nav = () => (
     <nav className="space-y-0.5">
-      <a
-        href="#types"
-        onClick={() => setMobileOpen(false)}
-        className="block px-3 py-1.5 rounded-md text-xs font-semibold uppercase tracking-wider text-neutral-500 hover:text-neutral-300 hover:bg-white/5 transition-colors"
-      >
+      <a href="#architecture" onClick={() => setMobileOpen(false)} className={linkClass("architecture")}>
+        System Architecture
+      </a>
+      <a href="#types" onClick={() => setMobileOpen(false)} className={`${linkClass("types")} mt-1`}>
         Shared Types
       </a>
-      <div className="mt-2 pt-2 border-t border-neutral-800">
+
+      <div className="pt-3 mt-1 border-t border-neutral-800">
         <p className="px-3 mb-1 text-xs font-semibold uppercase tracking-wider text-neutral-600">Features</p>
         {features.map((f) => (
           <a
             key={f.id}
             href={`#${f.id}`}
             onClick={() => setMobileOpen(false)}
-            className={`block px-3 py-1.5 rounded-md text-sm transition-colors ${
-              active === f.id
-                ? "bg-violet-900/60 text-violet-200 font-medium"
-                : "text-neutral-400 hover:text-neutral-200 hover:bg-white/5"
-            }`}
+            className={linkClass(f.id)}
           >
             <span className="block truncate">{f.title}</span>
-            <span className="block text-xs text-neutral-600 truncate">{f.functions.length} functions</span>
+            <span className="block text-xs text-neutral-600">{f.functions.length} functions</span>
           </a>
         ))}
       </div>

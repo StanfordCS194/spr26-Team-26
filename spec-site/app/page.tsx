@@ -1,5 +1,6 @@
 import Header from "@/components/Header";
 import Sidebar from "@/components/Sidebar";
+import ArchitectureOverview from "@/components/ArchitectureOverview";
 import FeatureSection from "@/components/FeatureSection";
 import TypesSection from "@/components/TypesSection";
 import { features } from "@/content/spec";
@@ -14,7 +15,7 @@ export default function Home() {
         <Sidebar />
         <main className="flex-1 min-w-0 px-4 md:px-8 py-8 max-w-4xl">
           {/* Summary bar */}
-          <div className="mb-8 flex flex-wrap gap-4 text-sm">
+          <div className="mb-8 flex flex-wrap gap-3 text-sm">
             <div className="border border-neutral-800 rounded-lg px-4 py-2.5 bg-neutral-900/40">
               <p className="text-xs text-neutral-500 mb-0.5">Features</p>
               <p className="font-semibold text-white">{features.length}</p>
@@ -30,6 +31,7 @@ export default function Home() {
           </div>
 
           <div className="space-y-12">
+            <ArchitectureOverview />
             <TypesSection />
             {features.map((feature) => (
               <FeatureSection key={feature.id} feature={feature} />

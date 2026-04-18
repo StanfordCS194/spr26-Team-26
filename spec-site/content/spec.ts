@@ -27,7 +27,105 @@ export type FeatureSpec = {
   title: string;
   owner: string;
   description: string;
+  /** Plain-text or pseudo-code control flow diagram shown before functions */
+  architecture: string;
+  /** ASCII/text flow diagram (optional) */
+  flowDiagram?: string;
   functions: FunctionSpec[];
+};
+
+// ─── OVERALL SYSTEM ARCHITECTURE ─────────────────────────────────────────────
+export const systemArchitecture = {
+  overview: `The system is a linear pipeline with one autonomous feedback loop. The user provides a single prompt and a budget. The Manager reasons about the task and emits a config object that every other agent reads from. Control then flows through three sequential stages — data, decisions, training — with the Cost Manager running as a background watchdog throughout.`,
+  flowDiagram: `
+User
+  │  prompt: str
+  │  budget: float
+  │  data_path?: str
+  ▼
+┌─────────────────────────────────────┐
+│          Manager Agent              │
+│  1. query_user_for_data()           │
+│  2. reason_about_task()  [Claude]   │
+│  3. build_orchestration_config()    │
+│  4. log_decision()                  │
+└───────────────┬─────────────────────┘
+                │  OrchestrationConfig
+                │  (passed to ALL agents)
+                ▼
+┌─────────────────────────────────────┐
+│         Data Generator              │
+│  Mode A: clean user data            │
+│  Mode B: search HuggingFace         │◄── HuggingFace Hub API
+│  Mode C: synthesize / scrape        │◄── Claude API (teacher)
+└───────────────┬─────────────────────┘
+                │  DatasetResult
+                ▼
+┌─────────────────────────────────────┐
+│         Decision Engine             │
+│  analyze_task()                     │
+│  find_base_model()    ◄─── HF Hub   │
+│  estimate_training_cost()           │
+│  write_finetune_script() OR         │
+│  write_pretrain_script()            │
+└───────────────┬─────────────────────┘
+                │  TrainingPlan
+                │  (script path + config)
+                ▼
+┌─────────────────────────────────────┐   ┌───────────────────────┐
+│       AutoResearch Loop             │   │    Cost Manager        │
+│                                     │   │  (background thread)   │
+│  baseline run → EvalScore           │   │                        │
+│  ┌──────────────────────────────┐   │   │  poll_spend() / 30s    │
+│  │  propose_hypothesis()        │   │──►│  save_checkpoint()@90% │
+│  │  apply_patch()               │   │   │  kill_job() @ 100%     │
+│  │  submit_experiment() ──────────────► Tinker GPU              │
+│  │  wait_for_experiment()       │   │   └───────────────────────┘
+│  │  check_early_stop()          │   │
+│  │  run_evals()                 │   │
+│  │  compare_scores()            │   │
+│  │  decide_keep_or_revert()     │   │
+│  │  log_iteration()             │   │
+│  └──────────────────────────────┘   │
+│  (repeat until budget exhausted     │
+│   or no improvement for N iters)    │
+└───────────────┬─────────────────────┘
+                │  TrainedModel
+                ▼
+           User receives:
+           • weights_path
+           • final EvalScore
+           • CostBreakdown
+           • research_diary.jsonl
+  `,
+  keyContracts: [
+    {
+      from: "User → Manager",
+      data: "prompt: str, budget: float, data_path?: str",
+    },
+    {
+      from: "Manager → All agents",
+      data: "OrchestrationConfig — single source of truth for task, budget, and training procedure",
+    },
+    {
+      from: "Data Generator → Decision Engine",
+      data: "DatasetResult — standardized dataset with split sizes and quality report",
+    },
+    {
+      from: "Decision Engine → AutoResearch",
+      data: "TrainingPlan — training strategy, base model, LoRA config, script path, eval metric",
+    },
+    {
+      from: "AutoResearch → Cost Manager",
+      data: "job_id — each Tinker job ID is registered with Cost Manager before submission",
+    },
+    {
+      from: "AutoResearch → User",
+      data: "TrainedModel — best checkpoint path, eval score, cost breakdown, research diary",
+    },
+  ],
+  observabilityNote:
+    "Every agent calls log_event() from the Observability module on every significant action. This writes a JSON line to disk and prints a color-coded CLI line. No agent writes to stdout directly.",
 };
 
 export const features: FeatureSpec[] = [
@@ -41,6 +139,38 @@ export const features: FeatureSpec[] = [
     owner: "Sid Potti",
     description:
       "Central orchestrator. Takes the user's raw prompt and budget, reasons about the task, queries for optional data, and emits the OrchestrationConfig JSON consumed by every downstream agent.",
+    architecture: `The Manager is the only agent the user interacts with directly. It runs entirely locally — no GPU required. Its job is to turn an ambiguous human prompt into a precise, structured config that every downstream agent can execute independently.
+
+Control flow:
+1. run_manager() is called with the user's prompt and budget.
+2. It calls query_user_for_data() to ask if the user has existing data. This sets the "data" bool in the config.
+3. It calls reason_about_task() which sends the prompt + context to the Claude API. The LLM infers task type, data format, training type (SFT/RL/pre-train), a suggested base model, and starting hyperparameters.
+4. build_orchestration_config() assembles all of this into the OrchestrationConfig dict.
+5. log_decision() records the reasoning to decisions.jsonl.
+6. orchestrate() is called with the config. This is the only function that calls into the other features — it sequences Data Generator → Decision Engine → AutoResearch, passing results between stages and registering each Tinker job with the Cost Manager.
+
+The Manager never writes to stdout directly. All output goes through log_event() from the Observability module.`,
+    flowDiagram: `
+run_manager(prompt, budget, data_path?)
+  │
+  ├─► query_user_for_data()
+  │     └─► has_data: bool
+  │
+  ├─► reason_about_task(prompt, budget, has_data)  [Claude API]
+  │     └─► TaskReasoning
+  │
+  ├─► build_orchestration_config(reasoning, ...)
+  │     └─► OrchestrationConfig
+  │
+  ├─► log_decision("task_reasoning", rationale, config)
+  │
+  └─► orchestrate(config)
+        │
+        ├─► run_data_generator(config, data_path?)  → DatasetResult
+        ├─► run_decision_engine(config, dataset)    → TrainingPlan
+        ├─► start_cost_monitor(job_id, budget)      → background thread
+        └─► run_autoresearch(plan, config, cost_mgr)→ TrainedModel
+    `,
     functions: [
       {
         name: "run_manager",
@@ -120,6 +250,44 @@ export const features: FeatureSpec[] = [
     owner: "Ron Polonsky, Angel Raychev",
     description:
       "Discovers or creates training data in three modes: (A) clean user-provided data, (B) search HuggingFace Hub, (C) synthesize with an LLM teacher or scrape the web. Outputs a standardized dataset regardless of mode.",
+    architecture: `The Data Generator is stateless and purely functional — given an OrchestrationConfig and an optional data path, it always returns a DatasetResult. The caller (Manager's orchestrate()) doesn't need to know which mode ran.
+
+The top-level function run_data_generator() is the only entry point. It decides the mode and routes accordingly:
+
+Mode A (user provided data): The user gave us a file/directory. We load it, detect its format, normalize and clean it into the standard schema, and optionally augment it with synthetic examples if it's too small.
+
+Mode B (HuggingFace): No user data. We search HuggingFace Hub for a dataset matching the task description. If we find a good candidate we download it, normalize it, and validate it. This is the preferred path — fast, free, and high quality.
+
+Mode C (synthesize): HuggingFace search came up empty. We use the Claude API as an LLM teacher to generate synthetic (input, output) pairs from scratch, or fall back to web scraping if synthesis isn't feasible. All paths funnel into morph_to_standard().
+
+After all three modes, validate_dataset() is called to check label quality and distribution. The DatasetResult includes a ValidationReport that the Decision Engine uses to size the model appropriately.`,
+    flowDiagram: `
+run_data_generator(config, data_path?)
+  │
+  ├─[data_path provided]──────────────────── MODE A
+  │   ├─► load_raw_data(data_path)
+  │   ├─► detect_format(data_path)
+  │   ├─► normalize_and_clean(raw, schema)
+  │   └─► augment_with_synthetic()?  (if n < 500)
+  │
+  ├─[no data_path]──────────────────────────  try MODE B
+  │   ├─► search_huggingface(task, task_type)
+  │   ├─► rank_hf_candidates(candidates, config)
+  │   │
+  │   ├─[candidate found]──────────────────── MODE B ✓
+  │   │   ├─► download_hf_dataset(candidate)
+  │   │   └─► normalize_and_clean(raw, schema)
+  │   │
+  │   └─[no candidate]─────────────────────── MODE C
+  │       ├─► determine_data_schema(config)  [Claude API]
+  │       ├─► generate_synthetic_data(schema, n)  [Claude API]
+  │       │         OR
+  │       ├─► scrape_web(query, schema)       (fallback)
+  │       └─► morph_to_standard(raw, schema)
+  │
+  └─► validate_dataset(dataset, schema)
+        └─► DatasetResult  (returned to Manager)
+    `,
     functions: [
       {
         name: "run_data_generator",
@@ -264,6 +432,41 @@ export const features: FeatureSpec[] = [
     owner: "Ron Polonsky, Angel Raychev",
     description:
       "Analyzes the task and budget to choose a training strategy (fine-tune vs. pre-train), select a base model, configure LoRA if applicable, and write the training script handed to AutoResearch.",
+    architecture: `The Decision Engine is a pure decision function — no LLM calls, no side effects beyond writing train.py to disk. It takes the OrchestrationConfig + DatasetResult and produces a TrainingPlan.
+
+The key decision is fine-tune vs. pre-train. The engine checks whether a suitable pretrained model exists on HuggingFace and whether fine-tuning it would fit within the budget. If both are true, it takes the fine-tune path (Case A). Otherwise it writes a model from scratch (Case B).
+
+Case A — Fine-tune with LoRA:
+Find the best pretrained base model → estimate the cost of fine-tuning it → configure LoRA parameters appropriate for the model architecture → generate train.py that wraps the base model with LoRA adapters, sets up the optimizer and data loaders from the DatasetResult, and includes standardized checkpoint saves and metric logging hooks.
+
+Case B — Pre-train from scratch:
+Generate both model.py (architecture definition) and train.py (training loop) targeting the task type. The architecture is sized to fit within the remaining budget.
+
+In both cases the output is a TrainingPlan with the path to train.py. AutoResearch will treat this script as mutable and apply patches to it during the search loop — so the script must follow a consistent, patchable structure with clearly separated config, model, and training loop sections.`,
+    flowDiagram: `
+run_decision_engine(config, dataset)
+  │
+  ├─► analyze_task(config)
+  │     └─► TaskAnalysis  { task_type, modality, has_pretrained_base, eval_metric }
+  │
+  ├─► find_base_model(task, budget)  ◄── HuggingFace Hub API
+  │     └─► model_id: str | None
+  │
+  ├─► estimate_training_cost(model_id, dataset, strategy)
+  │     └─► CostEstimate  { estimated_usd, estimated_time_min }
+  │
+  ├─[model found AND cost fits budget]──────── CASE A: Fine-tune
+  │   ├─► configure_lora(base_model, task)
+  │   │     └─► LoRAConfig  { rank, alpha, dropout, target_modules }
+  │   └─► write_finetune_script(base_model, dataset, lora, config)
+  │         └─► train.py path
+  │
+  └─[no model OR cost too high]────────────── CASE B: Pre-train
+      └─► write_pretrain_script(task, dataset, config)
+            └─► train.py path
+
+  └─► TrainingPlan  (returned to Manager → AutoResearch)
+    `,
     functions: [
       {
         name: "run_decision_engine",
@@ -348,6 +551,68 @@ export const features: FeatureSpec[] = [
     owner: "Matthew Torre, Hayley Antczak",
     description:
       "Autonomous hyperparameter and architecture search. Continuously proposes, runs, evaluates, and merges/reverts experiments until budget is exhausted or convergence is reached.",
+    architecture: `The AutoResearch loop is the most complex part of the system. It implements a research-diary-driven search over the space of training configurations and architectures.
+
+Before the loop starts, create_eval_suite() is called once to build the fixed evaluation harness. A baseline experiment is submitted and scored — this gives us the starting EvalScore that all future iterations are compared against.
+
+Each iteration of the loop does exactly four things:
+  1. PROPOSE: Call the Claude API with the full research diary and ask for one hypothesis as a unified diff. The LLM has context on what's been tried and what worked.
+  2. RUN: Apply the patch to train.py, submit a short (default 5-minute) experiment to Tinker, wait for results. If early_stop_check() detects catastrophic failure, revert immediately.
+  3. EVALUATE: Run the fixed eval suite against the new checkpoint. Get a scalar score and a natural-language critique.
+  4. DECIDE: Compare to the current best. If improved → keep the patch and update the best score. If not → revert the patch. Either way, log the iteration to the research diary.
+
+The loop exits when: budget is exhausted (CostManager kills the job), no improvement for N consecutive iterations, or the target metric is reached.
+
+A key invariant: only one thread ever modifies train.py at a time. apply_patch() saves the original content, revert_patch() restores it. There is no concurrent patching.
+
+The Evaluator sub-feature (create_eval_suite, run_evals, adapt_eval_suite) is called by the loop but can be developed independently — it has a clean interface: given a model path and an EvalSuite, return an EvalScore.`,
+    flowDiagram: `
+run_autoresearch(plan, config, cost_manager)
+  │
+  ├─► create_eval_suite(task, dataset)   ← built once, reused every iter
+  │     └─► EvalSuite
+  │
+  ├─► submit_experiment(script, plan)    ← baseline run
+  ├─► wait_for_experiment(job_id)
+  ├─► run_evals(model_path, eval_suite)
+  │     └─► baseline_score: EvalScore
+  │
+  └─► LOOP  (until budget exhausted or N iters no improvement)
+        │
+        ├─► propose_hypothesis(config, diary, task)  [Claude API]
+        │     └─► Hypothesis  { patch, description, expected_effect }
+        │
+        ├─► apply_patch(script_path, patch)
+        │     └─► original_content  (saved for revert)
+        │
+        ├─► submit_experiment(script_path, plan, timeout_min=5)
+        │     └─► job_id
+        │
+        ├─► wait_for_experiment(job_id, timeout)
+        │     └─► ExperimentResult  { metrics, model_path, cost_usd }
+        │
+        ├─► check_early_stop(metrics)
+        │     └─[True]──► revert_patch() → continue next iter
+        │
+        ├─► run_evals(model_path, eval_suite)
+        │     └─► new_score: EvalScore
+        │
+        ├─► compare_scores(new_score, baseline)
+        │     └─► ScoreDelta  { relative_pct, improved }
+        │
+        ├─► flag_regression(delta)
+        │     └─[True]──► revert_patch() → log REVERTED → continue
+        │
+        ├─► decide_keep_or_revert(delta)
+        │     ├─[KEEP]──► update baseline_score
+        │     └─[REVERT]► revert_patch()
+        │
+        ├─► log_iteration(diary, IterationRecord)
+        │
+        └─► (every 10 iters) adapt_eval_suite(suite, weaknesses)
+
+  └─► return best TrainedModel
+    `,
     functions: [
       {
         name: "run_autoresearch",
@@ -505,6 +770,50 @@ export const features: FeatureSpec[] = [
     owner: "Sid Potti",
     description:
       "Hard financial guardrail. Continuously polls Tinker billing API every 30 seconds. Saves checkpoint at 90% of budget; kills the GPU instance at 100%. Returns final weights and a cost breakdown.",
+    architecture: `The Cost Manager runs as a background thread — it never blocks the main training loop and never needs to be awaited. It is started once per Tinker job via start_cost_monitor(), which spawns the monitor thread and returns immediately.
+
+The monitor thread runs a tight polling loop:
+  every 30 seconds → poll_spend(job_id) → check_budget_status(spent, budget)
+  → OK: do nothing
+  → WARNING (≥90%): call save_checkpoint() and emit a log warning
+  → EXCEEDED (≥100%): call save_checkpoint(), then kill_job(), then stop the thread
+
+In addition to the budget-triggered saves, the training script itself calls save_checkpoint() every 5–10 minutes during the training loop. This ensures we always have a recent checkpoint even if the kill happens between polling cycles.
+
+The Cost Manager also runs during AutoResearch mini-runs, not just the final training run. Each 5-minute experiment is registered with start_cost_monitor() so it can be killed if it somehow overruns.
+
+At the end of the run (whether natural completion or budget kill), generate_cost_report() is called to produce the final CostBreakdown that gets returned to the user as part of TrainedModel.`,
+    flowDiagram: `
+start_cost_monitor(job_id, budget, poll_interval=30)
+  └─► spawns background thread, returns immediately
+
+BACKGROUND THREAD:
+  loop every 30s:
+    ├─► poll_spend(job_id)           ← Tinker billing API
+    │     └─► spent: float
+    │
+    ├─► check_budget_status(spent, budget)
+    │     └─► BudgetStatus: OK | WARNING | EXCEEDED
+    │
+    ├─[OK]──► continue polling
+    │
+    ├─[WARNING ≥90%]──────────────────────────────────
+    │   ├─► save_checkpoint(job_id, output_dir)
+    │   └─► log_event(COST_MANAGER, WARN, "90% budget used")
+    │
+    └─[EXCEEDED ≥100%]────────────────────────────────
+        ├─► save_checkpoint(job_id, output_dir)
+        ├─► kill_job(job_id)          ← Tinker API: terminate instance
+        ├─► log_event(COST_MANAGER, WARN, "Budget limit reached")
+        └─► stop thread
+
+TRAINING SCRIPT (every 5-10 min):
+  └─► save_checkpoint()  ← called from within train.py directly
+
+END OF RUN:
+  └─► generate_cost_report(job_id)
+        └─► CostBreakdown  { data_gen_usd, training_usd, llm_calls_usd, total_usd }
+    `,
     functions: [
       {
         name: "start_cost_monitor",
@@ -574,6 +883,32 @@ export const features: FeatureSpec[] = [
     owner: "Team",
     description:
       "Structured logging for all agent decisions, training metrics, and budget usage. Emits human-readable CLI output in real time and writes machine-readable JSON logs to disk.",
+    architecture: `Observability is a shared utility — every other agent imports and calls log_event(). No agent writes to stdout or disk directly. This keeps all output consistent and means you can add structured logging to any new function by adding one line.
+
+The call chain is always: log_event() → format_cli_line() + emit_cli() (stdout) AND write_json_log() (disk). Both happen synchronously on every call, so log output is always up to date.
+
+log_event() takes an AgentName enum so the CLI output is color-coded by agent, making it easy to see which part of the system is running. The metadata dict is written to the JSON log as structured data, so metrics, diffs, and cost figures are all machine-readable.
+
+get_budget_display() is a pure formatting utility used by the Cost Manager to produce the budget status line that appears in CLI output after every experiment.
+
+There's no singleton or global state — log_event() takes a log_path argument so tests can redirect logs to a temp file without monkeypatching.`,
+    flowDiagram: `
+Any agent calls:
+  log_event(agent, level, message, metadata)
+    │
+    ├─► format_cli_line(entry)
+    │     └─► "[DataGen] ✓ Found dataset (50K examples)"
+    │
+    ├─► emit_cli(entry)
+    │     └─► print to stdout with ANSI color by agent
+    │
+    └─► write_json_log(entry, log_path)
+          └─► append JSON line to run.jsonl
+
+Cost Manager calls:
+  get_budget_display(spent, budget)
+    └─► "Spend: $9.20 / $50.00 (18% used)"
+    `,
     functions: [
       {
         name: "log_event",
@@ -635,6 +970,43 @@ export const features: FeatureSpec[] = [
     owner: "Sid Potti",
     description:
       "Thin wrapper around Tinker's job submission and billing REST APIs. All GPU training runs and cost monitoring go through these functions.",
+    architecture: `The Tinker API Wrapper is a pure HTTP client — no business logic, no state. It exists to give the rest of the system a typed, mockable interface to Tinker's REST APIs so that every other feature doesn't need to know about auth headers, retry logic, or response parsing.
+
+Two Tinker APIs are used:
+  Job API: submit_job, get_job_status, cancel_job, get_job_logs, list_jobs
+  Billing API: get_cumulative_spend
+
+Callers:
+  AutoResearch calls submit_job() and wait_for_experiment() (which polls get_job_status()).
+  Cost Manager calls get_cumulative_spend() every 30 seconds and cancel_job() when budget is exceeded.
+  Observability optionally calls get_job_logs() to stream training output.
+
+All functions raise a TinkerAPIError on non-2xx responses. Retry logic (exponential backoff, max 3 attempts) is handled internally so callers don't need to implement it.
+
+NOTE: Tinker API docs + auth credentials are a hard dependency. This wrapper cannot be built until Sid confirms the API spec (target: Apr 18). All other features can be built with a mock implementation of this module in the meantime.`,
+    flowDiagram: `
+AutoResearch:
+  submit_job(script_path, job_config)  ──►  POST /jobs
+    └─► job_id: str (UUID)
+
+  get_job_status(job_id)  ──────────►  GET /jobs/{id}/status
+    └─► JobStatus: PENDING | RUNNING | COMPLETED | FAILED
+
+Cost Manager:
+  get_cumulative_spend(job_id)  ──────►  GET /billing/{id}/spend
+    └─► float (USD)
+
+  cancel_job(job_id)  ────────────────►  POST /jobs/{id}/cancel
+
+Observability (optional):
+  get_job_logs(job_id, tail=100)  ─────►  GET /jobs/{id}/logs?tail=100
+    └─► list[str]
+
+All functions:
+  - Raise TinkerAPIError on non-2xx
+  - Retry up to 3× with exponential backoff
+  - Log every call via log_event(TINKER_API, INFO, ...)
+    `,
     functions: [
       {
         name: "submit_job",
