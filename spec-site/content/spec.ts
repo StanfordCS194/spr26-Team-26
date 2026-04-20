@@ -36,7 +36,11 @@ export type FeatureSpec = {
 
 // ─── OVERALL SYSTEM ARCHITECTURE ─────────────────────────────────────────────
 export const systemArchitecture = {
-  overview: `The system is a linear pipeline with one autonomous feedback loop. The user provides a single prompt and a budget. The Manager reasons about the task and emits a config object that every other agent reads from. Control then flows through three sequential stages — data, decisions, training — with the Cost Manager running as a background watchdog throughout.`,
+  overview: `The system is a linear pipeline with one autonomous feedback loop. The user provides a single prompt and a budget. The Manager reasons about the task and emits a config object that every other agent reads from. Control then flows through three sequential stages — data, decisions, training — with the Cost Manager running as a background watchdog throughout.
+
+LangGraph is used for the three stateful, multi-step agent processes: the Manager (linear graph with one Claude call), the Data Generator (conditional routing graph), and the AutoResearch loop (cyclic graph). The Decision Engine, Cost Manager, Observability module, and Tinker API wrapper are plain Python — they have no branching agent logic that would benefit from a graph runtime.
+
+LangGraph gives us: (1) built-in checkpointing so a long AutoResearch run can resume after a crash, (2) a typed state object (TypedDict) that makes inter-node data flow explicit and auditable, and (3) conditional edges that make the Mode A/B/C and KEEP/REVERT branching readable and testable.`,
   flowDiagram: `
 User
   │  prompt: str
@@ -44,51 +48,48 @@ User
   │  data_path?: str
   ▼
 ┌─────────────────────────────────────┐
-│          Manager Agent              │
-│  1. query_user_for_data()           │
-│  2. reason_about_task()  [Claude]   │
-│  3. build_orchestration_config()    │
-│  4. log_decision()                  │
+│   Manager Agent  [LangGraph]        │
+│   StateGraph(ManagerState)          │
+│                                     │
+│   query_data ──► reason ──►         │
+│   build_config ──► orchestrate      │
 └───────────────┬─────────────────────┘
-                │  OrchestrationConfig
+                │  OrchestrationConfig  (in ManagerState)
                 │  (passed to ALL agents)
                 ▼
 ┌─────────────────────────────────────┐
-│         Data Generator              │
-│  Mode A: clean user data            │
-│  Mode B: search HuggingFace         │◄── HuggingFace Hub API
-│  Mode C: synthesize / scrape        │◄── Claude API (teacher)
+│   Data Generator  [LangGraph]       │
+│   StateGraph(DataGenState)          │
+│                                     │
+│   route ──► mode_a ──► validate     │
+│         └─► mode_b_search           │◄── HuggingFace Hub API
+│               ├─► mode_b_download   │
+│               └─► mode_c ──────────►│◄── Claude API (teacher)
 └───────────────┬─────────────────────┘
-                │  DatasetResult
+                │  DatasetResult  (in DataGenState)
                 ▼
 ┌─────────────────────────────────────┐
-│         Decision Engine             │
-│  analyze_task()                     │
-│  find_base_model()    ◄─── HF Hub   │
-│  estimate_training_cost()           │
-│  write_finetune_script() OR         │
-│  write_pretrain_script()            │
+│   Decision Engine  [plain Python]   │
+│   analyze_task()                    │
+│   find_base_model()   ◄─── HF Hub   │
+│   estimate_training_cost()          │
+│   write_finetune_script() OR        │
+│   write_pretrain_script()           │
 └───────────────┬─────────────────────┘
                 │  TrainingPlan
-                │  (script path + config)
                 ▼
 ┌─────────────────────────────────────┐   ┌───────────────────────┐
-│       AutoResearch Loop             │   │    Cost Manager        │
-│                                     │   │  (background thread)   │
-│  baseline run → EvalScore           │   │                        │
-│  ┌──────────────────────────────┐   │   │  poll_spend() / 30s    │
-│  │  propose_hypothesis()        │   │──►│  save_checkpoint()@90% │
-│  │  apply_patch()               │   │   │  kill_job() @ 100%     │
-│  │  submit_experiment() ──────────────► Tinker GPU              │
-│  │  wait_for_experiment()       │   │   └───────────────────────┘
-│  │  check_early_stop()          │   │
-│  │  run_evals()                 │   │
-│  │  compare_scores()            │   │
-│  │  decide_keep_or_revert()     │   │
-│  │  log_iteration()             │   │
-│  └──────────────────────────────┘   │
-│  (repeat until budget exhausted     │
-│   or no improvement for N iters)    │
+│   AutoResearch  [LangGraph]         │   │  Cost Manager          │
+│   StateGraph(AutoResearchState)     │   │  (background thread)   │
+│                                     │   │                        │
+│   init ──► baseline                 │   │  poll_spend() / 30s    │
+│   ┌──────────────────────────────┐  │──►│  save_checkpoint()@90% │
+│   │  propose ──► run             │  │   │  kill_job() @ 100%     │
+│   │    ├─[early stop]──► revert  │  │   └───────────────────────┘
+│   │    └─► evaluate ──► decide   │  │
+│   │          ├─[KEEP]────────────┤  │
+│   │          └─[REVERT]──► log ──┘  │
+│   └── (loop or END on budget/conv.) ┘  │
 └───────────────┬─────────────────────┘
                 │  TrainedModel
                 ▼
@@ -139,106 +140,134 @@ export const features: FeatureSpec[] = [
     owner: "Sid Potti",
     description:
       "Central orchestrator. Takes the user's raw prompt and budget, reasons about the task, queries for optional data, and emits the OrchestrationConfig JSON consumed by every downstream agent.",
-    architecture: `The Manager is the only agent the user interacts with directly. It runs entirely locally — no GPU required. Its job is to turn an ambiguous human prompt into a precise, structured config that every downstream agent can execute independently.
+    architecture: `The Manager is implemented as a LangGraph StateGraph(ManagerState). It is the only agent the user interacts with directly and runs entirely locally — no GPU required.
 
-Control flow:
-1. run_manager() is called with the user's prompt and budget.
-2. It calls query_user_for_data() to ask if the user has existing data. This sets the "data" bool in the config.
-3. It calls reason_about_task() which sends the prompt + context to the Claude API. The LLM infers task type, data format, training type (SFT/RL/pre-train), a suggested base model, and starting hyperparameters.
-4. build_orchestration_config() assembles all of this into the OrchestrationConfig dict.
-5. log_decision() records the reasoning to decisions.jsonl.
-6. orchestrate() is called with the config. This is the only function that calls into the other features — it sequences Data Generator → Decision Engine → AutoResearch, passing results between stages and registering each Tinker job with the Cost Manager.
+Why LangGraph here: the Manager makes a Claude API call whose output determines what happens next (does the task need fine-tuning or pre-training? does the user have data?). Modeling this as a graph makes the state transitions explicit, checkpointable, and easy to extend with human-in-the-loop pauses later.
 
-The Manager never writes to stdout directly. All output goes through log_event() from the Observability module.`,
+Graph nodes (4 nodes, linear with no cycles):
+  1. query_data_node — asks the user if they have existing data; writes has_data + data_path into ManagerState
+  2. reason_node — calls Claude API with the prompt; writes task_reasoning into ManagerState
+  3. build_config_node — assembles OrchestrationConfig from ManagerState fields; writes config
+  4. orchestrate_node — calls the downstream pipeline (DataGen → DecisionEngine → AutoResearch) using the config from state; writes result into ManagerState
+
+The graph is compiled once with build_manager_graph() and invoked via invoke_manager_graph(). The compiled graph handles state passing between nodes automatically — no manual threading of return values.
+
+Existing helper functions (query_user_for_data, reason_about_task, build_orchestration_config, log_decision) are called inside their respective node functions. Their signatures don't change.`,
     flowDiagram: `
-run_manager(prompt, budget, data_path?)
-  │
-  ├─► query_user_for_data()
-  │     └─► has_data: bool
-  │
-  ├─► reason_about_task(prompt, budget, has_data)  [Claude API]
-  │     └─► TaskReasoning
-  │
-  ├─► build_orchestration_config(reasoning, ...)
-  │     └─► OrchestrationConfig
-  │
-  ├─► log_decision("task_reasoning", rationale, config)
-  │
-  └─► orchestrate(config)
-        │
-        ├─► run_data_generator(config, data_path?)  → DatasetResult
-        ├─► run_decision_engine(config, dataset)    → TrainingPlan
-        ├─► start_cost_monitor(job_id, budget)      → background thread
-        └─► run_autoresearch(plan, config, cost_mgr)→ TrainedModel
+build_manager_graph() → CompiledStateGraph[ManagerState]
+
+ManagerState = TypedDict:
+  prompt, budget, data_path,
+  has_data, task_reasoning, config, result
+
+Graph nodes and edges:
+  START
+    │
+    ▼
+  query_data_node          calls: query_user_for_data()
+    │  writes: has_data, data_path
+    ▼
+  reason_node              calls: reason_about_task()  [Claude API]
+    │  writes: task_reasoning
+    ▼
+  build_config_node        calls: build_orchestration_config(), log_decision()
+    │  writes: config (OrchestrationConfig)
+    ▼
+  orchestrate_node         calls: DataGen graph → DecisionEngine → AutoResearch graph
+    │  writes: result (TrainedModel)
+    ▼
+  END
+
+invoke_manager_graph(prompt, budget, data_path?) → TrainedModel
+  └─► graph.invoke({ prompt, budget, data_path })["result"]
     `,
     functions: [
       {
-        name: "run_manager",
-        signature: "run_manager(prompt: str, budget: float, data_path: str | None = None) -> OrchestrationConfig",
-        description:
-          "Main entry point. Parses the user prompt, optionally queries for existing data, calls the Claude API to reason about task type and training strategy, then returns the OrchestrationConfig used by all downstream features.",
+        name: "build_manager_graph",
+        signature: "build_manager_graph() -> CompiledStateGraph[ManagerState]",
+        description: "Constructs and compiles the Manager LangGraph StateGraph. Returns the compiled graph ready to invoke. Called once at startup.",
+        params: [],
+        returns: { type: "CompiledStateGraph[ManagerState]", description: "Compiled LangGraph graph with nodes: query_data → reason → build_config → orchestrate." },
+      },
+      {
+        name: "invoke_manager_graph",
+        signature: "invoke_manager_graph(prompt: str, budget: float, data_path: str | None = None) -> TrainedModel",
+        description: "Main entry point for the entire system. Invokes the compiled Manager graph with initial state and returns the final TrainedModel.",
         params: [
-          { name: "prompt", type: "str", description: "Plain-English task description from the user (e.g. 'classify handwritten digits')." },
-          { name: "budget", type: "float", description: "Hard dollar cap for the entire run (e.g. 50.0)." },
-          { name: "data_path", type: "str | None", description: "Path to user-provided data, if any. None triggers data discovery.", optional: true },
+          { name: "prompt", type: "str", description: "Plain-English task description from the user." },
+          { name: "budget", type: "float", description: "Hard dollar cap for the entire run." },
+          { name: "data_path", type: "str | None", description: "Path to user-provided data, or None.", optional: true },
         ],
-        returns: { type: "OrchestrationConfig", description: "Structured config JSON consumed by DataGenerator, DecisionEngine, AutoResearch, and CostManager." },
+        returns: { type: "TrainedModel", description: "Final trained model with weights path, eval score, and cost breakdown." },
+      },
+      {
+        name: "query_data_node",
+        signature: "query_data_node(state: ManagerState) -> dict",
+        description: "LangGraph node. Calls query_user_for_data() and returns a partial state update with has_data and data_path.",
+        params: [{ name: "state", type: "ManagerState", description: "Current graph state." }],
+        returns: { type: "dict", description: "Partial state update: { has_data: bool, data_path: str | None }." },
+      },
+      {
+        name: "reason_node",
+        signature: "reason_node(state: ManagerState) -> dict",
+        description: "LangGraph node. Calls reason_about_task() with state.prompt, state.budget, state.has_data. Returns partial state with task_reasoning.",
+        params: [{ name: "state", type: "ManagerState", description: "Current graph state." }],
+        returns: { type: "dict", description: "Partial state update: { task_reasoning: TaskReasoning }." },
+      },
+      {
+        name: "build_config_node",
+        signature: "build_config_node(state: ManagerState) -> dict",
+        description: "LangGraph node. Calls build_orchestration_config() and log_decision(). Returns partial state with the final OrchestrationConfig.",
+        params: [{ name: "state", type: "ManagerState", description: "Current graph state (needs task_reasoning populated)." }],
+        returns: { type: "dict", description: "Partial state update: { config: OrchestrationConfig }." },
+      },
+      {
+        name: "orchestrate_node",
+        signature: "orchestrate_node(state: ManagerState) -> dict",
+        description: "LangGraph node. Sequences the downstream pipeline: invokes the DataGen graph, then calls DecisionEngine functions, then invokes the AutoResearch graph. Returns partial state with the final result.",
+        params: [{ name: "state", type: "ManagerState", description: "Current graph state (needs config populated)." }],
+        returns: { type: "dict", description: "Partial state update: { result: TrainedModel }." },
       },
       {
         name: "query_user_for_data",
         signature: "query_user_for_data() -> str | None",
-        description:
-          "Interactively asks the user whether they have existing training data. Returns a file path if provided, otherwise None.",
+        description: "Helper (called inside query_data_node). Interactively asks the user whether they have existing training data.",
         params: [],
-        returns: { type: "str | None", description: "Absolute path to the user's data directory/file, or None if they have none." },
+        returns: { type: "str | None", description: "Absolute path to the user's data, or None." },
       },
       {
         name: "reason_about_task",
         signature: "reason_about_task(prompt: str, budget: float, has_data: bool) -> TaskReasoning",
-        description:
-          "Calls the Claude API with a structured system prompt to infer task type, data format, training procedure, starting hyperparameters, and estimated cost from the user's prompt.",
+        description: "Helper (called inside reason_node). Calls the Claude API to infer task type, data format, training type, base model, and starting hyperparameters.",
         params: [
           { name: "prompt", type: "str", description: "Raw user task description." },
           { name: "budget", type: "float", description: "Budget cap in USD." },
           { name: "has_data", type: "bool", description: "Whether the user is supplying their own data." },
         ],
-        returns: { type: "TaskReasoning", description: "Structured reasoning output: task_type, data_format, training_type (SFT/RL), suggested base model, starting hyperparameters, notes." },
+        returns: { type: "TaskReasoning", description: "Structured reasoning: task_type, data_format, training_type (SFT/RL), suggested base model, hyperparameters, notes." },
       },
       {
         name: "build_orchestration_config",
         signature: "build_orchestration_config(reasoning: TaskReasoning, prompt: str, budget: float, has_data: bool) -> OrchestrationConfig",
-        description: "Assembles the final OrchestrationConfig dict from manager reasoning output. This JSON is passed to every downstream agent.",
+        description: "Helper (called inside build_config_node). Assembles the OrchestrationConfig dict passed to all downstream agents.",
         params: [
           { name: "reasoning", type: "TaskReasoning", description: "Output from reason_about_task." },
           { name: "prompt", type: "str", description: "Original user prompt." },
           { name: "budget", type: "float", description: "Budget cap in USD." },
           { name: "has_data", type: "bool", description: "Whether user supplied data." },
         ],
-        returns: {
-          type: "OrchestrationConfig",
-          description: `Dict with shape:\n{ data: bool, prompt: str, compute_budget: float, training_procedure: { task_type, data_format, training_type, base_model, hyperparameters, notes } }`,
-        },
+        returns: { type: "OrchestrationConfig", description: "{ data, prompt, compute_budget, training_procedure: { task_type, data_format, training_type, base_model, hyperparameters, notes } }." },
       },
       {
         name: "log_decision",
         signature: "log_decision(step: str, rationale: str, config: OrchestrationConfig) -> None",
-        description: "Appends a timestamped entry to the audit trail log file (decisions.jsonl).",
+        description: "Helper (called inside build_config_node). Appends a timestamped entry to the audit trail log (decisions.jsonl).",
         params: [
-          { name: "step", type: "str", description: "Name of the pipeline step (e.g. 'task_reasoning')." },
+          { name: "step", type: "str", description: "Pipeline step name." },
           { name: "rationale", type: "str", description: "Human-readable explanation of the decision." },
-          { name: "config", type: "OrchestrationConfig", description: "Current config snapshot at time of decision." },
+          { name: "config", type: "OrchestrationConfig", description: "Current config snapshot." },
         ],
         returns: { type: "None", description: "Writes to disk only." },
-      },
-      {
-        name: "orchestrate",
-        signature: "orchestrate(config: OrchestrationConfig) -> TrainedModel",
-        description:
-          "Sequences all downstream features: DataGenerator → DecisionEngine → AutoResearch loop, passing results between stages and monitoring CostManager for budget violations at each handoff.",
-        params: [
-          { name: "config", type: "OrchestrationConfig", description: "The orchestration config emitted by build_orchestration_config." },
-        ],
-        returns: { type: "TrainedModel", description: "Final trained model artifact including weights path, metrics, and cost breakdown." },
       },
     ],
   },
@@ -250,55 +279,140 @@ run_manager(prompt, budget, data_path?)
     owner: "Ron Polonsky, Angel Raychev",
     description:
       "Discovers or creates training data in three modes: (A) clean user-provided data, (B) search HuggingFace Hub, (C) synthesize with an LLM teacher or scrape the web. Outputs a standardized dataset regardless of mode.",
-    architecture: `The Data Generator is stateless and purely functional — given an OrchestrationConfig and an optional data path, it always returns a DatasetResult. The caller (Manager's orchestrate()) doesn't need to know which mode ran.
+    architecture: `The Data Generator is implemented as a LangGraph StateGraph(DataGenState). Its defining characteristic is three-way conditional routing — the right path depends on runtime information (does the user have data? does a HuggingFace dataset exist for this task?) that isn't knowable upfront. LangGraph conditional edges make this branching explicit and testable.
 
-The top-level function run_data_generator() is the only entry point. It decides the mode and routes accordingly:
+Graph nodes and routing:
+  route_node — inspects state.data_path and dispatches to mode_a_node, or to mode_b_search_node (preferred), or directly to mode_c_node (if we already know search will fail).
+  mode_a_node — loads, detects, normalizes, and optionally augments user-provided data.
+  mode_b_search_node — searches HuggingFace Hub for a candidate dataset.
+  hf_found_edge — conditional edge: if a candidate was found, go to mode_b_download_node; otherwise fall through to mode_c_node.
+  mode_b_download_node — downloads and normalizes the HuggingFace dataset.
+  mode_c_node — generates synthetic data via Claude API (or scrapes web as fallback), then morphs to standard format.
+  validate_node — runs on every path before END; produces the ValidationReport in DatasetResult.
 
-Mode A (user provided data): The user gave us a file/directory. We load it, detect its format, normalize and clean it into the standard schema, and optionally augment it with synthetic examples if it's too small.
+All existing implementation functions (load_raw_data, search_huggingface, generate_synthetic_data, etc.) are called inside their respective node functions. Their signatures don't change — they remain plain functions that take explicit arguments.
 
-Mode B (HuggingFace): No user data. We search HuggingFace Hub for a dataset matching the task description. If we find a good candidate we download it, normalize it, and validate it. This is the preferred path — fast, free, and high quality.
-
-Mode C (synthesize): HuggingFace search came up empty. We use the Claude API as an LLM teacher to generate synthetic (input, output) pairs from scratch, or fall back to web scraping if synthesis isn't feasible. All paths funnel into morph_to_standard().
-
-After all three modes, validate_dataset() is called to check label quality and distribution. The DatasetResult includes a ValidationReport that the Decision Engine uses to size the model appropriately.`,
+The external interface is invoke_data_generator_graph(config, data_path) — the orchestrate_node in the Manager graph calls this.`,
     flowDiagram: `
-run_data_generator(config, data_path?)
-  │
-  ├─[data_path provided]──────────────────── MODE A
-  │   ├─► load_raw_data(data_path)
-  │   ├─► detect_format(data_path)
-  │   ├─► normalize_and_clean(raw, schema)
-  │   └─► augment_with_synthetic()?  (if n < 500)
-  │
-  ├─[no data_path]──────────────────────────  try MODE B
-  │   ├─► search_huggingface(task, task_type)
-  │   ├─► rank_hf_candidates(candidates, config)
-  │   │
-  │   ├─[candidate found]──────────────────── MODE B ✓
-  │   │   ├─► download_hf_dataset(candidate)
-  │   │   └─► normalize_and_clean(raw, schema)
-  │   │
-  │   └─[no candidate]─────────────────────── MODE C
-  │       ├─► determine_data_schema(config)  [Claude API]
-  │       ├─► generate_synthetic_data(schema, n)  [Claude API]
-  │       │         OR
-  │       ├─► scrape_web(query, schema)       (fallback)
-  │       └─► morph_to_standard(raw, schema)
-  │
-  └─► validate_dataset(dataset, schema)
-        └─► DatasetResult  (returned to Manager)
+build_data_generator_graph() → CompiledStateGraph[DataGenState]
+
+DataGenState = TypedDict:
+  config, data_path, mode,
+  raw_data, hf_candidates, selected_candidate,
+  schema, dataset, validation_report
+
+Graph nodes and edges:
+  START
+    │
+    ▼
+  route_node               inspects data_path → sets mode
+    │
+    ├─[mode == "A"]──────────────────────────────────────────────
+    │   ▼
+    │   mode_a_node         load_raw_data → detect_format →
+    │                       normalize_and_clean → augment_with_synthetic?
+    │   │
+    │   └──────────────────────────────────────────► validate_node
+    │
+    ├─[mode == "B"]──────────────────────────────────────────────
+    │   ▼
+    │   mode_b_search_node  search_huggingface → rank_hf_candidates
+    │     │
+    │     ├─[hf_found_edge: candidate found]──────────────────
+    │     │   ▼
+    │     │   mode_b_download_node  download_hf_dataset →
+    │     │                         normalize_and_clean
+    │     │   └──────────────────────────────────► validate_node
+    │     │
+    │     └─[hf_found_edge: no candidate]────────────────────
+    │         ▼
+    │         mode_c_node  (see below)
+    │
+    └─[mode == "C"]──────────────────────────────────────────────
+        ▼
+        mode_c_node        determine_data_schema  [Claude API]
+                           → generate_synthetic_data [Claude API]
+                             OR scrape_web (fallback)
+                           → morph_to_standard
+          └──────────────────────────────────────► validate_node
+                                                      │
+                                                      ▼
+                                                    END
+                                    writes DatasetResult to state
     `,
     functions: [
       {
-        name: "run_data_generator",
-        signature: "run_data_generator(config: OrchestrationConfig, data_path: str | None) -> DatasetResult",
-        description:
-          "Top-level dispatcher. Routes to Mode A if data_path is provided, Mode B if a suitable HuggingFace dataset is found, Mode C otherwise.",
+        name: "build_data_generator_graph",
+        signature: "build_data_generator_graph() -> CompiledStateGraph[DataGenState]",
+        description: "Constructs and compiles the Data Generator LangGraph StateGraph with all nodes and conditional edges. Called once at startup.",
+        params: [],
+        returns: { type: "CompiledStateGraph[DataGenState]", description: "Compiled graph with nodes: route → mode_a/mode_b_search/mode_c → validate." },
+      },
+      {
+        name: "invoke_data_generator_graph",
+        signature: "invoke_data_generator_graph(config: OrchestrationConfig, data_path: str | None) -> DatasetResult",
+        description: "Entry point called by the Manager's orchestrate_node. Invokes the compiled DataGen graph and returns the DatasetResult from final state.",
         params: [
-          { name: "config", type: "OrchestrationConfig", description: "Orchestration config from the Manager (used for schema, task type, etc.)." },
+          { name: "config", type: "OrchestrationConfig", description: "Orchestration config from the Manager." },
           { name: "data_path", type: "str | None", description: "Path to user-provided raw data, or None." },
         ],
-        returns: { type: "DatasetResult", description: "Standardized dataset with path, format, split sizes, mode used, and quality notes." },
+        returns: { type: "DatasetResult", description: "Standardized dataset with split sizes, mode used, and quality notes." },
+      },
+      {
+        name: "route_node",
+        signature: "route_node(state: DataGenState) -> dict",
+        description: "LangGraph node. Determines which mode to run (A/B/C) based on state.data_path. Sets state.mode. Conditional edges on this node dispatch to the correct downstream node.",
+        params: [{ name: "state", type: "DataGenState", description: "Current graph state." }],
+        returns: { type: "dict", description: "Partial state update: { mode: 'A' | 'B' | 'C' }." },
+      },
+      {
+        name: "select_mode_edge",
+        signature: "select_mode_edge(state: DataGenState) -> Literal['mode_a', 'mode_b_search', 'mode_c']",
+        description: "LangGraph conditional edge function. Reads state.mode and returns the name of the next node to execute.",
+        params: [{ name: "state", type: "DataGenState", description: "Current graph state (mode must be set)." }],
+        returns: { type: "Literal['mode_a', 'mode_b_search', 'mode_c']", description: "Target node name." },
+      },
+      {
+        name: "hf_found_edge",
+        signature: "hf_found_edge(state: DataGenState) -> Literal['mode_b_download', 'mode_c']",
+        description: "LangGraph conditional edge function on mode_b_search_node. Returns 'mode_b_download' if a valid HuggingFace candidate was found, 'mode_c' otherwise.",
+        params: [{ name: "state", type: "DataGenState", description: "Current graph state (hf_candidates + selected_candidate must be set)." }],
+        returns: { type: "Literal['mode_b_download', 'mode_c']", description: "Target node name." },
+      },
+      {
+        name: "mode_a_node",
+        signature: "mode_a_node(state: DataGenState) -> dict",
+        description: "LangGraph node for Mode A. Calls load_raw_data → detect_format → normalize_and_clean → (optionally) augment_with_synthetic. Writes dataset to state.",
+        params: [{ name: "state", type: "DataGenState", description: "Current graph state (data_path must be set)." }],
+        returns: { type: "dict", description: "Partial state update: { raw_data, dataset }." },
+      },
+      {
+        name: "mode_b_search_node",
+        signature: "mode_b_search_node(state: DataGenState) -> dict",
+        description: "LangGraph node. Calls search_huggingface and rank_hf_candidates. Writes candidates and selected_candidate to state. hf_found_edge reads from state to decide next node.",
+        params: [{ name: "state", type: "DataGenState", description: "Current graph state." }],
+        returns: { type: "dict", description: "Partial state update: { hf_candidates: list, selected_candidate: HFCandidate | None }." },
+      },
+      {
+        name: "mode_b_download_node",
+        signature: "mode_b_download_node(state: DataGenState) -> dict",
+        description: "LangGraph node. Calls download_hf_dataset and normalize_and_clean. Writes dataset to state.",
+        params: [{ name: "state", type: "DataGenState", description: "Current graph state (selected_candidate must be set)." }],
+        returns: { type: "dict", description: "Partial state update: { raw_data, dataset }." },
+      },
+      {
+        name: "mode_c_node",
+        signature: "mode_c_node(state: DataGenState) -> dict",
+        description: "LangGraph node. Calls determine_data_schema, then generate_synthetic_data (or scrape_web as fallback), then morph_to_standard. Writes dataset to state.",
+        params: [{ name: "state", type: "DataGenState", description: "Current graph state." }],
+        returns: { type: "dict", description: "Partial state update: { schema, raw_data, dataset }." },
+      },
+      {
+        name: "validate_node",
+        signature: "validate_node(state: DataGenState) -> dict",
+        description: "LangGraph node. Called after every mode. Runs validate_dataset() and writes the ValidationReport to state. This is the final node before END.",
+        params: [{ name: "state", type: "DataGenState", description: "Current graph state (dataset must be set)." }],
+        returns: { type: "dict", description: "Partial state update: { validation_report: ValidationReport }." },
       },
       // ── Mode A ──
       {
@@ -551,79 +665,181 @@ run_decision_engine(config, dataset)
     owner: "Matthew Torre, Hayley Antczak",
     description:
       "Autonomous hyperparameter and architecture search. Continuously proposes, runs, evaluates, and merges/reverts experiments until budget is exhausted or convergence is reached.",
-    architecture: `The AutoResearch loop is the most complex part of the system. It implements a research-diary-driven search over the space of training configurations and architectures.
+    architecture: `The AutoResearch loop is implemented as a LangGraph StateGraph(AutoResearchState) with a cycle. This is the most natural use of LangGraph in the system — the loop is literally a graph: propose → run → evaluate → decide, with conditional edges that either loop back to propose or exit to END.
 
-Before the loop starts, create_eval_suite() is called once to build the fixed evaluation harness. A baseline experiment is submitted and scored — this gives us the starting EvalScore that all future iterations are compared against.
+Why LangGraph here (most important use):
+  - The loop must be resumable. If a Tinker job crashes mid-run or the process is killed, LangGraph's built-in checkpointing lets the loop resume from the last completed node rather than restarting from scratch.
+  - The conditional branching (early stop vs. evaluate, keep vs. revert, continue vs. stop) maps directly to LangGraph conditional edges, making the control flow readable and independently testable.
+  - AutoResearchState holds all mutable loop data (diary, current_script, best_score, iteration count) in one typed dict. No hidden globals or class state.
 
-Each iteration of the loop does exactly four things:
-  1. PROPOSE: Call the Claude API with the full research diary and ask for one hypothesis as a unified diff. The LLM has context on what's been tried and what worked.
-  2. RUN: Apply the patch to train.py, submit a short (default 5-minute) experiment to Tinker, wait for results. If early_stop_check() detects catastrophic failure, revert immediately.
-  3. EVALUATE: Run the fixed eval suite against the new checkpoint. Get a scalar score and a natural-language critique.
-  4. DECIDE: Compare to the current best. If improved → keep the patch and update the best score. If not → revert the patch. Either way, log the iteration to the research diary.
+Graph structure (cyclic):
+  init_node → baseline_node → propose_node → run_node → [early_stop_edge] → evaluate_node → [decision_edge] → log_node → [continue_edge] → propose_node (loop) or END
 
-The loop exits when: budget is exhausted (CostManager kills the job), no improvement for N consecutive iterations, or the target metric is reached.
+Conditional edges:
+  early_stop_edge — after run_node: if metrics show catastrophic failure, go to revert_and_continue_node (revert patch + increment iter) else go to evaluate_node.
+  decision_edge — after evaluate_node: if delta.improved → keep_node, else → revert_node. Both then go to log_node.
+  continue_edge — after log_node: if budget exhausted OR no improvement for N iters → END, else → propose_node.
 
-A key invariant: only one thread ever modifies train.py at a time. apply_patch() saves the original content, revert_patch() restores it. There is no concurrent patching.
-
-The Evaluator sub-feature (create_eval_suite, run_evals, adapt_eval_suite) is called by the loop but can be developed independently — it has a clean interface: given a model path and an EvalSuite, return an EvalScore.`,
+The Evaluator sub-feature nodes (create_eval_suite inside init_node, run_evals inside evaluate_node, adapt_eval_suite called periodically from log_node) can be built and tested as standalone functions — the nodes just call them.`,
     flowDiagram: `
-run_autoresearch(plan, config, cost_manager)
-  │
-  ├─► create_eval_suite(task, dataset)   ← built once, reused every iter
-  │     └─► EvalSuite
-  │
-  ├─► submit_experiment(script, plan)    ← baseline run
-  ├─► wait_for_experiment(job_id)
-  ├─► run_evals(model_path, eval_suite)
-  │     └─► baseline_score: EvalScore
-  │
-  └─► LOOP  (until budget exhausted or N iters no improvement)
-        │
-        ├─► propose_hypothesis(config, diary, task)  [Claude API]
-        │     └─► Hypothesis  { patch, description, expected_effect }
-        │
-        ├─► apply_patch(script_path, patch)
-        │     └─► original_content  (saved for revert)
-        │
-        ├─► submit_experiment(script_path, plan, timeout_min=5)
-        │     └─► job_id
-        │
-        ├─► wait_for_experiment(job_id, timeout)
-        │     └─► ExperimentResult  { metrics, model_path, cost_usd }
-        │
-        ├─► check_early_stop(metrics)
-        │     └─[True]──► revert_patch() → continue next iter
-        │
-        ├─► run_evals(model_path, eval_suite)
-        │     └─► new_score: EvalScore
-        │
-        ├─► compare_scores(new_score, baseline)
-        │     └─► ScoreDelta  { relative_pct, improved }
-        │
-        ├─► flag_regression(delta)
-        │     └─[True]──► revert_patch() → log REVERTED → continue
-        │
-        ├─► decide_keep_or_revert(delta)
-        │     ├─[KEEP]──► update baseline_score
-        │     └─[REVERT]► revert_patch()
-        │
-        ├─► log_iteration(diary, IterationRecord)
-        │
-        └─► (every 10 iters) adapt_eval_suite(suite, weaknesses)
+build_autoresearch_graph() → CompiledStateGraph[AutoResearchState]
 
-  └─► return best TrainedModel
+AutoResearchState = TypedDict:
+  plan, config, eval_suite,
+  current_script, current_config, original_content,
+  diary, baseline_score, best_score,
+  last_result, last_score, last_delta,
+  iteration, no_improve_streak, should_stop
+
+Graph nodes and edges:
+  START
+    │
+    ▼
+  init_node              create_eval_suite()
+    │
+    ▼
+  baseline_node          submit_experiment → wait → run_evals
+    │                    sets baseline_score + best_score
+    ▼
+  propose_node  ◄────────────────────────────────────┐
+    │           propose_hypothesis()  [Claude API]   │
+    │           apply_patch() → saves original_content│
+    ▼                                                 │
+  run_node               submit_experiment()          │
+    │                    wait_for_experiment()         │
+    │                                                 │
+    ├─[early_stop_edge: catastrophic failure]──────   │
+    │   ▼                                             │
+    │   revert_and_continue_node                      │
+    │   revert_patch() → increment iter ─────────────┘
+    │
+    └─[early_stop_edge: normal]──────────────────────
+        ▼
+      evaluate_node       run_evals() → compare_scores() → flag_regression()
+        │
+        ├─[decision_edge: KEEP]──────────────────────
+        │   ▼
+        │   keep_node     update best_score, best_script
+        │   └──────────────────────────────────────────┐
+        │                                              │
+        └─[decision_edge: REVERT]────────────────────  │
+            ▼                                          │
+            revert_node   revert_patch()               │
+            └──────────────────────────────────────────┤
+                                                       ▼
+                                                    log_node
+                                                    log_iteration()
+                                                    adapt_eval_suite()? (every 10)
+                                                       │
+                                          ┌────────────┘
+                                          │
+                            ┌─[continue_edge: continue]──► propose_node (loop)
+                            └─[continue_edge: stop]──────► END
+                                                           returns best TrainedModel
     `,
     functions: [
       {
-        name: "run_autoresearch",
-        signature: "run_autoresearch(plan: TrainingPlan, config: OrchestrationConfig, cost_manager: CostManager) -> TrainedModel",
-        description: "Top-level loop. Runs baseline experiment, then iterates Propose → Run → Evaluate → Decide until budget is exhausted or no improvement for N iterations.",
+        name: "build_autoresearch_graph",
+        signature: "build_autoresearch_graph() -> CompiledStateGraph[AutoResearchState]",
+        description: "Constructs and compiles the AutoResearch LangGraph StateGraph with all nodes, conditional edges, and LangGraph checkpointer for resumability. Called once at startup.",
+        params: [],
+        returns: { type: "CompiledStateGraph[AutoResearchState]", description: "Compiled cyclic graph: init → baseline → [propose → run → evaluate → decide → log] × N → END." },
+        notes: "Pass a LangGraph checkpointer (e.g. SqliteSaver) to graph.compile() so the loop can be resumed after crashes.",
+      },
+      {
+        name: "invoke_autoresearch_graph",
+        signature: "invoke_autoresearch_graph(plan: TrainingPlan, config: OrchestrationConfig, cost_manager: CostManager) -> TrainedModel",
+        description: "Entry point called by the Manager's orchestrate_node. Invokes the compiled AutoResearch graph and returns the best TrainedModel from final state.",
         params: [
           { name: "plan", type: "TrainingPlan", description: "Output of run_decision_engine." },
-          { name: "config", type: "OrchestrationConfig", description: "Orchestration config (used for budget, task type, eval metric)." },
+          { name: "config", type: "OrchestrationConfig", description: "Orchestration config (budget, task type, eval metric)." },
           { name: "cost_manager", type: "CostManager", description: "Running CostManager instance for budget enforcement." },
         ],
-        returns: { type: "TrainedModel", description: "Best model found: { weights_path, metrics, cost_usd, n_iterations, research_diary_path }." },
+        returns: { type: "TrainedModel", description: "Best model: weights_path, metrics, cost, n_iterations, research_diary_path." },
+      },
+      {
+        name: "init_node",
+        signature: "init_node(state: AutoResearchState) -> dict",
+        description: "LangGraph node. Calls create_eval_suite() and sets up the initial state for the loop (eval_suite, current_script from plan, iteration=0).",
+        params: [{ name: "state", type: "AutoResearchState", description: "Initial state with plan and config populated." }],
+        returns: { type: "dict", description: "Partial state update: { eval_suite, current_script, current_config, iteration: 0 }." },
+      },
+      {
+        name: "baseline_node",
+        signature: "baseline_node(state: AutoResearchState) -> dict",
+        description: "LangGraph node. Submits and runs the unmodified baseline training script, evaluates it, and sets baseline_score and best_score in state.",
+        params: [{ name: "state", type: "AutoResearchState", description: "State after init_node." }],
+        returns: { type: "dict", description: "Partial state update: { baseline_score, best_score }." },
+      },
+      {
+        name: "propose_node",
+        signature: "propose_node(state: AutoResearchState) -> dict",
+        description: "LangGraph node. Calls propose_hypothesis() with the research diary and current config. Applies the returned patch to the script and saves original_content for revert.",
+        params: [{ name: "state", type: "AutoResearchState", description: "Current loop state." }],
+        returns: { type: "dict", description: "Partial state update: { current_script (patched), original_content, last_hypothesis }." },
+      },
+      {
+        name: "run_node",
+        signature: "run_node(state: AutoResearchState) -> dict",
+        description: "LangGraph node. Calls submit_experiment and wait_for_experiment with the patched script. Writes ExperimentResult to state. early_stop_edge reads from state after this node.",
+        params: [{ name: "state", type: "AutoResearchState", description: "Current loop state (current_script must be patched)." }],
+        returns: { type: "dict", description: "Partial state update: { last_result: ExperimentResult }." },
+      },
+      {
+        name: "early_stop_edge",
+        signature: "early_stop_edge(state: AutoResearchState) -> Literal['evaluate', 'revert_and_continue']",
+        description: "LangGraph conditional edge after run_node. Calls check_early_stop() on state.last_result.metrics. Returns 'revert_and_continue' on catastrophic failure, 'evaluate' otherwise.",
+        params: [{ name: "state", type: "AutoResearchState", description: "State after run_node." }],
+        returns: { type: "Literal['evaluate', 'revert_and_continue']", description: "Next node to execute." },
+      },
+      {
+        name: "revert_and_continue_node",
+        signature: "revert_and_continue_node(state: AutoResearchState) -> dict",
+        description: "LangGraph node. Calls revert_patch() with state.original_content, logs the early-stopped iteration as REVERTED, and increments the iteration counter. Loops back to propose_node.",
+        params: [{ name: "state", type: "AutoResearchState", description: "State after run_node (early stop detected)." }],
+        returns: { type: "dict", description: "Partial state update: { current_script (reverted), diary, iteration }." },
+      },
+      {
+        name: "evaluate_node",
+        signature: "evaluate_node(state: AutoResearchState) -> dict",
+        description: "LangGraph node. Calls run_evals, compare_scores, and flag_regression. Writes last_score and last_delta to state. decision_edge reads from state after this node.",
+        params: [{ name: "state", type: "AutoResearchState", description: "State after run_node (normal completion)." }],
+        returns: { type: "dict", description: "Partial state update: { last_score: EvalScore, last_delta: ScoreDelta }." },
+      },
+      {
+        name: "decision_edge",
+        signature: "decision_edge(state: AutoResearchState) -> Literal['keep', 'revert']",
+        description: "LangGraph conditional edge after evaluate_node. Calls decide_keep_or_revert(state.last_delta). Returns 'keep' or 'revert'.",
+        params: [{ name: "state", type: "AutoResearchState", description: "State after evaluate_node." }],
+        returns: { type: "Literal['keep', 'revert']", description: "Next node to execute." },
+      },
+      {
+        name: "keep_node",
+        signature: "keep_node(state: AutoResearchState) -> dict",
+        description: "LangGraph node. Updates best_score and best_script to the current iteration's values. Resets no_improve_streak.",
+        params: [{ name: "state", type: "AutoResearchState", description: "State after evaluate_node (decision: keep)." }],
+        returns: { type: "dict", description: "Partial state update: { best_score, best_script, no_improve_streak: 0 }." },
+      },
+      {
+        name: "revert_node",
+        signature: "revert_node(state: AutoResearchState) -> dict",
+        description: "LangGraph node. Calls revert_patch() to restore original_content, increments no_improve_streak.",
+        params: [{ name: "state", type: "AutoResearchState", description: "State after evaluate_node (decision: revert)." }],
+        returns: { type: "dict", description: "Partial state update: { current_script (reverted), no_improve_streak }." },
+      },
+      {
+        name: "log_node",
+        signature: "log_node(state: AutoResearchState) -> dict",
+        description: "LangGraph node. Calls log_iteration() to append the IterationRecord to the diary. Calls adapt_eval_suite() every 10 iterations. Increments iteration counter. continue_edge reads from state after this node.",
+        params: [{ name: "state", type: "AutoResearchState", description: "State after keep_node or revert_node." }],
+        returns: { type: "dict", description: "Partial state update: { diary, eval_suite (possibly updated), iteration }." },
+      },
+      {
+        name: "continue_edge",
+        signature: "continue_edge(state: AutoResearchState) -> Literal['propose', '__end__']",
+        description: "LangGraph conditional edge after log_node. Returns '__end__' if budget is exhausted, no_improve_streak >= N, or target metric is reached. Otherwise returns 'propose' to loop.",
+        params: [{ name: "state", type: "AutoResearchState", description: "State after log_node." }],
+        returns: { type: "Literal['propose', '__end__']", description: "'propose' to continue the loop, '__end__' to exit." },
       },
       // Propose
       {
@@ -1076,6 +1292,56 @@ export type TypeDef = {
 };
 
 export const sharedTypes: TypeDef[] = [
+  {
+    name: "ManagerState",
+    description: "LangGraph TypedDict for the Manager StateGraph. Passed between all Manager nodes.",
+    fields: [
+      { name: "prompt", type: "str", description: "User's plain-English task description." },
+      { name: "budget", type: "float", description: "Hard budget cap in USD." },
+      { name: "data_path", type: "str | None", description: "Path to user-provided data, or None." },
+      { name: "has_data", type: "bool", description: "Set by query_data_node." },
+      { name: "task_reasoning", type: "TaskReasoning", description: "Set by reason_node after Claude API call." },
+      { name: "config", type: "OrchestrationConfig", description: "Set by build_config_node. Passed to all downstream agents." },
+      { name: "result", type: "TrainedModel | None", description: "Set by orchestrate_node. Final output." },
+    ],
+  },
+  {
+    name: "DataGenState",
+    description: "LangGraph TypedDict for the Data Generator StateGraph. Passed between all DataGen nodes.",
+    fields: [
+      { name: "config", type: "OrchestrationConfig", description: "Orchestration config from Manager." },
+      { name: "data_path", type: "str | None", description: "User-provided data path, or None." },
+      { name: "mode", type: "str | None", description: "Set by route_node: 'A' | 'B' | 'C'." },
+      { name: "raw_data", type: "RawData | None", description: "Set by mode nodes after loading/generating data." },
+      { name: "hf_candidates", type: "list[HFCandidate]", description: "Set by mode_b_search_node." },
+      { name: "selected_candidate", type: "HFCandidate | None", description: "Set by mode_b_search_node after ranking." },
+      { name: "schema", type: "DataSchema | None", description: "Set by mode_c_node after determine_data_schema." },
+      { name: "dataset", type: "StandardDataset | None", description: "Set by mode nodes after normalization." },
+      { name: "validation_report", type: "ValidationReport | None", description: "Set by validate_node." },
+    ],
+  },
+  {
+    name: "AutoResearchState",
+    description: "LangGraph TypedDict for the AutoResearch cyclic StateGraph. Persisted across iterations via LangGraph checkpointer.",
+    fields: [
+      { name: "plan", type: "TrainingPlan", description: "Training plan from Decision Engine." },
+      { name: "config", type: "OrchestrationConfig", description: "Orchestration config." },
+      { name: "eval_suite", type: "EvalSuite", description: "Set by init_node. Reused every iteration." },
+      { name: "current_script", type: "str", description: "Path to the current (possibly patched) train.py." },
+      { name: "current_config", type: "dict", description: "Current hyperparameter config dict." },
+      { name: "original_content", type: "str | None", description: "Pre-patch file content saved by propose_node for revert." },
+      { name: "diary", type: "ResearchDiary", description: "Append-only list of IterationRecords. Updated by log_node." },
+      { name: "baseline_score", type: "EvalScore", description: "Score of unmodified baseline. Set by baseline_node." },
+      { name: "best_score", type: "EvalScore", description: "Best score seen so far. Updated by keep_node." },
+      { name: "best_script", type: "str", description: "Path to the script that achieved best_score." },
+      { name: "last_result", type: "ExperimentResult | None", description: "Set by run_node after each experiment." },
+      { name: "last_score", type: "EvalScore | None", description: "Set by evaluate_node." },
+      { name: "last_delta", type: "ScoreDelta | None", description: "Set by evaluate_node." },
+      { name: "iteration", type: "int", description: "Current iteration counter. Incremented by log_node." },
+      { name: "no_improve_streak", type: "int", description: "Consecutive iterations without improvement. Reset by keep_node." },
+      { name: "should_stop", type: "bool", description: "Set to True by continue_edge when stop conditions are met." },
+    ],
+  },
   {
     name: "OrchestrationConfig",
     description: "Central JSON passed from Manager to all downstream agents.",
