@@ -14,4 +14,5 @@ For full project details, team information, and documentation, visit our **[Wiki
 - [Team Member Matrix](https://github.com/StanfordCS194/spr26-Team-26/wiki#team-member-matrix)
 - [Project Synopsis](https://github.com/StanfordCS194/spr26-Team-26/wiki#project-synopsis)
 - [Contact & Communication](https://github.com/StanfordCS194/spr26-Team-26/wiki#communication)
-ron's assignment.txt
+Ron Polonsky
+
