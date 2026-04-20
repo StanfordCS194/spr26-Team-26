@@ -4,6 +4,6 @@ __pycache__/
 *.pyc
 
 # Retrieval outputs
-tests/results/
+tests/
 raw/
 human_readable/
