@@ -15,3 +15,4 @@ For full project details, team information, and documentation, visit our **[Wiki
 - [Project Synopsis](https://github.com/StanfordCS194/spr26-Team-26/wiki#project-synopsis)
 - [Contact & Communication](https://github.com/StanfordCS194/spr26-Team-26/wiki#communication)
 Matthew Torre
+Ron Polonsky
