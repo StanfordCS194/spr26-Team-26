@@ -14,19 +14,5 @@ For full project details, team information, and documentation, visit our **[Wiki
 - [Team Member Matrix](https://github.com/StanfordCS194/spr26-Team-26/wiki#team-member-matrix)
 - [Project Synopsis](https://github.com/StanfordCS194/spr26-Team-26/wiki#project-synopsis)
 - [Contact & Communication](https://github.com/StanfordCS194/spr26-Team-26/wiki#communication)
-
-## Retrieval Agent
-
-The repo includes a spec-driven `retrieval_agent` module focused on external data acquisition. It:
-
-- accepts a data-acquisition spec from the manager/planner stage
-- discovers source candidates and ranks them
-- downloads raw artifacts (for example `CSV`, `JSON`, `JSONL`, `TXT`, `ZIP`, `PDF`, `PARQUET`, `HTML`)
-- stores provenance/metadata and generates a human-readable bundle
-- outputs a handoff manifest for downstream structuring/curation
-
-Run it with:
-
-```bash
-python -m retrieval_agent.agent path/to/spec.json path/to/retrieval_report.json --raw-output-dir path/to/raw
-```
+Matthew Torre
+Ron Polonsky
