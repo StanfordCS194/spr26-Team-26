@@ -1,0 +1,45 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-base: #0f1419;
+  --bg-surface: #1a1f2e;
+  --bg-elevated: #222736;
+  --border: rgba(255,255,255,0.08);
+  --border-subtle: rgba(255,255,255,0.04);
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent: #60a5fa;
+  --accent-dim: rgba(96,165,250,0.12);
+  --success: #4ade80;
+  --success-dim: rgba(74,222,128,0.12);
+  --warning: #fb923c;
+  --warning-dim: rgba(251,146,60,0.12);
+  --danger: #f87171;
+  --danger-dim: rgba(248,113,113,0.12);
+  --radius: 8px;
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* Responsive: stack 2-col grids on mobile */
+@media (max-width: 768px) {
+  .two-col-grid { grid-template-columns: 1fr !important; }
+  .metrics-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
