@@ -1,4 +1,5 @@
 import type { MetricPoint } from '../types';
+import Tooltip from './Tooltip';
 
 interface Props {
   metrics: MetricPoint[];
@@ -6,12 +7,33 @@ interface Props {
   budget?: number;
 }
 
+const TOOLTIPS: Record<string, { label: string; body: string }> = {
+  loss: {
+    label: 'Training Loss',
+    body: 'Measures how wrong the model\'s predictions are on training data. Lower is better — a steadily decreasing value means the model is learning.',
+  },
+  accuracy: {
+    label: 'Validation Accuracy',
+    body: 'The model\'s correct-prediction rate on held-out data it has never seen. This is the more honest measure of real-world performance.',
+  },
+  cost: {
+    label: 'Accumulated Cost',
+    body: 'Total compute spend so far across all pipeline stages. Updates in real time so you can monitor burn against your budget.',
+  },
+  iter: {
+    label: 'Experiment Iterations',
+    body: 'How many hyperparameter configurations have been tried out of the planned total. More iterations generally improve the final model but cost more.',
+  },
+};
+
 interface CardProps {
   label: string;
   value: string;
+  tooltipKey: keyof typeof TOOLTIPS;
 }
 
-function MetricCard({ label, value }: CardProps) {
+function MetricCard({ label, value, tooltipKey }: CardProps) {
+  const tip = TOOLTIPS[tooltipKey];
   return (
     <div
       style={{
@@ -23,7 +45,10 @@ function MetricCard({ label, value }: CardProps) {
       role="status"
       aria-label={`${label}: ${value}`}
     >
-      <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '0.375rem' }}>{label}</p>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.375rem' }}>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{label}</p>
+        <Tooltip label={tip.label} body={tip.body} />
+      </div>
       <p style={{ fontSize: '24px', fontWeight: 500, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.5px' }}>
         {value}
       </p>
@@ -48,10 +73,10 @@ export default function MetricsGrid({ metrics, costSpent }: Props) {
       }}
       aria-label="Training metrics"
     >
-      <MetricCard label="Training Loss" value={loss} />
-      <MetricCard label="Val Accuracy" value={accuracy} />
-      <MetricCard label="Cost Spent" value={cost} />
-      <MetricCard label="Iterations" value={iter} />
+      <MetricCard label="Training Loss" value={loss} tooltipKey="loss" />
+      <MetricCard label="Val Accuracy" value={accuracy} tooltipKey="accuracy" />
+      <MetricCard label="Cost Spent" value={cost} tooltipKey="cost" />
+      <MetricCard label="Iterations" value={iter} tooltipKey="iter" />
     </div>
   );
 }

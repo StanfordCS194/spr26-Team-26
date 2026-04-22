@@ -1,4 +1,5 @@
 import type { Iteration } from '../types';
+import Tooltip from './Tooltip';
 
 interface Props {
   iterations: Iteration[];
@@ -6,22 +7,28 @@ interface Props {
 
 function StatusBadge({ status }: { status: Iteration['status'] }) {
   const kept = status === 'KEPT';
+  const tip = kept
+    ? { label: 'Configuration Kept', body: 'This experiment produced a measurable improvement and was permanently applied to the model.' }
+    : { label: 'Configuration Reverted', body: 'This experiment did not improve the model and was rolled back. The previous best configuration is still active.' };
+
   return (
-    <span
-      style={{
-        fontSize: '10px',
-        fontWeight: 600,
-        letterSpacing: '0.06em',
-        padding: '2px 7px',
-        borderRadius: '4px',
-        background: kept ? 'var(--success-dim)' : 'var(--warning-dim)',
-        color: kept ? 'var(--success)' : 'var(--warning)',
-        border: `0.5px solid ${kept ? 'var(--success)' : 'var(--warning)'}`,
-        flexShrink: 0,
-      }}
-      aria-label={`Status: ${status}`}
-    >
-      {status}
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+      <span
+        style={{
+          fontSize: '10px',
+          fontWeight: 600,
+          letterSpacing: '0.06em',
+          padding: '2px 7px',
+          borderRadius: '4px',
+          background: kept ? 'var(--success-dim)' : 'var(--warning-dim)',
+          color: kept ? 'var(--success)' : 'var(--warning)',
+          border: `0.5px solid ${kept ? 'var(--success)' : 'var(--warning)'}`,
+        }}
+        aria-label={`Status: ${status}`}
+      >
+        {status}
+      </span>
+      <Tooltip label={tip.label} body={tip.body} placement="top" />
     </span>
   );
 }
@@ -40,9 +47,13 @@ export default function IterationsList({ iterations }: Props) {
       }}
       aria-label="AutoResearch iterations"
     >
-      <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '0.75rem', flexShrink: 0 }}>
-        AutoResearch Iterations
-      </p>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.75rem', flexShrink: 0 }}>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>AutoResearch Iterations</p>
+        <Tooltip
+          label="AutoResearch Experiments"
+          body="Each row is one hyperparameter configuration the agent tested automatically. KEPT means it improved the model; REVERTED means it was discarded."
+        />
+      </div>
 
       {iterations.length === 0 ? (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
