@@ -1,4 +1,5 @@
 import type { LogEntry } from '../types';
+import Tooltip from './Tooltip';
 
 interface Props {
   logs: LogEntry[];
@@ -13,7 +14,14 @@ const typeColor: Record<LogEntry['type'], string> = {
 export default function ActivityLog({ logs }: Props) {
   return (
     <section style={{ marginBottom: '1.5rem' }}>
-      <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Activity Log</p>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem' }}>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Activity Log</p>
+        <Tooltip
+          label="System Activity Log"
+          body="A real-time feed of events from each pipeline component, with timestamps. Useful for diagnosing slowdowns or unexpected behavior."
+          placement="bottom"
+        />
+      </div>
       <div
         style={{
           background: 'var(--bg-surface)',
