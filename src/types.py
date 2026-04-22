@@ -265,6 +265,7 @@ class DataGenState(TypedDict):
     schema: DataSchema | None
     dataset: StandardDataset | None
     validation_report: ValidationReport | None
+    handoff: dict | None
 
 
 class AutoResearchState(TypedDict):
