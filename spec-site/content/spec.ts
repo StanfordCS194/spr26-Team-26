@@ -61,22 +61,12 @@ User
 │   Data Generator  [LangGraph]       │
 │   StateGraph(DataGenState)          │
 │                                     │
-│   Sub-agent 1 (Acquisition)         │
-│   route ──► acquire_user_data       │
-│         └─► acquire_hf_data         │◄── HuggingFace Hub API
-│               └─► acquire_web_data  │◄── Web/LLM fallback
-│   emits handoff payload             │
+│   route ──► mode_a ──► validate     │
+│         └─► mode_b_search           │◄── HuggingFace Hub API
+│               ├─► mode_b_download   │
+│               └─► mode_c ──────────►│◄── Claude API (teacher)
 └───────────────┬─────────────────────┘
-                │  handoff payload
-                ▼
-┌─────────────────────────────────────┐
-│   Data Curation Sub-agent           │
-│   Sub-agent 2 (Curation)            │
-│                                     │
-│   structure_data / validate_hf_data │
-│   validate + (optional) synth aug   │
-└───────────────┬─────────────────────┘
-                │  DatasetResult
+                │  DatasetResult  (in DataGenState)
                 ▼
 ┌─────────────────────────────────────┐
 │   Decision Engine  [plain Python]   │
@@ -288,175 +278,263 @@ invoke_manager_graph(prompt, budget, data_path?) → TrainedModel
     title: "Feature 1 — Data Generator",
     owner: "Ron Polonsky, Angel Raychev",
     description:
-      "Refactored into two sub-agents: Sub-agent 1 does acquisition/routing (implemented now), then hands off to Sub-agent 2 for curation and structuring.",
-    architecture: `The Data Generator is split into two sub-agents.
+      "Discovers or creates training data in three modes: (A) clean user-provided data, (B) search HuggingFace Hub, (C) synthesize with an LLM teacher or scrape the web. Outputs a standardized dataset regardless of mode.",
+    architecture: `The Data Generator is implemented as a LangGraph StateGraph(DataGenState). Its defining characteristic is three-way conditional routing — the right path depends on runtime information (does the user have data? does a HuggingFace dataset exist for this task?) that isn't knowable upfront. LangGraph conditional edges make this branching explicit and testable.
 
-Sub-agent 1 (implemented in current src/data_generator):
-  - LangGraph StateGraph(DataGenState) for Mode A/B/C acquisition
-  - Produces a handoff payload for Sub-agent 2
+Graph nodes and routing:
+  route_node — inspects state.data_path and dispatches to mode_a_node, or to mode_b_search_node (preferred), or directly to mode_c_node (if we already know search will fail).
+  mode_a_node — loads, detects, normalizes, and optionally augments user-provided data.
+  mode_b_search_node — searches HuggingFace Hub for a candidate dataset.
+  hf_found_edge — conditional edge: if a candidate was found, go to mode_b_download_node; otherwise fall through to mode_c_node.
+  mode_b_download_node — downloads and normalizes the HuggingFace dataset.
+  mode_c_node — generates synthetic data via Claude API (or scrapes web as fallback), then morphs to standard format.
+  validate_node — runs on every path before END; produces the ValidationReport in DatasetResult.
 
-Sub-agent 2 (data curation stage):
-  - Consumes the handoff payload
-  - Performs structuring, validation, and optional synthetic augmentation
-  - Produces DatasetResult for downstream DecisionEngine
+All existing implementation functions (load_raw_data, search_huggingface, generate_synthetic_data, etc.) are called inside their respective node functions. Their signatures don't change — they remain plain functions that take explicit arguments.
 
-Current implementation scope in this repo path is Sub-agent 1 only:
-  route_node → acquire_user_data_node / acquire_hf_data_node / acquire_web_data_node
-  then select_curation_edge routes to:
-    - handoff_structure_data_node (strict)
-    - handoff_validate_hf_node (light)
-
-invoke_data_generator_graph(config, data_path) currently returns the handoff payload for Sub-agent 2.`,
+The external interface is invoke_data_generator_graph(config, data_path) — the orchestrate_node in the Manager graph calls this.`,
     flowDiagram: `
-Sub-agent 1 (implemented now)
 build_data_generator_graph() → CompiledStateGraph[DataGenState]
 
 DataGenState = TypedDict:
   config, data_path, mode,
   raw_data, hf_candidates, selected_candidate,
-  schema, dataset, validation_report, handoff
+  schema, dataset, validation_report
 
 Graph nodes and edges:
   START
     │
     ▼
-  route_node                 inspects data_path/explicit HF IDs → sets mode
+  route_node               inspects data_path → sets mode
     │
-    ├─[mode == "A"]────────► acquire_user_data_node ─┐
-    ├─[mode == "B"]────────► acquire_hf_data_node   ├─► select_curation_edge
-    └─[mode == "C"]────────► acquire_web_data_node  ┘
+    ├─[mode == "A"]──────────────────────────────────────────────
+    │   ▼
+    │   mode_a_node         load_raw_data → detect_format →
+    │                       normalize_and_clean → augment_with_synthetic?
+    │   │
+    │   └──────────────────────────────────────────► validate_node
+    │
+    ├─[mode == "B"]──────────────────────────────────────────────
+    │   ▼
+    │   mode_b_search_node  search_huggingface → rank_hf_candidates
+    │     │
+    │     ├─[hf_found_edge: candidate found]──────────────────
+    │     │   ▼
+    │     │   mode_b_download_node  download_hf_dataset →
+    │     │                         normalize_and_clean
+    │     │   └──────────────────────────────────► validate_node
+    │     │
+    │     └─[hf_found_edge: no candidate]────────────────────
+    │         ▼
+    │         mode_c_node  (see below)
+    │
+    └─[mode == "C"]──────────────────────────────────────────────
+        ▼
+        mode_c_node        determine_data_schema  [Claude API]
+                           → generate_synthetic_data [Claude API]
+                             OR scrape_web (fallback)
+                           → morph_to_standard
+          └──────────────────────────────────────► validate_node
                                                       │
-                                                      ├─[A/C]► handoff_structure_data_node
-                                                      └─[B] ─► handoff_validate_hf_node
-                                                                │
-                                                                ▼
-                                                               END
-                                  writes handoff payload to state["handoff"]
-
-Sub-agent 2 (separate curation stage)
-  input: handoff payload
-  output: DatasetResult (structured + validated dataset)
+                                                      ▼
+                                                    END
+                                    writes DatasetResult to state
     `,
     functions: [
       {
         name: "build_data_generator_graph",
         signature: "build_data_generator_graph() -> CompiledStateGraph[DataGenState]",
-        description: "Constructs and compiles Sub-agent 1 acquisition graph with route/acquire/handoff nodes.",
+        description: "Constructs and compiles the Data Generator LangGraph StateGraph with all nodes and conditional edges. Called once at startup.",
         params: [],
-        returns: { type: "CompiledStateGraph[DataGenState]", description: "Compiled graph with nodes: route → acquire(A/B/C) → handoff(A/C or B)." },
+        returns: { type: "CompiledStateGraph[DataGenState]", description: "Compiled graph with nodes: route → mode_a/mode_b_search/mode_c → validate." },
       },
       {
         name: "invoke_data_generator_graph",
-        signature: "invoke_data_generator_graph(config: OrchestrationConfig, data_path: str | None) -> dict",
-        description: "Entry point for Sub-agent 1. Invokes acquisition graph and returns the handoff payload for Sub-agent 2.",
+        signature: "invoke_data_generator_graph(config: OrchestrationConfig, data_path: str | None) -> DatasetResult",
+        description: "Entry point called by the Manager's orchestrate_node. Invokes the compiled DataGen graph and returns the DatasetResult from final state.",
         params: [
           { name: "config", type: "OrchestrationConfig", description: "Orchestration config from the Manager." },
           { name: "data_path", type: "str | None", description: "Path to user-provided raw data, or None." },
         ],
-        returns: { type: "dict", description: "Handoff payload: { target_subagent, action, verification_level, mode_used, raw_data, ... }." },
+        returns: { type: "DatasetResult", description: "Standardized dataset with split sizes, mode used, and quality notes." },
       },
       {
         name: "route_node",
         signature: "route_node(state: DataGenState) -> dict",
-        description: "Determines acquisition mode: A (user data path), B (explicit HF IDs), or C (fallback web acquisition).",
+        description: "LangGraph node. Determines which mode to run (A/B/C) based on state.data_path. Sets state.mode. Conditional edges on this node dispatch to the correct downstream node.",
         params: [{ name: "state", type: "DataGenState", description: "Current graph state." }],
         returns: { type: "dict", description: "Partial state update: { mode: 'A' | 'B' | 'C' }." },
       },
       {
         name: "select_mode_edge",
-        signature: "select_mode_edge(state: DataGenState) -> Literal['acquire_user_data', 'acquire_hf_data', 'acquire_web_data']",
-        description: "Conditional edge after route_node.",
+        signature: "select_mode_edge(state: DataGenState) -> Literal['mode_a', 'mode_b_search', 'mode_c']",
+        description: "LangGraph conditional edge function. Reads state.mode and returns the name of the next node to execute.",
         params: [{ name: "state", type: "DataGenState", description: "Current graph state (mode must be set)." }],
-        returns: { type: "Literal['acquire_user_data', 'acquire_hf_data', 'acquire_web_data']", description: "Target node name." },
+        returns: { type: "Literal['mode_a', 'mode_b_search', 'mode_c']", description: "Target node name." },
       },
       {
-        name: "select_curation_edge",
-        signature: "select_curation_edge(state: DataGenState) -> Literal['structure_data', 'validate_hf_data']",
-        description: "Conditional edge after acquisition nodes. Routes by mode: A/C -> structure_data, B -> validate_hf_data.",
-        params: [{ name: "state", type: "DataGenState", description: "Current graph state after acquisition." }],
-        returns: { type: "Literal['structure_data', 'validate_hf_data']", description: "Target handoff node." },
+        name: "hf_found_edge",
+        signature: "hf_found_edge(state: DataGenState) -> Literal['mode_b_download', 'mode_c']",
+        description: "LangGraph conditional edge function on mode_b_search_node. Returns 'mode_b_download' if a valid HuggingFace candidate was found, 'mode_c' otherwise.",
+        params: [{ name: "state", type: "DataGenState", description: "Current graph state (hf_candidates + selected_candidate must be set)." }],
+        returns: { type: "Literal['mode_b_download', 'mode_c']", description: "Target node name." },
       },
       {
-        name: "acquire_user_data_node",
-        signature: "acquire_user_data_node(state: DataGenState) -> dict",
-        description: "Mode A acquisition node. Loads raw data from user-provided path.",
+        name: "mode_a_node",
+        signature: "mode_a_node(state: DataGenState) -> dict",
+        description: "LangGraph node for Mode A. Calls load_raw_data → detect_format → normalize_and_clean → (optionally) augment_with_synthetic. Writes dataset to state.",
         params: [{ name: "state", type: "DataGenState", description: "Current graph state (data_path must be set)." }],
-        returns: { type: "dict", description: "Partial state update: { raw_data: RawData }." },
+        returns: { type: "dict", description: "Partial state update: { raw_data, dataset }." },
       },
       {
-        name: "acquire_hf_data_node",
-        signature: "acquire_hf_data_node(state: DataGenState) -> dict",
-        description: "Mode B acquisition node. Parses explicit HF IDs, builds candidates, fetches HF rows.",
+        name: "mode_b_search_node",
+        signature: "mode_b_search_node(state: DataGenState) -> dict",
+        description: "LangGraph node. Calls search_huggingface and rank_hf_candidates. Writes candidates and selected_candidate to state. hf_found_edge reads from state to decide next node.",
         params: [{ name: "state", type: "DataGenState", description: "Current graph state." }],
-        returns: { type: "dict", description: "Partial state update: { hf_candidates, selected_candidate, raw_data }." },
+        returns: { type: "dict", description: "Partial state update: { hf_candidates: list, selected_candidate: HFCandidate | None }." },
       },
       {
-        name: "acquire_web_data_node",
-        signature: "acquire_web_data_node(state: DataGenState) -> dict",
-        description: "Mode C acquisition node. Uses web retrieval fallback when no explicit/user data is available.",
-        params: [{ name: "state", type: "DataGenState", description: "Current graph state." }],
-        returns: { type: "dict", description: "Partial state update: { raw_data: RawData }." },
+        name: "mode_b_download_node",
+        signature: "mode_b_download_node(state: DataGenState) -> dict",
+        description: "LangGraph node. Calls download_hf_dataset and normalize_and_clean. Writes dataset to state.",
+        params: [{ name: "state", type: "DataGenState", description: "Current graph state (selected_candidate must be set)." }],
+        returns: { type: "dict", description: "Partial state update: { raw_data, dataset }." },
       },
       {
-        name: "handoff_structure_data_node",
-        signature: "handoff_structure_data_node(state: DataGenState) -> dict",
-        description: "Builds strict handoff payload for Sub-agent 2 (used by Mode A/C).",
+        name: "mode_c_node",
+        signature: "mode_c_node(state: DataGenState) -> dict",
+        description: "LangGraph node. Calls determine_data_schema, then generate_synthetic_data (or scrape_web as fallback), then morph_to_standard. Writes dataset to state.",
         params: [{ name: "state", type: "DataGenState", description: "Current graph state." }],
-        returns: { type: "dict", description: "Partial state update: { handoff: {...action: 'structure_data', verification_level: 'strict'} }." },
+        returns: { type: "dict", description: "Partial state update: { schema, raw_data, dataset }." },
       },
       {
-        name: "handoff_validate_hf_node",
-        signature: "handoff_validate_hf_node(state: DataGenState) -> dict",
-        description: "Builds light-verification handoff payload for Sub-agent 2 (used by Mode B).",
-        params: [{ name: "state", type: "DataGenState", description: "Current graph state." }],
-        returns: { type: "dict", description: "Partial state update: { handoff: {...action: 'validate_hf_dataset', verification_level: 'light'} }." },
+        name: "validate_node",
+        signature: "validate_node(state: DataGenState) -> dict",
+        description: "LangGraph node. Called after every mode. Runs validate_dataset() and writes the ValidationReport to state. This is the final node before END.",
+        params: [{ name: "state", type: "DataGenState", description: "Current graph state (dataset must be set)." }],
+        returns: { type: "dict", description: "Partial state update: { validation_report: ValidationReport }." },
       },
+      // ── Mode A ──
       {
         name: "load_raw_data",
         signature: "load_raw_data(data_path: str) -> RawData",
-        description: "Loads user-provided raw data into RawData contract.",
+        description: "Loads data from a file path, auto-detecting format (CSV, JSON, JSONL, Parquet, image dir, etc.).",
         params: [
-          { name: "data_path", type: "str", description: "Path to user-provided dataset." },
+          { name: "data_path", type: "str", description: "Absolute path to the user's data file or directory." },
         ],
-        returns: { type: "RawData", description: "Raw records + format metadata." },
+        returns: { type: "RawData", description: "In-memory data object with raw records and detected format metadata." },
       },
       {
-        name: "parse_explicit_hf_dataset_ids",
-        signature: "parse_explicit_hf_dataset_ids(config: OrchestrationConfig, data_path: str | None = None) -> list[str]",
-        description: "Extracts and normalizes explicit HF dataset IDs/URLs from config and prompt.",
+        name: "detect_format",
+        signature: "detect_format(data_path: str) -> DataFormat",
+        description: "Inspects file extension, magic bytes, and sample rows to determine format (csv, json, jsonl, parquet, image_dir, etc.) and data modality (text, image, tabular).",
         params: [
-          { name: "config", type: "OrchestrationConfig", description: "Orchestration config from Manager." },
-          { name: "data_path", type: "str | None", description: "Optional path shortcut (supports hf://...).", optional: true },
+          { name: "data_path", type: "str", description: "Path to the data file or directory." },
         ],
-        returns: { type: "list[str]", description: "Normalized HF dataset IDs." },
+        returns: { type: "DataFormat", description: "Enum + metadata: { modality: 'text'|'image'|'tabular', file_type: str, encoding: str }." },
       },
       {
-        name: "build_explicit_hf_candidates",
-        signature: "build_explicit_hf_candidates(dataset_ids: list[str], task_type: str) -> list[HFCandidate]",
-        description: "Builds Mode B candidate metadata for explicit HF IDs.",
+        name: "normalize_and_clean",
+        signature: "normalize_and_clean(raw: RawData, schema: DataSchema) -> StandardDataset",
+        description: "Normalizes field names, removes null/malformed rows, deduplicates, and reindexes data into the standard {input, output, split} format.",
         params: [
-          { name: "dataset_ids", type: "list[str]", description: "Explicit normalized HF IDs." },
-          { name: "task_type", type: "str", description: "Task type for metadata tags." },
+          { name: "raw", type: "RawData", description: "Output of load_raw_data." },
+          { name: "schema", type: "DataSchema", description: "Expected input/output schema from OrchestrationConfig." },
         ],
-        returns: { type: "list[HFCandidate]", description: "Candidate list for Mode B handoff." },
+        returns: { type: "StandardDataset", description: "Clean dataset in standard format, split into train/val/test (80/10/10 by default)." },
       },
       {
-        name: "fetch_hf_datasets",
-        signature: "fetch_hf_datasets(candidates: list[HFCandidate]) -> RawData",
-        description: "Fetches rows from explicit HF datasets and merges into RawData.",
+        name: "augment_with_synthetic",
+        signature: "augment_with_synthetic(dataset: StandardDataset, n_extra: int, schema: DataSchema) -> StandardDataset",
+        description: "Optionally augments an existing dataset with LLM-generated synthetic examples when the dataset is too small (< 500 training examples by default).",
         params: [
-          { name: "candidates", type: "list[HFCandidate]", description: "Mode B candidates to fetch." },
+          { name: "dataset", type: "StandardDataset", description: "Cleaned dataset from normalize_and_clean." },
+          { name: "n_extra", type: "int", description: "Number of synthetic examples to generate and append." },
+          { name: "schema", type: "DataSchema", description: "Input/output schema used to prompt the LLM teacher." },
         ],
-        returns: { type: "RawData", description: "Fetched records with format metadata." },
+        returns: { type: "StandardDataset", description: "Augmented dataset with original + synthetic examples merged." },
+      },
+      // ── Mode B ──
+      {
+        name: "search_huggingface",
+        signature: "search_huggingface(task_description: str, task_type: str) -> list[HFCandidate]",
+        description: "Queries the HuggingFace Hub datasets API for candidates matching the task description and type. Returns up to 10 ranked candidates.",
+        params: [
+          { name: "task_description", type: "str", description: "Natural-language task description from OrchestrationConfig." },
+          { name: "task_type", type: "str", description: "Structured task type (e.g. 'text-classification', 'token-classification', 'seq2seq')." },
+        ],
+        returns: { type: "list[HFCandidate]", description: "Up to 10 candidates with id, name, num_examples, license, task_categories, download_size." },
       },
       {
-        name: "acquire_web_data",
-        signature: "acquire_web_data(query: str) -> RawData",
-        description: "Mode C helper for web retrieval fallback.",
+        name: "rank_hf_candidates",
+        signature: "rank_hf_candidates(candidates: list[HFCandidate], config: OrchestrationConfig) -> HFCandidate | None",
+        description: "Scores candidates by relevance to task, dataset size, license compatibility, and download size. Returns the best candidate or None if all fail the minimum quality bar.",
         params: [
-          { name: "query", type: "str", description: "Prompt-derived query." },
+          { name: "candidates", type: "list[HFCandidate]", description: "Output of search_huggingface." },
+          { name: "config", type: "OrchestrationConfig", description: "Used to weight task relevance and size requirements." },
         ],
-        returns: { type: "RawData", description: "Web-acquired raw records." },
+        returns: { type: "HFCandidate | None", description: "Best-ranked candidate, or None if no candidate meets quality threshold." },
+      },
+      {
+        name: "download_hf_dataset",
+        signature: "download_hf_dataset(candidate: HFCandidate) -> RawData",
+        description: "Downloads the selected HuggingFace dataset to disk and loads it into a RawData object.",
+        params: [
+          { name: "candidate", type: "HFCandidate", description: "Selected candidate from rank_hf_candidates." },
+        ],
+        returns: { type: "RawData", description: "Downloaded dataset as RawData, ready for normalize_and_clean." },
+      },
+      {
+        name: "validate_dataset",
+        signature: "validate_dataset(dataset: StandardDataset, schema: DataSchema) -> ValidationReport",
+        description: "Checks label accuracy (spot-checks via LLM), distribution coverage, and completeness (no missing input/output fields). Returns a pass/fail report.",
+        params: [
+          { name: "dataset", type: "StandardDataset", description: "Normalized dataset." },
+          { name: "schema", type: "DataSchema", description: "Expected schema for validation checks." },
+        ],
+        returns: { type: "ValidationReport", description: "{ passed: bool, issues: list[str], sample_accuracy_estimate: float }." },
+      },
+      // ── Mode C ──
+      {
+        name: "determine_data_schema",
+        signature: "determine_data_schema(config: OrchestrationConfig) -> DataSchema",
+        description: "Uses the Claude API to infer the input/output schema for synthetic data generation from the OrchestrationConfig training_procedure.",
+        params: [
+          { name: "config", type: "OrchestrationConfig", description: "Orchestration config with training_procedure details." },
+        ],
+        returns: { type: "DataSchema", description: "{ input_format: str, output_format: str, input_description: str, output_description: str, example_pair: dict }." },
+      },
+      {
+        name: "generate_synthetic_data",
+        signature: "generate_synthetic_data(schema: DataSchema, n_examples: int, teacher_model: str = 'claude-haiku-4-5-20251001') -> RawData",
+        description: "Generates n_examples synthetic (input, output) pairs using an LLM teacher prompted with the DataSchema. Batches requests to stay within API rate limits.",
+        params: [
+          { name: "schema", type: "DataSchema", description: "Input/output schema from determine_data_schema." },
+          { name: "n_examples", type: "int", description: "Number of examples to generate." },
+          { name: "teacher_model", type: "str", description: "Claude model ID for the LLM teacher. Defaults to Haiku for cost efficiency.", optional: true },
+        ],
+        returns: { type: "RawData", description: "Generated examples as RawData, ready for morph_to_standard." },
+      },
+      {
+        name: "scrape_web",
+        signature: "scrape_web(query: str, schema: DataSchema, max_examples: int = 500) -> RawData",
+        description: "Fallback web scraping path. Searches for pages matching the query, extracts candidate (input, output) pairs, and returns raw scraped data. Includes retry/backoff logic.",
+        params: [
+          { name: "query", type: "str", description: "Search query derived from task description." },
+          { name: "schema", type: "DataSchema", description: "Used to filter and extract relevant content." },
+          { name: "max_examples", type: "int", description: "Maximum number of examples to collect before stopping.", optional: true },
+        ],
+        returns: { type: "RawData", description: "Scraped examples as RawData. May be noisy; passed to morph_to_standard for cleanup." },
+      },
+      {
+        name: "morph_to_standard",
+        signature: "morph_to_standard(raw: RawData, schema: DataSchema) -> StandardDataset",
+        description: "Transforms scraped or generated raw data into the standard {input, output, split} format, deduplicates, and removes low-quality rows.",
+        params: [
+          { name: "raw", type: "RawData", description: "Output of generate_synthetic_data or scrape_web." },
+          { name: "schema", type: "DataSchema", description: "Target schema for the output dataset." },
+        ],
+        returns: { type: "StandardDataset", description: "Clean, split dataset ready for training." },
       },
     ],
   },
@@ -1234,13 +1312,12 @@ export const sharedTypes: TypeDef[] = [
       { name: "config", type: "OrchestrationConfig", description: "Orchestration config from Manager." },
       { name: "data_path", type: "str | None", description: "User-provided data path, or None." },
       { name: "mode", type: "str | None", description: "Set by route_node: 'A' | 'B' | 'C'." },
-      { name: "raw_data", type: "RawData | None", description: "Set by acquisition nodes after loading/fetching/generating data." },
-      { name: "hf_candidates", type: "list[HFCandidate]", description: "Set by acquire_hf_data_node." },
-      { name: "selected_candidate", type: "HFCandidate | None", description: "Optional top candidate for Mode B." },
-      { name: "schema", type: "DataSchema | None", description: "Reserved for Sub-agent 2 curation outputs." },
-      { name: "dataset", type: "StandardDataset | None", description: "Reserved for Sub-agent 2 curation outputs." },
-      { name: "validation_report", type: "ValidationReport | None", description: "Reserved for Sub-agent 2 validation output." },
-      { name: "handoff", type: "dict | None", description: "Final Sub-agent 1 handoff payload for Sub-agent 2." },
+      { name: "raw_data", type: "RawData | None", description: "Set by mode nodes after loading/generating data." },
+      { name: "hf_candidates", type: "list[HFCandidate]", description: "Set by mode_b_search_node." },
+      { name: "selected_candidate", type: "HFCandidate | None", description: "Set by mode_b_search_node after ranking." },
+      { name: "schema", type: "DataSchema | None", description: "Set by mode_c_node after determine_data_schema." },
+      { name: "dataset", type: "StandardDataset | None", description: "Set by mode nodes after normalization." },
+      { name: "validation_report", type: "ValidationReport | None", description: "Set by validate_node." },
     ],
   },
   {

@@ -3,8 +3,6 @@
 :root {
   --background: #0a0a0f;
   --foreground: #e8e8ed;
-  --font-geist-sans: "Avenir Next", Avenir, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --font-geist-mono: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 body {
