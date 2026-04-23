@@ -1,0 +1,42 @@
+artifact_id: 99ce30b9277fbeb0
+status: downloaded
+is_relevant: True
+is_reasonable: True
+reasonableness_reason: ok
+relevance_score: 0.3
+source_url: https://huggingface.co/datasets/nyu-mll/glue
+artifact_url: https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/cola/test/0000.parquet
+local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_99ce30b9277f.parquet
+
+--- PREVIEW ---
+columns=['sentence', 'label', 'idx']
+sentence=Bill whistled past the house., label=-1, idx=0
+sentence=The car honked its way down the road., label=-1, idx=1
+sentence=Bill pushed Harry off the sofa., label=-1, idx=2
+sentence=the kittens yawned awake and played., label=-1, idx=3
+sentence=I demand that the more John eats, the more he pay., label=-1, idx=4
+sentence=If John eats more, keep your mouth shut tighter, OK?, label=-1, idx=5
+sentence=His expectations are always lower than mine are., label=-1, idx=6
+sentence=The sooner you call, the more carefully I will word the letter., label=-1, idx=7
+sentence=The more timid he feels, the more people he interviews without asking questions of., label=-1, idx=8
+sentence=Once Janet left, Fred became a lot crazier., label=-1, idx=9
+sentence=If you give every senator enough opportunity, he will succumb to corruption., label=-1, idx=10
+sentence=The more time that any senator spends with lobbyists, the more likely he is to succumb to corruption., label=-1, idx=11
+sentence=Which problem does the sooner you solve, the more easily you'll satisfy the folks up at corporate headquarters?, label=-1, idx=12
+sentence=Which problem do you think that the sooner you solve, the quicker you'll be able to tell the folks up at corporate headquarters to buzz off?, label=-1, idx=13
+sentence=Louise is not happy, is she?, label=-1, idx=14
+sentence=He can just not have been working., label=-1, idx=15
+sentence=Which problem do you wonder whether John said Mary solved?, label=-1, idx=16
+sentence=They could have left., label=-1, idx=17
+sentence=Have they could left?, label=-1, idx=18
+sentence=John eats not chocolate., label=-1, idx=19
+sentence=Has John seen Mary?, label=-1, idx=20
+sentence=Mickey looked it up., label=-1, idx=21
+sentence=Mickey looked up him and her., label=-1, idx=22
+sentence=He taught the children., label=-1, idx=23
+sentence=John proved to be a great linguist., label=-1, idx=24
+sentence=There is too likely to be a riot for there to be a serious discussion of the issues., label=-1, idx=25
+sentence=John is willing., label=-1, idx=26
+sentence=Bill seems to be obnoxious, but I don't think that Sam seems., label=-1, idx=27
+sentence=Bill seems to be obnoxious, but I don't think that Sam appears., label=-1, idx=28
+sentence=I believe John with all my heart is a fine person., label=-1, idx=29

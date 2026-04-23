@@ -1,0 +1,440 @@
+[
+  {
+    "source_id": "hf_a7a420d7f114",
+    "title": "Hugging Face Datasets Search",
+    "url": "https://huggingface.co/datasets?search=hf_robust_structuring_handoff_test+text_classification+one+support+or+intent+utterance+card_declined+refund_not_received+transfer_failed+dataset",
+    "source_type": "huggingface",
+    "collection_method": "search_portal",
+    "expected_artifact_type": "dataset_listing",
+    "relevance_score": 0.9,
+    "structure_score": 0.9,
+    "collection_ease_score": 0.9,
+    "risk_score": 0.35,
+    "total_score": 0.7575,
+    "notes": []
+  },
+  {
+    "source_id": "hf_1dd5c296f478",
+    "title": "Hugging Face Datasets Search",
+    "url": "https://huggingface.co/datasets?search=hf_robust_structuring_handoff_test+text_classification+one+support+or+intent+utterance+card_declined+refund_not_received+transfer_failed+corpus",
+    "source_type": "huggingface",
+    "collection_method": "search_portal",
+    "expected_artifact_type": "dataset_listing",
+    "relevance_score": 0.9,
+    "structure_score": 0.9,
+    "collection_ease_score": 0.9,
+    "risk_score": 0.35,
+    "total_score": 0.7575,
+    "notes": []
+  },
+  {
+    "source_id": "hf_76bed86fa2d2",
+    "title": "Hugging Face Datasets Search",
+    "url": "https://huggingface.co/datasets?search=hf_robust_structuring_handoff_test+text_classification+one+support+or+intent+utterance+card_declined+refund_not_received+transfer_failed+labeled+data",
+    "source_type": "huggingface",
+    "collection_method": "search_portal",
+    "expected_artifact_type": "dataset_listing",
+    "relevance_score": 0.9,
+    "structure_score": 0.9,
+    "collection_ease_score": 0.9,
+    "risk_score": 0.35,
+    "total_score": 0.7575,
+    "notes": []
+  },
+  {
+    "source_id": "hf_802089770f11",
+    "title": "Hugging Face Datasets Search",
+    "url": "https://huggingface.co/datasets?search=hf_robust_structuring_handoff_test+text_classification+one+support+or+intent+utterance+card_declined+refund_not_received+transfer_failed+dataset+language+en",
+    "source_type": "huggingface",
+    "collection_method": "search_portal",
+    "expected_artifact_type": "dataset_listing",
+    "relevance_score": 0.9,
+    "structure_score": 0.9,
+    "collection_ease_score": 0.9,
+    "risk_score": 0.35,
+    "total_score": 0.7575,
+    "notes": []
+  },
+  {
+    "source_id": "hf_f40def9d59b6",
+    "title": "Hugging Face Datasets Search",
+    "url": "https://huggingface.co/datasets?search=hf_robust_structuring_handoff_test+text_classification+one+support+or+intent+utterance+card_declined+refund_not_received+transfer_failed+dataset+language+multilingual",
+    "source_type": "huggingface",
+    "collection_method": "search_portal",
+    "expected_artifact_type": "dataset_listing",
+    "relevance_score": 0.9,
+    "structure_score": 0.9,
+    "collection_ease_score": 0.9,
+    "risk_score": 0.35,
+    "total_score": 0.7575,
+    "notes": []
+  },
+  {
+    "source_id": "explicit_8eb2c5c75455",
+    "title": "Explicit source: https://huggingface.co/datasets/PolyAI/banking77",
+    "url": "https://huggingface.co/datasets/PolyAI/banking77",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  },
+  {
+    "source_id": "explicit_50635fee5f2e",
+    "title": "Explicit source: https://huggingface.co/datasets/mteb/banking77",
+    "url": "https://huggingface.co/datasets/mteb/banking77",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  },
+  {
+    "source_id": "explicit_4f1e489ead4d",
+    "title": "Explicit source: https://huggingface.co/datasets/DeepPavlov/clinc150",
+    "url": "https://huggingface.co/datasets/DeepPavlov/clinc150",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  },
+  {
+    "source_id": "explicit_29ddfa2357ef",
+    "title": "Explicit source: https://huggingface.co/datasets/AmazonScience/massive",
+    "url": "https://huggingface.co/datasets/AmazonScience/massive",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  },
+  {
+    "source_id": "explicit_689cc3c5a37b",
+    "title": "Explicit source: https://huggingface.co/datasets/bitext/Bitext-customer-support-llm-chatbot-training-dataset",
+    "url": "https://huggingface.co/datasets/bitext/Bitext-customer-support-llm-chatbot-training-dataset",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  },
+  {
+    "source_id": "explicit_f86a3f0fcbd8",
+    "title": "Explicit source: https://huggingface.co/datasets/SetFit/sst2",
+    "url": "https://huggingface.co/datasets/SetFit/sst2",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  },
+  {
+    "source_id": "explicit_abe621db2297",
+    "title": "Explicit source: https://huggingface.co/datasets/rajpurkar/squad",
+    "url": "https://huggingface.co/datasets/rajpurkar/squad",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  },
+  {
+    "source_id": "explicit_68f43191490c",
+    "title": "Explicit source: https://huggingface.co/datasets/nyu-mll/glue",
+    "url": "https://huggingface.co/datasets/nyu-mll/glue",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  },
+  {
+    "source_id": "explicit_3877c6e288c5",
+    "title": "Explicit source: https://huggingface.co/datasets/Anthropic/hh-rlhf",
+    "url": "https://huggingface.co/datasets/Anthropic/hh-rlhf",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  },
+  {
+    "source_id": "explicit_2c7c0cc79bf7",
+    "title": "Explicit source: https://huggingface.co/datasets/OpenAssistant/oasst1",
+    "url": "https://huggingface.co/datasets/OpenAssistant/oasst1",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  },
+  {
+    "source_id": "explicit_1dac26d7027b",
+    "title": "Explicit source: https://huggingface.co/datasets/allenai/c4",
+    "url": "https://huggingface.co/datasets/allenai/c4",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  },
+  {
+    "source_id": "explicit_2ff5b367f9a5",
+    "title": "Explicit source: https://huggingface.co/datasets/imdb",
+    "url": "https://huggingface.co/datasets/imdb",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  },
+  {
+    "source_id": "explicit_1193ea615cf4",
+    "title": "Explicit source: https://huggingface.co/datasets/ag_news",
+    "url": "https://huggingface.co/datasets/ag_news",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  },
+  {
+    "source_id": "explicit_d35c45afe828",
+    "title": "Explicit source: https://huggingface.co/datasets/yelp_review_full",
+    "url": "https://huggingface.co/datasets/yelp_review_full",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  },
+  {
+    "source_id": "explicit_04e086163e00",
+    "title": "Explicit source: https://huggingface.co/datasets/stanfordnlp/snli",
+    "url": "https://huggingface.co/datasets/stanfordnlp/snli",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  },
+  {
+    "source_id": "explicit_ae32cf8eaa9b",
+    "title": "Explicit source: https://huggingface.co/datasets/super_glue",
+    "url": "https://huggingface.co/datasets/super_glue",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  },
+  {
+    "source_id": "explicit_158b6473bd29",
+    "title": "Explicit source: https://huggingface.co/datasets/wiki_qa",
+    "url": "https://huggingface.co/datasets/wiki_qa",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  },
+  {
+    "source_id": "explicit_5246a0470fb4",
+    "title": "Explicit source: https://huggingface.co/datasets/trec",
+    "url": "https://huggingface.co/datasets/trec",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  },
+  {
+    "source_id": "explicit_2bd5c6cb261b",
+    "title": "Explicit source: https://huggingface.co/datasets/hellaswag",
+    "url": "https://huggingface.co/datasets/hellaswag",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  },
+  {
+    "source_id": "explicit_51afe51164c0",
+    "title": "Explicit source: https://huggingface.co/datasets/amazon_polarity",
+    "url": "https://huggingface.co/datasets/amazon_polarity",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  },
+  {
+    "source_id": "explicit_5e6ba3efae3c",
+    "title": "Explicit source: https://huggingface.co/collections/bitext/customer-support",
+    "url": "https://huggingface.co/collections/bitext/customer-support",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  },
+  {
+    "source_id": "explicit_1ae518e810c6",
+    "title": "Explicit source: https://huggingface.co/datasets",
+    "url": "https://huggingface.co/datasets",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  },
+  {
+    "source_id": "explicit_8f9616af13e4",
+    "title": "Explicit source: https://huggingface.co/datasets/nonexistent-owner/nonexistent-dataset-xyz",
+    "url": "https://huggingface.co/datasets/nonexistent-owner/nonexistent-dataset-xyz",
+    "source_type": "explicit",
+    "collection_method": "download",
+    "expected_artifact_type": "unknown",
+    "relevance_score": 0.95,
+    "structure_score": 0.6,
+    "collection_ease_score": 0.7,
+    "risk_score": 0.5,
+    "total_score": 0.6425,
+    "notes": [
+      "Directly provided by upstream spec."
+    ]
+  }
+]

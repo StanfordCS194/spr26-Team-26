@@ -1,0 +1,42 @@
+artifact_id: b60474e606b7e094
+status: downloaded
+is_relevant: True
+is_reasonable: True
+reasonableness_reason: ok
+relevance_score: 0.3833
+source_url: https://huggingface.co/datasets/SetFit/sst2
+artifact_url: https://huggingface.co/datasets/SetFit/sst2/resolve/refs%2Fconvert%2Fparquet/default/validation/0000.parquet
+local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_b60474e606b7.parquet
+
+--- PREVIEW ---
+columns=['text', 'label', 'label_text']
+text=one long string of cliches ., label=0, label_text=negative
+text=if you 've ever entertained the notion of doing what the title of this film implies , what sex with strangers actually shows may put you off the idea forever ., label=0, label_text=negative
+text=k-19 exploits our substantial collective fear of nuclear holocaust to generate cheap hollywood tension ., label=0, label_text=negative
+text=it 's played in the most straight-faced fashion , with little humor to lighten things up ., label=0, label_text=negative
+text=there is a fabric of complex ideas here , and feelings that profoundly deepen them ., label=1, label_text=positive
+text=although laced with humor and a few fanciful touches , the film is a refreshingly serious look at young women ., label=1, label_text=positive
+text=it all feels like a monty python sketch gone horribly wrong ., label=0, label_text=negative
+text=it 's a stunning lyrical work of considerable force and truth ., label=1, label_text=positive
+text=however it may please those who love movies that blare with pop songs , young science fiction fans will stomp away in disgust ., label=0, label_text=negative
+text=broomfield turns his distinctive ` blundering ' style into something that could really help clear up the case ., label=1, label_text=positive
+text=although german cooking does not come readily to mind when considering the world 's best cuisine , mostly martha could make deutchland a popular destination for hungry tourists ., label=1, label_text=positive
+text=a very well-made , funny and entertaining picture ., label=1, label_text=positive
+text=a valueless kiddie paean to pro basketball underwritten by the nba ., label=0, label_text=negative
+text=all the amped-up tony hawk-style stunts and thrashing rap-metal ca n't disguise the fact that , really , we 've been here , done that ., label=0, label_text=negative
+text=a swashbuckling tale of love , betrayal , revenge and above all , faith ., label=1, label_text=positive
+text=there ought to be a directing license , so that ed burns can have his revoked ., label=0, label_text=negative
+text=a rigorously structured and exquisitely filmed drama about a father and son connection that is a brief shooting star of love ., label=1, label_text=positive
+text=on this tricky topic , tadpole is very much a step in the right direction , with its blend of frankness , civility and compassion ., label=1, label_text=positive
+text=macdowell , whose wifty southern charm has anchored lighter affairs ... brings an absolutely riveting conviction to her role ., label=1, label_text=positive
+text=the jabs it employs are short , carefully placed and dead-center ., label=1, label_text=positive
+text=despite its title , punch-drunk love is never heavy-handed ., label=1, label_text=positive
+text=at once half-baked and overheated ., label=0, label_text=negative
+text=this is a shameless sham , calculated to cash in on the popularity of its stars ., label=0, label_text=negative
+text=jason x is positively anti-darwinian : nine sequels and 400 years later , the teens are none the wiser and jason still kills on auto-pilot ., label=0, label_text=negative
+text=people cinema at its finest ., label=1, label_text=positive
+text=` de niro ... is a veritable source of sincere passion that this hollywood contrivance orbits around . ', label=1, label_text=positive
+text=if you believe any of this , i can make you a real deal on leftover enron stock that will double in value a week from friday ., label=0, label_text=negative
+text=candid and comfortable ; a film that deftly balances action and reflection as it lets you grasp and feel the passion others have for their work ., label=1, label_text=positive
+text=more romantic , more emotional and ultimately more satisfying than the teary-eyed original ., label=1, label_text=positive
+text=it offers little beyond the momentary joys of pretty and weightless intellectual entertainment ., label=0, label_text=negative

@@ -1,0 +1,458 @@
+# Retrieval Output: hf_robust_structuring_handoff_test
+
+- Retrieval mode: `hybrid`
+- Confidence: `high`
+- Attempted sources: `23`
+- Attempted artifacts: `68`
+- Downloaded artifacts: `59`
+- Relevant artifacts: `20`
+- Reasonable artifacts: `44`
+- Failed artifacts: `9`
+- Raw output dir: `tests/results/hf_robust_structuring_run_v1/raw`
+
+## Concerns
+- Planner backend: heuristic fallback.
+- LLM planner failed; used heuristic planner.
+
+## Top Candidates
+1. `hf_a7a420d7f114` score=0.7575 type=huggingface url=https://huggingface.co/datasets?search=hf_robust_structuring_handoff_test+text_classification+one+support+or+intent+utterance+card_declined+refund_not_received+transfer_failed+dataset
+2. `hf_1dd5c296f478` score=0.7575 type=huggingface url=https://huggingface.co/datasets?search=hf_robust_structuring_handoff_test+text_classification+one+support+or+intent+utterance+card_declined+refund_not_received+transfer_failed+corpus
+3. `hf_76bed86fa2d2` score=0.7575 type=huggingface url=https://huggingface.co/datasets?search=hf_robust_structuring_handoff_test+text_classification+one+support+or+intent+utterance+card_declined+refund_not_received+transfer_failed+labeled+data
+4. `hf_802089770f11` score=0.7575 type=huggingface url=https://huggingface.co/datasets?search=hf_robust_structuring_handoff_test+text_classification+one+support+or+intent+utterance+card_declined+refund_not_received+transfer_failed+dataset+language+en
+5. `hf_f40def9d59b6` score=0.7575 type=huggingface url=https://huggingface.co/datasets?search=hf_robust_structuring_handoff_test+text_classification+one+support+or+intent+utterance+card_declined+refund_not_received+transfer_failed+dataset+language+multilingual
+6. `explicit_8eb2c5c75455` score=0.6425 type=explicit url=https://huggingface.co/datasets/PolyAI/banking77
+7. `explicit_50635fee5f2e` score=0.6425 type=explicit url=https://huggingface.co/datasets/mteb/banking77
+8. `explicit_4f1e489ead4d` score=0.6425 type=explicit url=https://huggingface.co/datasets/DeepPavlov/clinc150
+9. `explicit_29ddfa2357ef` score=0.6425 type=explicit url=https://huggingface.co/datasets/AmazonScience/massive
+10. `explicit_689cc3c5a37b` score=0.6425 type=explicit url=https://huggingface.co/datasets/bitext/Bitext-customer-support-llm-chatbot-training-dataset
+
+## Collected Artifacts
+- `downloaded` `9175cda36bdbf47e` relevant=True reasonable=True score=0.4675
+  - source: https://huggingface.co/datasets/PolyAI/banking77
+  - artifact_url: https://huggingface.co/datasets/PolyAI/banking77/resolve/main/dataset_infos.json
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/dataset_infos_9175cda36bdb.json
+  - matched_terms: text classification, token:account, token:banking, token:card, token:declined, token:failed, token:intent, token:received, token:refund, token:test, token:transfer
+  - reasonableness: ok (JSON parsed with non-empty content.)
+- `downloaded` `0300212d8dfe1df5` relevant=True reasonable=True score=0.3368
+  - source: https://huggingface.co/datasets/mteb/banking77
+  - artifact_url: https://huggingface.co/datasets/mteb/banking77/resolve/refs%2Fconvert%2Fparquet/default/test/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_0300212d8dfe.parquet
+  - matched_terms: token:card, token:received
+  - reasonableness: ok (Parquet rows=3076, cols=3.)
+- `downloaded` `5fdd3a6e4486c352` relevant=True reasonable=True score=0.3368
+  - source: https://huggingface.co/datasets/mteb/banking77
+  - artifact_url: https://huggingface.co/datasets/mteb/banking77/resolve/refs%2Fconvert%2Fparquet/default/train/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_5fdd3a6e4486.parquet
+  - matched_terms: token:card, token:received
+  - reasonableness: ok (Parquet rows=9993, cols=3.)
+- `downloaded` `7daea6c8182c2d9f` relevant=True reasonable=True score=0.3184
+  - source: https://huggingface.co/datasets/DeepPavlov/clinc150
+  - artifact_url: https://huggingface.co/datasets/DeepPavlov/clinc150/resolve/refs%2Fconvert%2Fparquet/default/test/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_7daea6c8182c.parquet
+  - matched_terms: token:utterance
+  - reasonableness: ok (Parquet rows=5500, cols=2.)
+- `downloaded` `655cb91209a8e528` relevant=True reasonable=True score=0.3184
+  - source: https://huggingface.co/datasets/DeepPavlov/clinc150
+  - artifact_url: https://huggingface.co/datasets/DeepPavlov/clinc150/resolve/refs%2Fconvert%2Fparquet/default/train/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_655cb91209a8.parquet
+  - matched_terms: token:utterance
+  - reasonableness: ok (Parquet rows=15200, cols=2.)
+- `downloaded` `f4743f864e2ee198` relevant=True reasonable=True score=0.3368
+  - source: https://huggingface.co/datasets/DeepPavlov/clinc150
+  - artifact_url: https://huggingface.co/datasets/DeepPavlov/clinc150/resolve/refs%2Fconvert%2Fparquet/default/validation/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_f4743f864e2e.parquet
+  - matched_terms: token:account, token:utterance
+  - reasonableness: ok (Parquet rows=3100, cols=2.)
+- `downloaded` `e2aa90b0683f67b1` relevant=False reasonable=True score=0.1386
+  - source: https://huggingface.co/datasets/DeepPavlov/clinc150
+  - artifact_url: https://huggingface.co/datasets/DeepPavlov/clinc150/resolve/refs%2Fconvert%2Fparquet/intents/intents/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_e2aa90b0683f.parquet
+  - matched_terms: card declined, token:account, token:card, token:declined
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Parquet rows=150, cols=6.)
+- `downloaded` `a8e65fe2551e295f` relevant=False reasonable=True score=0.1386
+  - source: https://huggingface.co/datasets/DeepPavlov/clinc150
+  - artifact_url: https://huggingface.co/datasets/DeepPavlov/clinc150/resolve/refs%2Fconvert%2Fparquet/intentsqwen3-32b/intents/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_a8e65fe2551e.parquet
+  - matched_terms: card declined, token:account, token:card, token:declined
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Parquet rows=150, cols=6.)
+- `downloaded` `e624a4d64f5c1e93` relevant=False reasonable=True score=0.1368
+  - source: https://huggingface.co/datasets/AmazonScience/massive
+  - artifact_url: https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/af-ZA/test/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_e624a4d64f5c.parquet
+  - matched_terms: token:intent, token:test
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Parquet rows=2974, cols=10.)
+- `downloaded` `c79269e16f9f5019` relevant=False reasonable=True score=0.1184
+  - source: https://huggingface.co/datasets/AmazonScience/massive
+  - artifact_url: https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/af-ZA/train/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_c79269e16f9f.parquet
+  - matched_terms: token:intent
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Parquet rows=11514, cols=10.)
+- `downloaded` `ee5bb771c7401faf` relevant=False reasonable=True score=0.1184
+  - source: https://huggingface.co/datasets/AmazonScience/massive
+  - artifact_url: https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/af-ZA/validation/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_ee5bb771c740.parquet
+  - matched_terms: token:intent
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Parquet rows=2033, cols=10.)
+- `downloaded` `d898cf20542ea689` relevant=False reasonable=True score=0.1368
+  - source: https://huggingface.co/datasets/AmazonScience/massive
+  - artifact_url: https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/all/test/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_d898cf20542e.parquet
+  - matched_terms: token:intent, token:test
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Parquet rows=151674, cols=10.)
+- `downloaded` `d122fe02bbe71d08` relevant=False reasonable=False score=0.0553
+  - source: https://huggingface.co/datasets/AmazonScience/massive
+  - artifact_url: https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/all/train/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_d122fe02bbe7.parquet
+  - matched_terms: token:failed, token:robust, token:structuring
+  - note: Download was truncated due to max_download_bytes limit.
+  - reasonableness: parquet_read_error (Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0000_d122fe02bbe7.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0000_d122fe02bbe7.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.)
+- `downloaded` `4153bc67c5367448` relevant=False reasonable=True score=0.1184
+  - source: https://huggingface.co/datasets/AmazonScience/massive
+  - artifact_url: https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/all/validation/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_4153bc67c536.parquet
+  - matched_terms: token:intent
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Parquet rows=103683, cols=10.)
+- `downloaded` `44debf0ac3e48edf` relevant=False reasonable=True score=0.1368
+  - source: https://huggingface.co/datasets/AmazonScience/massive
+  - artifact_url: https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/all_1.1/test/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_44debf0ac3e4.parquet
+  - matched_terms: token:intent, token:test
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Parquet rows=154648, cols=10.)
+- `downloaded` `0d98daad42f8f83d` relevant=False reasonable=False score=0.0553
+  - source: https://huggingface.co/datasets/AmazonScience/massive
+  - artifact_url: https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/all_1.1/train/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_0d98daad42f8.parquet
+  - matched_terms: token:failed, token:robust, token:structuring
+  - note: Download was truncated due to max_download_bytes limit.
+  - reasonableness: parquet_read_error (Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0000_0d98daad42f8.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0000_0d98daad42f8.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.)
+- `downloaded` `5508e53919483815` relevant=False reasonable=True score=0.1184
+  - source: https://huggingface.co/datasets/AmazonScience/massive
+  - artifact_url: https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/all_1.1/validation/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_5508e5391948.parquet
+  - matched_terms: token:intent
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Parquet rows=105716, cols=10.)
+- `downloaded` `62d98f5de7af645d` relevant=True reasonable=True score=0.2202
+  - source: https://huggingface.co/datasets/AmazonScience/massive
+  - artifact_url: https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/am-ET/test/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_62d98f5de7af.parquet
+  - matched_terms: other, token:intent, token:test
+  - reasonableness: ok (Parquet rows=2974, cols=10.)
+- `downloaded` `cb66337f2addc5c2` relevant=False reasonable=True score=0.1184
+  - source: https://huggingface.co/datasets/AmazonScience/massive
+  - artifact_url: https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/am-ET/train/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_cb66337f2add.parquet
+  - matched_terms: token:intent
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Parquet rows=11514, cols=10.)
+- `downloaded` `fe86b2259191be04` relevant=False reasonable=True score=0.1184
+  - source: https://huggingface.co/datasets/AmazonScience/massive
+  - artifact_url: https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/am-ET/validation/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_fe86b2259191.parquet
+  - matched_terms: token:intent
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Parquet rows=2033, cols=10.)
+- `downloaded` `b498ffac4bfda762` relevant=True reasonable=True score=0.2386
+  - source: https://huggingface.co/datasets/bitext/Bitext-customer-support-llm-chatbot-training-dataset
+  - artifact_url: https://huggingface.co/datasets/bitext/Bitext-customer-support-llm-chatbot-training-dataset/resolve/refs%2Fconvert%2Fparquet/default/train/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_b498ffac4bfd.parquet
+  - matched_terms: customer support, token:account, token:category, token:intent
+  - reasonableness: ok (Parquet rows=26872, cols=5.)
+- `downloaded` `a5c6357e6ddf8a5a` relevant=True reasonable=True score=0.3
+  - source: https://huggingface.co/datasets/SetFit/sst2
+  - artifact_url: https://huggingface.co/datasets/SetFit/sst2/resolve/refs%2Fconvert%2Fparquet/default/test/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_a5c6357e6ddf.parquet
+  - reasonableness: ok (Parquet rows=1821, cols=3.)
+- `downloaded` `582ee0000b13764e` relevant=True reasonable=True score=0.3
+  - source: https://huggingface.co/datasets/SetFit/sst2
+  - artifact_url: https://huggingface.co/datasets/SetFit/sst2/resolve/refs%2Fconvert%2Fparquet/default/train/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_582ee0000b13.parquet
+  - reasonableness: ok (Parquet rows=6920, cols=3.)
+- `downloaded` `b60474e606b7e094` relevant=True reasonable=True score=0.3833
+  - source: https://huggingface.co/datasets/SetFit/sst2
+  - artifact_url: https://huggingface.co/datasets/SetFit/sst2/resolve/refs%2Fconvert%2Fparquet/default/validation/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_b60474e606b7.parquet
+  - matched_terms: other
+  - reasonableness: ok (Parquet rows=872, cols=3.)
+- `downloaded` `bcad859b2db3566a` relevant=False reasonable=True score=0.0833
+  - source: https://huggingface.co/datasets/rajpurkar/squad
+  - artifact_url: https://huggingface.co/datasets/rajpurkar/squad/resolve/refs%2Fconvert%2Fparquet/plain_text/train/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_bcad859b2db3.parquet
+  - matched_terms: other
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Parquet rows=87599, cols=5.)
+- `downloaded` `50b11f6c5caf24be` relevant=False reasonable=True score=0.0
+  - source: https://huggingface.co/datasets/rajpurkar/squad
+  - artifact_url: https://huggingface.co/datasets/rajpurkar/squad/resolve/refs%2Fconvert%2Fparquet/plain_text/validation/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_50b11f6c5caf.parquet
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Parquet rows=10570, cols=5.)
+- `downloaded` `dc1db39299b98c53` relevant=False reasonable=True score=0.1
+  - source: https://huggingface.co/datasets/nyu-mll/glue
+  - artifact_url: https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/ax/test/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_dc1db39299b9.parquet
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Parquet rows=1104, cols=4.)
+- `downloaded` `99ce30b9277fbeb0` relevant=True reasonable=True score=0.3
+  - source: https://huggingface.co/datasets/nyu-mll/glue
+  - artifact_url: https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/cola/test/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_99ce30b9277f.parquet
+  - reasonableness: ok (Parquet rows=1063, cols=3.)
+- `downloaded` `7647177d4e598896` relevant=True reasonable=True score=0.3
+  - source: https://huggingface.co/datasets/nyu-mll/glue
+  - artifact_url: https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/cola/train/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_7647177d4e59.parquet
+  - reasonableness: ok (Parquet rows=8551, cols=3.)
+- `downloaded` `cc7c9fbb775fef46` relevant=True reasonable=True score=0.3
+  - source: https://huggingface.co/datasets/nyu-mll/glue
+  - artifact_url: https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/cola/validation/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_cc7c9fbb775f.parquet
+  - reasonableness: ok (Parquet rows=1043, cols=3.)
+- `downloaded` `e7e0e2bec8842116` relevant=True reasonable=True score=0.2202
+  - source: https://huggingface.co/datasets/nyu-mll/glue
+  - artifact_url: https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/mnli/test_matched/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_e7e0e2bec884.parquet
+  - matched_terms: other, token:account, token:test
+  - reasonableness: ok (Parquet rows=9796, cols=4.)
+- `downloaded` `b33dfe3c0426d553` relevant=True reasonable=True score=0.2202
+  - source: https://huggingface.co/datasets/nyu-mll/glue
+  - artifact_url: https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/mnli/test_mismatched/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_b33dfe3c0426.parquet
+  - matched_terms: other, token:category, token:report
+  - reasonableness: ok (Parquet rows=9847, cols=4.)
+- `downloaded` `6428542e4158192b` relevant=False reasonable=False score=0.0553
+  - source: https://huggingface.co/datasets/nyu-mll/glue
+  - artifact_url: https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/mnli/train/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_6428542e4158.parquet
+  - matched_terms: token:failed, token:robust, token:structuring
+  - note: Download was truncated due to max_download_bytes limit.
+  - reasonableness: parquet_read_error (Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0000_6428542e4158.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0000_6428542e4158.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.)
+- `downloaded` `0d5ae3484cbcc5fa` relevant=False reasonable=True score=0.1833
+  - source: https://huggingface.co/datasets/nyu-mll/glue
+  - artifact_url: https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/mnli/validation_matched/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_0d5ae3484cbc.parquet
+  - matched_terms: other
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Parquet rows=9815, cols=4.)
+- `downloaded` `d2ebcd00948c5025` relevant=True reasonable=True score=0.2202
+  - source: https://huggingface.co/datasets/nyu-mll/glue
+  - artifact_url: https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/mnli/validation_mismatched/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_d2ebcd00948c.parquet
+  - matched_terms: other, token:category, token:report
+  - reasonableness: ok (Parquet rows=9832, cols=4.)
+- `downloaded` `9368ebcf7ebf047f` relevant=True reasonable=True score=0.2202
+  - source: https://huggingface.co/datasets/nyu-mll/glue
+  - artifact_url: https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/mnli_matched/test/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_9368ebcf7ebf.parquet
+  - matched_terms: other, token:account, token:test
+  - reasonableness: ok (Parquet rows=9796, cols=4.)
+- `downloaded` `18a7e69c2c08fe83` relevant=False reasonable=True score=0.1833
+  - source: https://huggingface.co/datasets/nyu-mll/glue
+  - artifact_url: https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/mnli_matched/validation/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_18a7e69c2c08.parquet
+  - matched_terms: other
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Parquet rows=9815, cols=4.)
+- `downloaded` `cd0f6fe47f1bcc8f` relevant=True reasonable=True score=0.2202
+  - source: https://huggingface.co/datasets/nyu-mll/glue
+  - artifact_url: https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/mnli_mismatched/test/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_cd0f6fe47f1b.parquet
+  - matched_terms: other, token:category, token:report
+  - reasonableness: ok (Parquet rows=9847, cols=4.)
+- `downloaded` `afa8a52d3e4e1e04` relevant=False reasonable=True score=0.1202
+  - source: https://huggingface.co/datasets/Anthropic/hh-rlhf
+  - artifact_url: https://huggingface.co/datasets/Anthropic/hh-rlhf/resolve/refs%2Fconvert%2Fparquet/default/test/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_afa8a52d3e4e.parquet
+  - matched_terms: other, token:category, token:test
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Parquet rows=8552, cols=2.)
+- `downloaded` `5da0a8f212be2d03` relevant=False reasonable=False score=0.0553
+  - source: https://huggingface.co/datasets/Anthropic/hh-rlhf
+  - artifact_url: https://huggingface.co/datasets/Anthropic/hh-rlhf/resolve/refs%2Fconvert%2Fparquet/default/train/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_5da0a8f212be.parquet
+  - matched_terms: token:failed, token:robust, token:structuring
+  - note: Download was truncated due to max_download_bytes limit.
+  - reasonableness: parquet_read_error (Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0000_5da0a8f212be.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0000_5da0a8f212be.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.)
+- `downloaded` `dd5f72d066b18b46` relevant=True reasonable=True score=0.2018
+  - source: https://huggingface.co/datasets/OpenAssistant/oasst1
+  - artifact_url: https://huggingface.co/datasets/OpenAssistant/oasst1/resolve/refs%2Fconvert%2Fparquet/default/train/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_dd5f72d066b1.parquet
+  - matched_terms: other, token:banking
+  - reasonableness: ok (Parquet rows=84437, cols=18.)
+- `downloaded` `2e31c97d0168fe9d` relevant=False reasonable=True score=0.1
+  - source: https://huggingface.co/datasets/OpenAssistant/oasst1
+  - artifact_url: https://huggingface.co/datasets/OpenAssistant/oasst1/resolve/refs%2Fconvert%2Fparquet/default/validation/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_2e31c97d0168.parquet
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Parquet rows=4401, cols=18.)
+- `downloaded` `0e0c5efffb7ace75` relevant=False reasonable=False score=0.0553
+  - source: https://huggingface.co/datasets/allenai/c4
+  - artifact_url: https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-train/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_0e0c5efffb7a.parquet
+  - matched_terms: token:failed, token:robust, token:structuring
+  - note: Download was truncated due to max_download_bytes limit.
+  - reasonableness: parquet_read_error (Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0000_0e0c5efffb7a.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0000_0e0c5efffb7a.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.)
+- `downloaded` `aa6f88d1774e858d` relevant=False reasonable=False score=0.0553
+  - source: https://huggingface.co/datasets/allenai/c4
+  - artifact_url: https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-train/0001.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0001_aa6f88d1774e.parquet
+  - matched_terms: token:failed, token:robust, token:structuring
+  - note: Download was truncated due to max_download_bytes limit.
+  - reasonableness: parquet_read_error (Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0001_aa6f88d1774e.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0001_aa6f88d1774e.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.)
+- `downloaded` `092060366ea45092` relevant=False reasonable=False score=0.0553
+  - source: https://huggingface.co/datasets/allenai/c4
+  - artifact_url: https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-train/0002.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0002_092060366ea4.parquet
+  - matched_terms: token:failed, token:robust, token:structuring
+  - note: Download was truncated due to max_download_bytes limit.
+  - reasonableness: parquet_read_error (Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0002_092060366ea4.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0002_092060366ea4.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.)
+- `downloaded` `d6b4fb2224baab62` relevant=False reasonable=False score=0.0553
+  - source: https://huggingface.co/datasets/allenai/c4
+  - artifact_url: https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-train/0003.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0003_d6b4fb2224ba.parquet
+  - matched_terms: token:failed, token:robust, token:structuring
+  - note: Download was truncated due to max_download_bytes limit.
+  - reasonableness: parquet_read_error (Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0003_d6b4fb2224ba.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0003_d6b4fb2224ba.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.)
+- `downloaded` `bf847fe041028a36` relevant=False reasonable=False score=0.0553
+  - source: https://huggingface.co/datasets/allenai/c4
+  - artifact_url: https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-train/0004.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0004_bf847fe04102.parquet
+  - matched_terms: token:failed, token:robust, token:structuring
+  - note: Download was truncated due to max_download_bytes limit.
+  - reasonableness: parquet_read_error (Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0004_bf847fe04102.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0004_bf847fe04102.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.)
+- `downloaded` `a81418daf71bc1f4` relevant=False reasonable=False score=0.0553
+  - source: https://huggingface.co/datasets/allenai/c4
+  - artifact_url: https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-train/0005.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0005_a81418daf71b.parquet
+  - matched_terms: token:failed, token:robust, token:structuring
+  - note: Download was truncated due to max_download_bytes limit.
+  - reasonableness: parquet_read_error (Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0005_a81418daf71b.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0005_a81418daf71b.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.)
+- `downloaded` `2356a3d19d774b28` relevant=False reasonable=False score=0.0553
+  - source: https://huggingface.co/datasets/allenai/c4
+  - artifact_url: https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-train/0006.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0006_2356a3d19d77.parquet
+  - matched_terms: token:failed, token:robust, token:structuring
+  - note: Download was truncated due to max_download_bytes limit.
+  - reasonableness: parquet_read_error (Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0006_2356a3d19d77.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0006_2356a3d19d77.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.)
+- `downloaded` `5f78f8cfd63bccb7` relevant=False reasonable=False score=0.0553
+  - source: https://huggingface.co/datasets/allenai/c4
+  - artifact_url: https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-train/0007.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0007_5f78f8cfd63b.parquet
+  - matched_terms: token:failed, token:robust, token:structuring
+  - note: Download was truncated due to max_download_bytes limit.
+  - reasonableness: parquet_read_error (Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0007_5f78f8cfd63b.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0007_5f78f8cfd63b.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.)
+- `downloaded` `a7e257551e0a1461` relevant=False reasonable=False score=0.0553
+  - source: https://huggingface.co/datasets/allenai/c4
+  - artifact_url: https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-train/0008.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0008_a7e257551e0a.parquet
+  - matched_terms: token:failed, token:robust, token:structuring
+  - note: Download was truncated due to max_download_bytes limit.
+  - reasonableness: parquet_read_error (Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0008_a7e257551e0a.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0008_a7e257551e0a.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.)
+- `downloaded` `7807158a43d9d370` relevant=False reasonable=False score=0.0553
+  - source: https://huggingface.co/datasets/allenai/c4
+  - artifact_url: https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-train/0009.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0009_7807158a43d9.parquet
+  - matched_terms: token:failed, token:robust, token:structuring
+  - note: Download was truncated due to max_download_bytes limit.
+  - reasonableness: parquet_read_error (Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0009_7807158a43d9.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0009_7807158a43d9.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.)
+- `downloaded` `974492d12e05a025` relevant=False reasonable=True score=0.0184
+  - source: https://huggingface.co/datasets/allenai/c4
+  - artifact_url: https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-validation/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_974492d12e05.parquet
+  - matched_terms: token:test
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Parquet rows=2118, cols=3.)
+- `downloaded` `09f860039cfc5dc7` relevant=False reasonable=False score=0.0553
+  - source: https://huggingface.co/datasets/allenai/c4
+  - artifact_url: https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/am/train/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_09f860039cfc.parquet
+  - matched_terms: token:failed, token:robust, token:structuring
+  - note: Download was truncated due to max_download_bytes limit.
+  - reasonableness: parquet_read_error (Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0000_09f860039cfc.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0000_09f860039cfc.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.)
+- `downloaded` `2ff5b367f9a58fe6` relevant=False reasonable=True score=0.0184
+  - source: https://huggingface.co/datasets/imdb
+  - artifact_url: https://huggingface.co/datasets/imdb
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/imdb_2ff5b367f9a5.html
+  - matched_terms: token:card
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Text preview chars=4000, lines=68.)
+- `failed` `1193ea615cf4dd96` relevant=False reasonable=False score=0.0
+  - source: https://huggingface.co/datasets/ag_news
+  - artifact_url: https://huggingface.co/datasets/ag_news
+  - note: Download failed: HTTP Error 404: Not Found
+  - reasonableness: download_failed (Reasonableness check skipped because download failed.)
+- `failed` `d35c45afe8288f02` relevant=False reasonable=False score=0.0
+  - source: https://huggingface.co/datasets/yelp_review_full
+  - artifact_url: https://huggingface.co/datasets/yelp_review_full
+  - note: Download failed: HTTP Error 404: Not Found
+  - reasonableness: download_failed (Reasonableness check skipped because download failed.)
+- `downloaded` `24d9fa756e1b9383` relevant=False reasonable=True score=0.1833
+  - source: https://huggingface.co/datasets/stanfordnlp/snli
+  - artifact_url: https://huggingface.co/datasets/stanfordnlp/snli/resolve/refs%2Fconvert%2Fparquet/plain_text/test/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_24d9fa756e1b.parquet
+  - matched_terms: other
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Parquet rows=10000, cols=3.)
+- `downloaded` `611a11a72d59058c` relevant=False reasonable=True score=0.1833
+  - source: https://huggingface.co/datasets/stanfordnlp/snli
+  - artifact_url: https://huggingface.co/datasets/stanfordnlp/snli/resolve/refs%2Fconvert%2Fparquet/plain_text/train/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_611a11a72d59.parquet
+  - matched_terms: other
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Parquet rows=550152, cols=3.)
+- `downloaded` `f28d204430ee355c` relevant=False reasonable=True score=0.1
+  - source: https://huggingface.co/datasets/stanfordnlp/snli
+  - artifact_url: https://huggingface.co/datasets/stanfordnlp/snli/resolve/refs%2Fconvert%2Fparquet/plain_text/validation/0000.parquet
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_f28d204430ee.parquet
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Parquet rows=10000, cols=3.)
+- `failed` `ae32cf8eaa9b7e9f` relevant=False reasonable=False score=0.0
+  - source: https://huggingface.co/datasets/super_glue
+  - artifact_url: https://huggingface.co/datasets/super_glue
+  - note: Download failed: HTTP Error 404: Not Found
+  - reasonableness: download_failed (Reasonableness check skipped because download failed.)
+- `failed` `158b6473bd29b05d` relevant=False reasonable=False score=0.0
+  - source: https://huggingface.co/datasets/wiki_qa
+  - artifact_url: https://huggingface.co/datasets/wiki_qa
+  - note: Download failed: HTTP Error 404: Not Found
+  - reasonableness: download_failed (Reasonableness check skipped because download failed.)
+- `downloaded` `5246a0470fb4638f` relevant=False reasonable=True score=0.0184
+  - source: https://huggingface.co/datasets/trec
+  - artifact_url: https://huggingface.co/datasets/trec
+  - local_path: tests/results/hf_robust_structuring_run_v1/raw/trec_5246a0470fb4.html
+  - matched_terms: token:card
+  - note: Artifact was collected and kept, but marked not relevant to the acquisition spec.
+  - reasonableness: ok (Text preview chars=4000, lines=68.)
+- `failed` `2bd5c6cb261bac0c` relevant=False reasonable=False score=0.0
+  - source: https://huggingface.co/datasets/hellaswag
+  - artifact_url: https://huggingface.co/datasets/hellaswag
+  - note: Download failed: HTTP Error 404: Not Found
+  - reasonableness: download_failed (Reasonableness check skipped because download failed.)
+- `failed` `51afe51164c094c9` relevant=False reasonable=False score=0.0
+  - source: https://huggingface.co/datasets/amazon_polarity
+  - artifact_url: https://huggingface.co/datasets/amazon_polarity
+  - note: Download failed: HTTP Error 404: Not Found
+  - reasonableness: download_failed (Reasonableness check skipped because download failed.)
+- `failed` `07fdfa7bc434bc16` relevant=False reasonable=False score=0.0
+  - source: https://huggingface.co/collections/bitext/customer-support
+  - artifact_url: https://huggingface.co/collections/bitext/customer-support
+  - note: Artifact URL resolution failed for source.
+  - reasonableness: resolution_failed (Could not resolve downloadable artifact URLs from this source.)
+- `failed` `170ad2ff1bdd8834` relevant=False reasonable=False score=0.0
+  - source: https://huggingface.co/datasets
+  - artifact_url: https://huggingface.co/datasets
+  - note: Artifact URL resolution failed for source.
+  - reasonableness: resolution_failed (Could not resolve downloadable artifact URLs from this source.)
+- `failed` `ece9fcb3a5ccfaa7` relevant=False reasonable=False score=0.0
+  - source: https://huggingface.co/datasets/nonexistent-owner/nonexistent-dataset-xyz
+  - artifact_url: https://huggingface.co/datasets/nonexistent-owner/nonexistent-dataset-xyz
+  - note: Artifact URL resolution failed for source.
+  - reasonableness: resolution_failed (Could not resolve downloadable artifact URLs from this source.)

@@ -1,0 +1,42 @@
+artifact_id: a8e65fe2551e295f
+status: downloaded
+is_relevant: False
+is_reasonable: True
+reasonableness_reason: ok
+relevance_score: 0.1386
+source_url: https://huggingface.co/datasets/DeepPavlov/clinc150
+artifact_url: https://huggingface.co/datasets/DeepPavlov/clinc150/resolve/refs%2Fconvert%2Fparquet/intentsqwen3-32b/intents/0000.parquet
+local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_a8e65fe2551e.parquet
+
+--- PREVIEW ---
+columns=['id', 'name', 'tags', 'regex_full_match', 'regex_partial_match', 'description']
+id=0, name=accept_reservations, tags=[], regex_full_match=[], regex_partial_match=[], description=User is asking whether a specific restaurant accepts reservations.
+id=1, name=account_blocked, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to know if their account is blocked and the reason for the block.
+id=2, name=alarm, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to set an alarm.
+id=3, name=application_status, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to check the status of their credit card application.
+id=4, name=apr, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to know the annual percentage rate (APR) for their credit card.
+id=5, name=are_you_a_bot, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to know if the assistant is a human or an AI.
+id=6, name=balance, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to know the balance in their bank account(s).
+id=7, name=bill_balance, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to know the amount of their bill for a specific service.
+id=8, name=bill_due, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to know the due date for a bill.
+id=9, name=book_flight, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to book a flight.
+id=10, name=book_hotel, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to book a hotel with good reviews for a specific time and location.
+id=11, name=calculator, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to perform a mathematical calculation.
+id=12, name=calendar, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to check their calendar for events on a specific date.
+id=13, name=calendar_update, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to add or remove an event from their calendar.
+id=14, name=calories, tags=[], regex_full_match=[], regex_partial_match=[], description=User is asking about the calorie content of different foods.
+id=15, name=cancel, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to cancel or stop the current process.
+id=16, name=cancel_reservation, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to cancel a restaurant reservation.
+id=17, name=car_rental, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to rent a car or book a car rental for a specific time and location.
+id=18, name=card_declined, tags=[], regex_full_match=[], regex_partial_match=[], description=User is asking why their card was declined during a purchase.
+id=19, name=carry_on, tags=[], regex_full_match=[], regex_partial_match=[], description=User is asking about carry-on policies, fees, or restrictions for airlines.
+id=20, name=change_accent, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to change the voice or accent settings.
+id=21, name=change_ai_name, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to change the AI's name.
+id=22, name=change_language, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to change the language in which the assistant communicates.
+id=23, name=change_speed, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to change the speed of the AI's speech.
+id=24, name=change_user_name, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to change their name in the conversation.
+id=25, name=change_volume, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to adjust the volume.
+id=26, name=confirm_reservation, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to confirm their restaurant reservation.
+id=27, name=cook_time, tags=[], regex_full_match=[], regex_partial_match=[], description=User is asking about the cooking time for a specific dish.
+id=28, name=credit_limit, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to know the credit limit on their credit card.
+id=29, name=credit_limit_change, tags=[], regex_full_match=[], regex_partial_match=[], description=User wants to increase or change their credit limit.

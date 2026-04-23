@@ -1,0 +1,42 @@
+artifact_id: 655cb91209a8e528
+status: downloaded
+is_relevant: True
+is_reasonable: True
+reasonableness_reason: ok
+relevance_score: 0.3184
+source_url: https://huggingface.co/datasets/DeepPavlov/clinc150
+artifact_url: https://huggingface.co/datasets/DeepPavlov/clinc150/resolve/refs%2Fconvert%2Fparquet/default/train/0000.parquet
+local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_655cb91209a8.parquet
+
+--- PREVIEW ---
+columns=['utterance', 'label']
+utterance=can i make a reservation for redrobin, label=0
+utterance=is it possible to make a reservation at redrobin, label=0
+utterance=does redrobin take reservations, label=0
+utterance=are reservations taken at redrobin, label=0
+utterance=does redrobin do reservations, label=0
+utterance=can acero take reservation, label=0
+utterance=can you make reservations at hodak's, label=0
+utterance=tell me if per se in nyc takes reservations, label=0
+utterance=tell me if the cheshire takes reservations, label=0
+utterance=will qdoba take reservations, label=0
+utterance=does burger king accept reservations, label=0
+utterance=does gramercy tavern in new york accept reservations, label=0
+utterance=does acero in maplewood allow reservations, label=0
+utterance=does cielo take reservations, label=0
+utterance=find out if la tour d'argent in paris takes reservations, label=0
+utterance=does tony's in downton let you make reservations, label=0
+utterance=does gramercy tavern accept reservations, label=0
+utterance=does mcdonalds take reservations, label=0
+utterance=can you make reservations at steak 'n' shake, label=0
+utterance=will nobu take reservations, label=0
+utterance=do they take reservations at carrabbas, label=0
+utterance=do they take reservations at applebees, label=0
+utterance=do they take reservations at olive garden, label=0
+utterance=do they take reservations at buffalo wild wings, label=0
+utterance=do they take reservations at outback steakhouse, label=0
+utterance=i need to know if angelos takes reservations, label=0
+utterance=does applebees in trenton do reservations, label=0
+utterance=does luigi's take reservations, label=0
+utterance=please find out if napolis takes lunch reservations, label=0
+utterance=does hannahs in galloway take reservations, label=0

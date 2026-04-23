@@ -1,0 +1,42 @@
+artifact_id: 611a11a72d59058c
+status: downloaded
+is_relevant: False
+is_reasonable: True
+reasonableness_reason: ok
+relevance_score: 0.1833
+source_url: https://huggingface.co/datasets/stanfordnlp/snli
+artifact_url: https://huggingface.co/datasets/stanfordnlp/snli/resolve/refs%2Fconvert%2Fparquet/plain_text/train/0000.parquet
+local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_611a11a72d59.parquet
+
+--- PREVIEW ---
+columns=['premise', 'hypothesis', 'label']
+premise=A person on a horse jumps over a broken down airplane., hypothesis=A person is training his horse for a competition., label=1
+premise=A person on a horse jumps over a broken down airplane., hypothesis=A person is at a diner, ordering an omelette., label=2
+premise=A person on a horse jumps over a broken down airplane., hypothesis=A person is outdoors, on a horse., label=0
+premise=Children smiling and waving at camera, hypothesis=They are smiling at their parents, label=1
+premise=Children smiling and waving at camera, hypothesis=There are children present, label=0
+premise=Children smiling and waving at camera, hypothesis=The kids are frowning, label=2
+premise=A boy is jumping on skateboard in the middle of a red bridge., hypothesis=The boy skates down the sidewalk., label=2
+premise=A boy is jumping on skateboard in the middle of a red bridge., hypothesis=The boy does a skateboarding trick., label=0
+premise=A boy is jumping on skateboard in the middle of a red bridge., hypothesis=The boy is wearing safety equipment., label=1
+premise=An older man sits with his orange juice at a small table in a coffee shop while employees in bright colored shirts smile in the background., hypothesis=An older man drinks his juice as he waits for his daughter to get off work., label=1
+premise=An older man sits with his orange juice at a small table in a coffee shop while employees in bright colored shirts smile in the background., hypothesis=A boy flips a burger., label=2
+premise=An older man sits with his orange juice at a small table in a coffee shop while employees in bright colored shirts smile in the background., hypothesis=An elderly man sits in a small shop., label=1
+premise=Two blond women are hugging one another., hypothesis=Some women are hugging on vacation., label=1
+premise=Two blond women are hugging one another., hypothesis=The women are sleeping., label=2
+premise=Two blond women are hugging one another., hypothesis=There are women showing affection., label=0
+premise=A few people in a restaurant setting, one of them is drinking orange juice., hypothesis=The people are eating omelettes., label=1
+premise=A few people in a restaurant setting, one of them is drinking orange juice., hypothesis=The people are sitting at desks in school., label=2
+premise=A few people in a restaurant setting, one of them is drinking orange juice., hypothesis=The diners are at a restaurant., label=0
+premise=An older man is drinking orange juice at a restaurant., hypothesis=A man is drinking juice., label=0
+premise=An older man is drinking orange juice at a restaurant., hypothesis=Two women are at a restaurant drinking wine., label=2
+premise=An older man is drinking orange juice at a restaurant., hypothesis=A man in a restaurant is waiting for his meal to arrive., label=1
+premise=A man with blond-hair, and a brown shirt drinking out of a public water fountain., hypothesis=A blond man getting a drink of water from a fountain in the park., label=1
+premise=A man with blond-hair, and a brown shirt drinking out of a public water fountain., hypothesis=A blond man wearing a brown shirt is reading a book on a bench in the park, label=2
+premise=A man with blond-hair, and a brown shirt drinking out of a public water fountain., hypothesis=A blond man drinking water from a fountain., label=0
+premise=Two women who just had lunch hugging and saying goodbye., hypothesis=The friends scowl at each other over a full dinner table., label=2
+premise=Two women who just had lunch hugging and saying goodbye., hypothesis=There are two woman in this picture., label=0
+premise=Two women who just had lunch hugging and saying goodbye., hypothesis=The friends have just met for the first time in 20 years, and have had a great time catching up., label=1
+premise=Two women, holding food carryout containers, hug., hypothesis=The two sisters saw each other across the crowded diner and shared a hug, both clutching their doggie bags., label=1
+premise=Two women, holding food carryout containers, hug., hypothesis=Two groups of rival gang members flipped each other off., label=2
+premise=Two women, holding food carryout containers, hug., hypothesis=Two women hug each other., label=0

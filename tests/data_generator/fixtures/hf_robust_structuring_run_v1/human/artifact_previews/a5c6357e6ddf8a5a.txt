@@ -1,0 +1,42 @@
+artifact_id: a5c6357e6ddf8a5a
+status: downloaded
+is_relevant: True
+is_reasonable: True
+reasonableness_reason: ok
+relevance_score: 0.3
+source_url: https://huggingface.co/datasets/SetFit/sst2
+artifact_url: https://huggingface.co/datasets/SetFit/sst2/resolve/refs%2Fconvert%2Fparquet/default/test/0000.parquet
+local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_a5c6357e6ddf.parquet
+
+--- PREVIEW ---
+columns=['text', 'label', 'label_text']
+text=no movement , no yuks , not much of anything ., label=0, label_text=negative
+text=a gob of drivel so sickly sweet , even the eager consumers of moore 's pasteurized ditties will retch it up like rancid crème brûlée ., label=0, label_text=negative
+text=gangs of new york is an unapologetic mess , whose only saving grace is that it ends by blowing just about everything up ., label=0, label_text=negative
+text=we never really feel involved with the story , as all of its ideas remain just that : abstract ideas ., label=0, label_text=negative
+text=this is one of polanski 's best films ., label=1, label_text=positive
+text=take care of my cat offers a refreshingly different slice of asian cinema ., label=1, label_text=positive
+text=acting , particularly by tambor , almost makes `` never again '' worthwhile , but -lrb- writer\/director -rrb- schaeffer should follow his titular advice, label=0, label_text=negative
+text=the movie exists for its soccer action and its fine acting ., label=1, label_text=positive
+text=arnold 's jump from little screen to big will leave frowns on more than a few faces ., label=0, label_text=negative
+text=if this holiday movie is supposed to be a gift , somebody unwrapped it early , took out all the good stuff , and left behind the crap -lrb- literally -rrb- ., label=0, label_text=negative
+text=jason x has cheesy effects and a hoary plot , but its macabre , self-deprecating sense of humor makes up for a lot ., label=1, label_text=positive
+text=even as lame horror flicks go , this is lame ., label=0, label_text=negative
+text=oft-described as the antidote to american pie-type sex comedies , it actually has a bundle in common with them , as the film diffuses every opportunity for a breakthrough, label=0, label_text=negative
+text=though the violence is far less sadistic than usual , the film is typical miike : fast , furious and full of off-the-cuff imaginative flourishes ., label=1, label_text=positive
+text=when a set of pre-shooting guidelines a director came up with for his actors turns out to be cleverer , better written and of considerable more interest than the finished film , that 's a bad sign ., label=0, label_text=negative
+text=the passions aroused by the discord between old and new cultures are set against the strange , stark beauty of the mideast desert , so lovingly and perceptively filmed that you can almost taste the desiccated air ., label=1, label_text=positive
+text=if your senses have n't been dulled by slasher films and gorefests , if you 're a connoisseur of psychological horror , this is your ticket ., label=1, label_text=positive
+text=any one episode of the sopranos would send this ill-conceived folly to sleep with the fishes ., label=0, label_text=negative
+text=as conceived by mr. schaeffer , christopher and grace are little more than collections of quirky traits lifted from a screenwriter 's outline and thrown at actors charged with the impossible task of making them jell ., label=0, label_text=negative
+text=those who managed to avoid the deconstructionist theorizing of french philosopher jacques derrida in college can now take an 85-minute brush-up course with the documentary derrida ., label=0, label_text=negative
+text=most new movies have a bright sheen ., label=1, label_text=positive
+text=but what saves lives on the freeway does not necessarily make for persuasive viewing ., label=0, label_text=negative
+text=steve irwin 's method is ernest hemmingway at accelerated speed and volume ., label=1, label_text=positive
+text=nicely serves as an examination of a society in transition ., label=1, label_text=positive
+text=the film would work much better as a video installation in a museum , where viewers would be free to leave ., label=0, label_text=negative
+text=culkin exudes none of the charm or charisma that might keep a more general audience even vaguely interested in his bratty character ., label=0, label_text=negative
+text=the whole thing plays out with the drowsy heaviness of synchronized swimmer wearing a wool wetsuit ., label=0, label_text=negative
+text=not a cozy or ingratiating work , but it 's challenging , sometimes clever , and always interesting , and those are reasons enough to see it ., label=1, label_text=positive
+text=the premise for this kegger comedy probably sounded brilliant four six-packs and a pitcher of margaritas in , but the film must have been written ... in the thrall of a vicious hangover ., label=0, label_text=negative
+text=it 's a pleasure to see seinfeld griping about the biz with buddies chris rock , garry shandling and colin quinn ., label=1, label_text=positive

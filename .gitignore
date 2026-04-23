@@ -1,3 +1,11 @@
+# Python env
+.venv/
+__pycache__/
+*.pyc
+
+# Retrieval outputs
+raw/
+human_readable/
 # Python
 __pycache__/
 *.pyc
