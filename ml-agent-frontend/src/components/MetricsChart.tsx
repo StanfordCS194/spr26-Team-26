@@ -9,6 +9,7 @@ import {
   Legend,
 } from 'recharts';
 import type { MetricPoint } from '../types';
+import TooltipInfo from './Tooltip';
 
 interface Props {
   metrics: MetricPoint[];
@@ -40,9 +41,13 @@ export default function MetricsChart({ metrics }: Props) {
       }}
       aria-label="Training metrics chart"
     >
-      <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-        Training Curves
-      </p>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.75rem' }}>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Training Curves</p>
+        <TooltipInfo
+          label="Training Curves"
+          body="Plots loss and accuracy together over time. Diverging curves (loss up, accuracy down) signal overfitting; converging curves signal healthy learning."
+        />
+      </div>
       {data.length === 0 ? (
         <div style={{ height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Awaiting training data…</span>

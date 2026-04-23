@@ -6,3 +6,29 @@ __pycache__/
 # Retrieval outputs
 raw/
 human_readable/
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual envs
+.venv/
+venv/
+env/
+.env
+
+# AutoResearch runtime outputs (diary, run logs — not source)
+outputs/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo

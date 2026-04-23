@@ -1,0 +1,320 @@
+\documentclass[11pt, letterpaper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{inconsolata}          % monospace font for diagrams
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{mdframed}
+\usepackage{parskip}
+\usepackage{hyperref}
+
+% ── Colour palette ────────────────────────────────────────────────────────────
+\definecolor{bgdark}{HTML}{0f1419}
+\definecolor{accent}{HTML}{60a5fa}
+\definecolor{success}{HTML}{4ade80}
+\definecolor{warning}{HTML}{fb923c}
+\definecolor{danger}{HTML}{f87171}
+\definecolor{muted}{HTML}{6b7280}
+\definecolor{surfacebg}{HTML}{1a1f2e}
+
+% ── Section styling ───────────────────────────────────────────────────────────
+\titleformat{\section}{\large\bfseries\color{accent}}{}{0em}{}[\color{muted}\titlerule]
+\titleformat{\subsection}{\normalsize\bfseries\color{accent}}{}{0em}{}
+
+% ── Header / footer ───────────────────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\color{muted}\small CS194 Spring 2026 — Team 26}
+\lhead{\color{muted}\small AutoResearch System Map}
+\cfoot{\color{muted}\small \thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ── Diagram box ───────────────────────────────────────────────────────────────
+\newmdenv[
+  backgroundcolor=surfacebg,
+  linecolor=accent,
+  linewidth=0.6pt,
+  roundcorner=4pt,
+  innerleftmargin=12pt,
+  innerrightmargin=12pt,
+  innertopmargin=10pt,
+  innerbottommargin=10pt,
+  fontcolor=black,
+]{diagrambox}
+
+% ── Use Inconsolata throughout diagrams ───────────────────────────────────────
+\newcommand{\diagram}[1]{%
+  \begin{diagrambox}
+  \ttfamily\small\obeylines\obeyspaces
+  #1
+  \end{diagrambox}%
+}
+
+\renewcommand{\familydefault}{\sfdefault}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\begin{document}
+
+\begin{center}
+  {\LARGE\bfseries\color{accent} Autonomous ML Training Agent}\\[4pt]
+  {\large System Architecture \& AutoResearch PROPOSE Loop}\\[6pt]
+  {\color{muted}\small CS194 Spring 2026 $\cdot$ Team 26 $\cdot$
+  Owner: Matthew Torre, Hayley Antczak}
+\end{center}
+
+\vspace{0.5em}
+\hrule height 0.6pt
+\vspace{1.2em}
+
+% ═════════════════════════════════════════════════════════════════════════════
+\section{Main Pipeline (runs once, left to right)}
+
+The Manager orchestrates five agents in sequence. Each agent hands a typed
+contract to the next; no agent reaches into another's internals.
+
+\vspace{0.5em}
+\begin{verbatim}
+ User prompt + budget
+        |
+        v
+ +------------+  OrchestrationConfig   +----------------+  DatasetResult
+ |  MANAGER   | ---------------------> | DATA GENERATOR | ------------->
+ |            |                        |                |               |
+ | Claude     |                        | finds/generates|               |
+ | Sonnet     |                        | training data  |               |
+ +------------+                        +----------------+               |
+                                                                        v
+                                                             +--------------------+
+                                                             |  DECISION ENGINE   |
+                                                             |  picks base model  |
+                                                             |  + hyperparams     |
+                                                             +----------+---------+
+                                                                        |
+                                                                  TrainingPlan
+                                                                        |
+                                                                        v
+                                                             +--------------------+
+                                                             |   AUTORESEARCH     |
+                                                             |   (PROPOSE loop)   |  <-- detail below
+                                                             +----------+---------+
+                                                                        |
+                                                                  TrainedModel
+                                                                        |
+                                                                        v
+                                                                    Done
+\end{verbatim}
+
+\vspace{0.5em}
+\begin{center}
+\begin{tabular}{lll}
+\hline
+\textbf{Arrow} & \textbf{Type} & \textbf{Contents} \\
+\hline
+Manager $\to$ DataGen        & \texttt{OrchestrationConfig} & prompt, budget, task type \\
+DataGen $\to$ DecisionEngine & \texttt{DatasetResult}       & train/val/test split paths \\
+DecisionEngine $\to$ AutoRes & \texttt{TrainingPlan}        & base model, LoRA config, eval metric \\
+AutoRes $\to$ Manager        & \texttt{TrainedModel}        & weights path, metrics, cost breakdown \\
+\hline
+\end{tabular}
+\end{center}
+
+% ═════════════════════════════════════════════════════════════════════════════
+\section{AutoResearch — PROPOSE Loop (cycles up to 20×)}
+
+AutoResearch is itself a LangGraph \texttt{StateGraph} with a cycle.
+One pass = one hyperparameter experiment.
+
+\begin{verbatim}
+        +---------------------------------------------------+
+        |              STOP CONDITIONS                      |
+        |  * spend >= budget                                |
+        |  * 3 consecutive non-improving iterations         |
+        |  * 20 total iterations reached                    |
+        +------------------------+--------------------------+
+                                 | __end__
+                                 |
+  +------------------------------+---------------------------------+
+  |                              |                                 |
+  |   +----------+         +-----+----+                           |
+  |   |   INIT   |         |   LOG    |                           |
+  |   |          |         |          |                           |
+  |   | create   |         | append   | <-----------------------+ |
+  |   | eval     |         | diary    |                         | |
+  |   | suite    |         | entry    |                         | |
+  |   +----+-----+         |          |                         | |
+  |        |               | every 10 |                         | |
+  |        v               | iters:   |                         | |
+  |   +----------+         | adapt    |                         | |
+  |   | BASELINE |         | eval     |                         | |
+  |   |          |         | suite    |                         | |
+  |   | run orig |         +----+-----+                         | |
+  |   | script;  |              | propose (loop)                | |
+  |   | set      |              v                         +-----+-+----+
+  |   | baseline |        +----------+                    | KEEP or    |
+  |   | score    |        |  PROPOSE |                    | REVERT     |
+  |   +----+-----+        |          |                    |            |
+  |        |              | Claude   |                    | KEPT:      |
+  |        +------------->| Haiku    |                    |  update    |
+  |                       | picks 1  |                    |  best,     |
+  |                       | hyperparm|                    |  streak=0  |
+  |                       | change;  |                    |            |
+  |                       | writes   |                    | REVERTED:  |
+  |                       | patch to |                    |  restore   |
+  |                       | disk     |                    |  file,     |
+  |                       +----+-----+                    |  streak+1  |
+  |                            |                          +-----+------+
+  |                            v                                ^
+  |                       +----------+                          |
+  |                       |   RUN    |--- NaN/crash ----------->|
+  |                       | [STUB]   |              +----------------------+
+  |                       |          |              | REVERT_AND_CONTINUE  |
+  |                       | Tinker   |              | restore file,        |
+  |                       | GPU job  |              | mark REVERTED        |
+  |                       +----+-----+              +----------------------+
+  |                            | ok
+  |                            v
+  |                       +----------+
+  |                       | EVALUATE |
+  |                       | [STUB]   |
+  |                       |          |
+  |                       | run_evals|
+  |                       | compare  |
+  |                       | vs       |-----------------------------------------+
+  |                       | baseline |
+  |                       +----------+
+  |
+  +--- LangGraph StateGraph (AutoResearchState flows through every node)
+\end{verbatim}
+
+% ═════════════════════════════════════════════════════════════════════════════
+\section{PROPOSE Step — Zoomed In (the only fully implemented node)}
+
+\begin{verbatim}
+  current_config (dict)
+  + diary (last 5 entries)              configs/current.json  (on disk)
+  + task analysis                              |
+         |                                     |
+         v                                     | apply_patch() reads original
+  propose_hypothesis()                         v
+  calls Claude Haiku              +----------------------------+
+                                  |  BEFORE (original file)    |
+  prompt contains:                |  {                         |
+  * current hyperparams           |    learning_rate: 3e-4     |
+  * recent KEPT/REVERTED          |    lora_rank: 16           |
+    history                       |    batch_size: 16  ...     |
+  * task type + primary metric    |  }                         |
+                                  +----------------------------+
+  Claude returns JSON:                         |
+  {                                            | write .tmp -> rename
+    "description": "Decrease lr               | (atomic; no partial writes)
+      3e-4 to 1.5e-4 to reduce                v
+      loss spikes.",              +----------------------------+
+    "patch": {                    |  AFTER  (patched file)     |
+      "learning_rate": 0.00015   |  {                         |
+    },                            |    learning_rate: 1.5e-4   | <- changed
+    "expected_effect":            |    lora_rank: 16           |
+      "val_loss drops ~5%.",      |    batch_size: 16  ...     |
+    "search_strategy": "local"    |  }                         |
+  }                               +----------------------------+
+                                             |
+                                  original saved in state as
+                                  original_content (for revert)
+\end{verbatim}
+
+% ═════════════════════════════════════════════════════════════════════════════
+\section{File Structure}
+
+\begin{verbatim}
+spr26-Team-26/
+|
++-- configs/
+|   +-- current.json              <- active hyperparams; mutated by apply_patch()
+|
++-- outputs/
+|   +-- logs/
+|   |   +-- research_diary.jsonl  <- one JSON line per iteration (KEPT/REVERTED)
+|   +-- experiments/
+|       +-- <job_id>/
+|           +-- metrics.json      <- train_loss, val_loss, primary_metric
+|           +-- model/            <- saved weights  (read by run_evals)
+|           +-- logs.txt          <- Tinker stdout
+|
++-- src/
+|   +-- autoresearch/
+|   |   +-- autoresearch.py       <- graph + all node/edge/helper functions   [DONE]
+|   |   +-- proposer.py           <- RandomSearch + LocalPerturbation         [DONE]
+|   |   +-- config.py             <- TrainingConfig dataclass + BOUNDS dict   [DONE]
+|   |   +-- diff_utils.py         <- format_patch_as_diff / parse_diff        [DONE]
+|   |   +-- loop.py               <- CLI scaffold for PROPOSE-only testing    [DONE]
+|   |
+|   +-- tinker_api/
+|   |   +-- tinker_api.py         <- HTTP client (Sid) -- stubs only
+|   |
+|   +-- manager/manager.py        <- top-level orchestrator (Sid)
+|   +-- data_generator/           <- finds/generates datasets (Ron, Angel)
+|   +-- decision_engine/          <- picks model + baseline config (Ron, Angel)
+|   +-- cost_manager/             <- budget tracking thread (Sid)
+|   +-- observability/            <- log_event() -> colored CLI + run.jsonl   [DONE]
+|   +-- types.py                  <- all TypedDicts (shared contract)         [DONE]
+|
++-- tests/
+|   +-- test_propose_infra.py     <- 30 edge-case tests                       [DONE]
+|   +-- test_autoresearch.py      <- stub tests for graph/eval/decide
+|
++-- ml-agent-frontend/            <- React dashboard  (localhost:5174)
+    +-- src/
+        +-- hooks/useTrainingSimulation.ts  <- simulates pipeline + propose iters
+        +-- components/IterationsList.tsx   <- hypothesis + config diff per iter
+        +-- components/ActivityLog.tsx      <- mirrors log_event() output
+\end{verbatim}
+
+% ═════════════════════════════════════════════════════════════════════════════
+\section{Implementation Status}
+
+\begin{center}
+\begin{tabular}{llll}
+\hline
+\textbf{Component} & \textbf{File} & \textbf{Owner} & \textbf{Status} \\
+\hline
+\texttt{propose\_hypothesis}         & autoresearch.py  & Torre/Antczak & \textcolor{success}{Done} \\
+\texttt{apply\_patch / revert\_patch} & autoresearch.py  & Torre/Antczak & \textcolor{success}{Done} \\
+\texttt{propose\_node}               & autoresearch.py  & Torre/Antczak & \textcolor{success}{Done} \\
+\texttt{keep\_node / revert\_node}   & autoresearch.py  & Torre/Antczak & \textcolor{success}{Done} \\
+\texttt{log\_node}                   & autoresearch.py  & Torre/Antczak & \textcolor{success}{Done} \\
+\texttt{early\_stop / decision / continue edges} & autoresearch.py & Torre/Antczak & \textcolor{success}{Done} \\
+\texttt{compare\_scores}             & autoresearch.py  & Torre/Antczak & \textcolor{success}{Done} \\
+\texttt{decide\_keep\_or\_revert}    & autoresearch.py  & Torre/Antczak & \textcolor{success}{Done} \\
+\texttt{flag\_regression}            & autoresearch.py  & Torre/Antczak & \textcolor{success}{Done} \\
+\texttt{create\_eval\_suite}         & autoresearch.py  & Torre/Antczak & \textcolor{success}{Done} \\
+\texttt{adapt\_eval\_suite}          & autoresearch.py  & Torre/Antczak & \textcolor{success}{Done} \\
+\texttt{build\_autoresearch\_graph}  & autoresearch.py  & Torre/Antczak & \textcolor{success}{Done} \\
+RandomSearch + LocalPerturbation     & proposer.py      & Torre/Antczak & \textcolor{success}{Done} \\
+TrainingConfig + BOUNDS              & config.py        & Torre/Antczak & \textcolor{success}{Done} \\
+Diff utilities                       & diff\_utils.py   & Torre/Antczak & \textcolor{success}{Done} \\
+Edge-case tests (30)                 & test\_propose\_infra.py & Torre/Antczak & \textcolor{success}{Done} \\
+\hline
+\texttt{run\_evals}                  & autoresearch.py  & Torre/Antczak & \textcolor{warning}{Needs model infra} \\
+\texttt{tinker\_api.*}               & tinker\_api.py   & Potti         & \textcolor{warning}{Stub} \\
+Manager, DataGen, DecisionEngine     & various          & Potti/Polonsky/Raychev & \textcolor{warning}{Stub} \\
+\hline
+\end{tabular}
+\end{center}
+
+\vspace{1em}
+\noindent\color{muted}\small
+\textbf{Key data flow summary:}
+\texttt{TrainingPlan} arrives from DecisionEngine $\to$
+\texttt{init\_node} creates \texttt{EvalSuite} $\to$
+\texttt{baseline\_node} sets \texttt{best\_score} $\to$
+\texttt{propose\_node} (Claude Haiku) patches \texttt{configs/current.json} $\to$
+\texttt{run\_node} (Tinker) trains $\to$
+\texttt{evaluate\_node} computes \texttt{ScoreDelta} $\to$
+\texttt{keep\_node} or \texttt{revert\_node} $\to$
+\texttt{log\_node} appends to \texttt{research\_diary.jsonl} $\to$
+\texttt{continue\_edge} loops or exits $\to$
+\texttt{TrainedModel} returned to Manager.
+
+\end{document}
