@@ -44,7 +44,13 @@ def test_decide_keep_or_revert_tie_defaults_to_revert():
 
 
 def test_flag_regression_triggers_below_threshold():
-    raise NotImplementedError
+    ok_delta = {"absolute": 0.03, "relative_pct": 3.75, "improved": True}
+    bad_delta = {"absolute": -0.05, "relative_pct": -6.25, "improved": False}
+    threshold_delta = {"absolute": -0.01, "relative_pct": -1.25, "improved": False}
+
+    assert flag_regression(bad_delta) == True
+    assert flag_regression(ok_delta) == False
+    assert flag_regression(threshold_delta) == False
 
 
 def test_log_iteration_appends_to_diary():

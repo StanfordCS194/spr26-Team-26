@@ -188,4 +188,6 @@ def adapt_eval_suite(suite: EvalSuite, weaknesses: list[str]) -> EvalSuite:
 
 def flag_regression(delta: ScoreDelta, threshold: float = -0.01) -> bool:
     """Returns True if score degraded beyond threshold, triggering automatic revert."""
-    raise NotImplementedError
+    if delta["absolute"] < threshold:
+        return True
+    return False
