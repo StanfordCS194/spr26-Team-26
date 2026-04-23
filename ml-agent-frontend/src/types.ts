@@ -1,7 +1,7 @@
 export type StageStatus = 'pending' | 'in-progress' | 'complete';
 export type TaskType = 'classification' | 'regression' | 'fine-tuning';
 export type LogType = 'default' | 'success' | 'warning';
-export type IterationStatus = 'KEPT' | 'REVERTED';
+export type IterationStatus = 'KEPT' | 'REVERTED' | 'PENDING';
 
 export interface PipelineStage {
   id: number;
@@ -18,6 +18,7 @@ export interface MetricPoint {
 export interface Iteration {
   id: string;
   experiment: string;
+  diff?: string;
   loss: number;
   f1: number;
   status: IterationStatus;
