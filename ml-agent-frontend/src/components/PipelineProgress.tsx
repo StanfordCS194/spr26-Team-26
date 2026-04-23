@@ -1,4 +1,5 @@
 import type { PipelineStage } from '../types';
+import Tooltip from './Tooltip';
 
 interface Props {
   stages: PipelineStage[];
@@ -46,6 +47,15 @@ export default function PipelineProgress({ stages, costSpent, budget }: Props) {
 
   return (
     <section style={{ marginBottom: '1.5rem' }}>
+      {/* Section label */}
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.625rem' }}>
+        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Training Pipeline</span>
+        <Tooltip
+          label="Training Pipeline Stages"
+          body="Shows which step of the workflow is currently running. Stages run in order — each one must finish before the next begins."
+        />
+      </div>
+
       {/* Stage timeline */}
       <div
         style={{
@@ -95,8 +105,15 @@ export default function PipelineProgress({ stages, costSpent, budget }: Props) {
 
       {/* Budget bar */}
       <div style={{ marginTop: '1rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.375rem' }}>
-          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Budget</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.375rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Budget</span>
+            <Tooltip
+              label="Live Budget Usage"
+              body="Tracks how much of your cost cap has been spent so far. Turns amber at 50% and red at 70% as a warning before the limit is hit."
+              placement="bottom"
+            />
+          </div>
           <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
             ${costSpent.toFixed(2)} / ${budget.toFixed(2)}
             <span style={{ marginLeft: '0.5rem', color: pct >= 70 ? 'var(--danger)' : pct >= 50 ? 'var(--warning)' : 'var(--text-muted)' }}>

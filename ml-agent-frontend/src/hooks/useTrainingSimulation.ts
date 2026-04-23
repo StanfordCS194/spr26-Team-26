@@ -43,10 +43,15 @@ const STAGE_LOGS: Array<Array<{ component: string; message: string; type: LogEnt
     { component: 'Tinker', message: 'Training epoch 1/3 complete', type: 'default' },
   ],
   [
-    { component: 'AutoResearch', message: 'Starting hyperparameter search loop', type: 'default' },
-    { component: 'AutoResearch', message: 'Proposing experiment: LoRA rank sweep', type: 'default' },
+    { component: 'AutoResearch', message: 'PROPOSE: creating eval suite and recording baseline', type: 'default' },
+    { component: 'AutoResearch', message: 'Hypothesis: decrease learning_rate 3e-4→1.5e-4 (local ±20%)', type: 'default' },
+    { component: 'AutoResearch', message: 'KEPT — val_loss improved 0.312→0.289 (+7.4%)', type: 'success' },
+    { component: 'AutoResearch', message: 'Hypothesis: increase lora_rank 16→32 (random search)', type: 'default' },
+    { component: 'AutoResearch', message: 'KEPT — F1 improved 0.871→0.901 (+3.4%)', type: 'success' },
+    { component: 'AutoResearch', message: 'Hypothesis: increase learning_rate 1.5e-4→6e-4 (local ±20%)', type: 'default' },
+    { component: 'AutoResearch', message: 'REVERTED — loss spiked 0.289→0.334, patch rolled back', type: 'warning' },
     { component: 'CostManager', message: 'Cumulative spend approaching 60% of budget', type: 'warning' },
-    { component: 'AutoResearch', message: 'Best config identified — committing weights', type: 'success' },
+    { component: 'AutoResearch', message: 'Best config committed: lora_rank=32, lr=1.5e-4, warmup=500', type: 'success' },
   ],
   [
     { component: 'Manager', message: 'Collecting final metrics and artifacts', type: 'default' },
@@ -56,13 +61,41 @@ const STAGE_LOGS: Array<Array<{ component: string; message: string; type: LogEnt
 ];
 
 const ITERATIONS: Array<Omit<Iteration, 'id'>> = [
-  { experiment: 'Baseline: lr=2e-4, batch=16', loss: 0.312, f1: 0.871, status: 'KEPT' },
-  { experiment: 'LoRA rank=16, alpha=32', loss: 0.298, f1: 0.883, status: 'KEPT' },
-  { experiment: 'LoRA rank=32, dropout=0.1', loss: 0.271, f1: 0.901, status: 'KEPT' },
-  { experiment: 'lr=5e-4 (too aggressive)', loss: 0.334, f1: 0.862, status: 'REVERTED' },
-  { experiment: 'LoRA rank=32, warmup=500', loss: 0.248, f1: 0.914, status: 'KEPT' },
-  { experiment: 'Epoch +1 overfitting check', loss: 0.261, f1: 0.908, status: 'REVERTED' },
-  { experiment: 'Final: rank=32, lr=2e-4, warmup=500', loss: 0.231, f1: 0.923, status: 'KEPT' },
+  {
+    experiment: 'Decrease learning_rate 3e-4→1.5e-4 to reduce loss spikes.',
+    diff: '- learning_rate: 0.0003\n+ learning_rate: 0.00015',
+    loss: 0.289, f1: 0.871, status: 'KEPT',
+  },
+  {
+    experiment: 'Increase lora_rank 16→32 to expand model capacity for task.',
+    diff: '- lora_rank: 16\n+ lora_rank: 32',
+    loss: 0.271, f1: 0.901, status: 'KEPT',
+  },
+  {
+    experiment: 'Increase learning_rate 1.5e-4→6.1e-4 (local ±20% perturbation).',
+    diff: '- learning_rate: 0.00015\n+ learning_rate: 0.00061',
+    loss: 0.334, f1: 0.862, status: 'REVERTED',
+  },
+  {
+    experiment: 'Increase warmup_steps 100→500 to stabilize early training.',
+    diff: '- warmup_steps: 100\n+ warmup_steps: 500',
+    loss: 0.248, f1: 0.914, status: 'KEPT',
+  },
+  {
+    experiment: 'Decrease dropout 0.1→0.06 (local ±20% perturbation).',
+    diff: '- dropout: 0.1\n+ dropout: 0.06',
+    loss: 0.243, f1: 0.917, status: 'KEPT',
+  },
+  {
+    experiment: 'Increase num_epochs 3→4 to allow longer convergence.',
+    diff: '- num_epochs: 3\n+ num_epochs: 4',
+    loss: 0.261, f1: 0.908, status: 'REVERTED',
+  },
+  {
+    experiment: 'Decrease learning_rate 1.5e-4→1.2e-4 (local ±20% perturbation).',
+    diff: '- learning_rate: 0.00015\n+ learning_rate: 0.00012',
+    loss: 0.231, f1: 0.923, status: 'KEPT',
+  },
 ];
 
 export function useTrainingSimulation() {
@@ -166,17 +199,26 @@ export function useTrainingSimulation() {
         }
       }
 
-      // AutoResearch iterations during stage 4
+      // AutoResearch iterations during stage 4: appear as PENDING, then resolve
       if (stageIdx === 4) {
         const iterDelay = dur / (ITERATIONS.length + 1);
+        const resolveDelay = Math.min(iterDelay * 0.7, 800); // resolve before next appears
         ITERATIONS.forEach((iter, i) => {
+          const appearAt = stageStart + iterDelay * (i + 1);
+          // Step 1: add as PENDING
           schedule(() => {
-            const iteration: Iteration = { ...iter, id: `iter-${i}` };
+            const pending: Iteration = { ...iter, id: `iter-${i}`, status: 'PENDING' };
+            setState(prev => ({ ...prev, iterations: [pending, ...prev.iterations] }));
+          }, appearAt);
+          // Step 2: resolve to final status
+          schedule(() => {
             setState(prev => ({
               ...prev,
-              iterations: [iteration, ...prev.iterations],
+              iterations: prev.iterations.map(it =>
+                it.id === `iter-${i}` ? { ...it, status: iter.status } : it
+              ),
             }));
-          }, stageStart + iterDelay * (i + 1));
+          }, appearAt + resolveDelay);
         });
       }
 
