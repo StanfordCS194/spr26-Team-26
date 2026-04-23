@@ -271,8 +271,10 @@ class AutoResearchState(TypedDict):
     plan: TrainingPlan
     config: OrchestrationConfig
     eval_suite: EvalSuite | None
-    current_script: str
-    current_config: dict
+    current_script: str        # path to the training script (never mutated by PROPOSE)
+    current_config: dict       # live hyperparams; updated by keep_node after each KEPT patch
+    current_patch: str | None  # JSON-encoded patch from the last propose_node call
+    last_description: str | None  # Claude's human-readable hypothesis for the diary
     original_content: str | None
     diary: ResearchDiary
     baseline_score: EvalScore | None
