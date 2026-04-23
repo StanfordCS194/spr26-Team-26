@@ -40,7 +40,13 @@ def test_compare_scores_improved_flag():
 
 
 def test_decide_keep_or_revert_tie_defaults_to_revert():
-    raise NotImplementedError
+    ok_delta = {"absolute": 0.03, "relative_pct": 3.75, "improved": True}
+    bad_delta = {"absolute": -0.05, "relative_pct": -6.25, "improved": False}
+    threshold_delta = {"absolute": -0.01, "relative_pct": -1.25, "improved": False}
+
+    assert decide_keep_or_revert(ok_delta) == "KEEP"
+    assert decide_keep_or_revert(bad_delta) == "REVERT"
+    assert decide_keep_or_revert(threshold_delta) == "REVERT"
 
 
 def test_flag_regression_triggers_below_threshold():

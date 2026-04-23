@@ -166,7 +166,9 @@ def compare_scores(new_score: EvalScore, baseline_score: EvalScore) -> ScoreDelt
 
 def decide_keep_or_revert(delta: ScoreDelta) -> Literal["KEEP", "REVERT"]:
     """Returns KEEP if hypothesis improved primary metric, REVERT otherwise. Ties default to REVERT."""
-    raise NotImplementedError
+    if delta["improved"]:
+        return "KEEP"
+    return "REVERT"
 
 
 def log_iteration(diary: ResearchDiary, record: IterationRecord) -> ResearchDiary:
