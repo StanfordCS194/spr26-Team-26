@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import TypedDict
 
 
-# ─── ENUMS ───────────────────────────────────────────────────────────────────
+# ENUMS
 
 class AgentName:
     MANAGER = "Manager"
@@ -40,7 +40,7 @@ class JobStatus:
     CANCELLED = "CANCELLED"
 
 
-# ─── NESTED TYPES ─────────────────────────────────────────────────────────────
+#NESTED TYPES 
 
 class TrainingProcedure(TypedDict):
     task_type: str        # e.g. 'text-classification', 'seq2seq', 'custom'
@@ -243,7 +243,7 @@ class JobSummary(TypedDict):
     script_name: str
 
 
-# ─── LANGGRAPH STATES ─────────────────────────────────────────────────────────
+# LANGGRAPH STATES 
 
 class ManagerState(TypedDict):
     prompt: str

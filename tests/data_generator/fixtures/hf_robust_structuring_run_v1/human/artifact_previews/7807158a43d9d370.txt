@@ -1,0 +1,12 @@
+artifact_id: 7807158a43d9d370
+status: downloaded
+is_relevant: False
+is_reasonable: False
+reasonableness_reason: parquet_read_error
+relevance_score: 0.0553
+source_url: https://huggingface.co/datasets/allenai/c4
+artifact_url: https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-train/0009.parquet
+local_path: tests/results/hf_robust_structuring_run_v1/raw/0009_7807158a43d9.parquet
+
+--- PREVIEW ---
+<failed to read parquet: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0009_7807158a43d9.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0009_7807158a43d9.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.>

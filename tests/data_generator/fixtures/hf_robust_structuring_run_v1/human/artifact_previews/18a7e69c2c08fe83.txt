@@ -1,0 +1,42 @@
+artifact_id: 18a7e69c2c08fe83
+status: downloaded
+is_relevant: False
+is_reasonable: True
+reasonableness_reason: ok
+relevance_score: 0.1833
+source_url: https://huggingface.co/datasets/nyu-mll/glue
+artifact_url: https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/mnli_matched/validation/0000.parquet
+local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_18a7e69c2c08.parquet
+
+--- PREVIEW ---
+columns=['premise', 'hypothesis', 'label', 'idx']
+premise=The new rights are nice enough, hypothesis=Everyone really likes the newest benefits , label=1, idx=0
+premise=This site includes a list of all award winners and a searchable database of Government Executive articles., hypothesis=The Government Executive articles housed on the website are not able to be searched., label=2, idx=1
+premise=uh i don't know i i have mixed emotions about him uh sometimes i like him but at the same times i love to see somebody beat him, hypothesis=I like him for the most part, but would still enjoy seeing someone beat him., label=0, idx=2
+premise=yeah i i think my favorite restaurant is always been the one closest  you know the closest as long as it's it meets the minimum criteria you know of good food, hypothesis=My favorite restaurants are always at least a hundred miles away from my house. , label=2, idx=3
+premise=i don't know um do you do a lot of camping, hypothesis=I know exactly., label=2, idx=4
+premise=well that would be a help i wish they would do that here we have got so little landfill space left that we're going to run out before the end of this decade and it's really going to be, hypothesis=We have plenty of space in the landfill., label=2, idx=5
+premise=yeah i know and i did that all through college and it worked too, hypothesis=I did that all through college but it never worked , label=2, idx=6
+premise=Calcutta seems to be the only other production center having any pretensions to artistic creativity at all, but ironically you're actually more likely to see the works of Satyajit Ray or Mrinal Sen shown in Europe or North America than in India itself., hypothesis=Most of Mrinal Sen's work can be found in European collections., label=1, idx=7
+premise=If that investor were willing to pay extra for the security of limited downside, she could buy put options with a strike price of $98, which would lock in her profit on the shares at $18, less whatever the options cost., hypothesis=THe strike price could be $8., label=2, idx=8
+premise=3)  Dare you rise to the occasion, like Raskolnikov, and reject the petty rules that govern lesser men?, hypothesis=Would you rise up and defeaat all evil lords in the town?, label=1, idx=9
+premise=The most important directions are simply up and up leads eventually to the cathedral and fortress commanding the hilltop, and down inevitably leads to one of three gates through the wall to the new town., hypothesis=Go downwards to one of the gates, all of which will lead you into the cathedral., label=2, idx=10
+premise=The bhakti movement of the Tamils brought a new warmth to the hitherto rigid Brahmanic ritual of Hinduism., hypothesis=The Tamils' bhakti movement froze the previously warm ritual of Hinduism., label=2, idx=11
+premise=see now in a situation like that the boys are only sixteen years old and they were sexually involved with her and i think like at that particular point she was twenty three you know so she wasn't really that much older than them and being a boy at that age i think that they're very um you know let's face it that's at a point in your life when you you're just starting to realize all the things of life, hypothesis=Everyone involved was the same age., label=2, idx=12
+premise=You and your friends are not welcome here, said Severn., hypothesis=Severn said the people were not welcome there., label=0, idx=13
+premise=um-hum um-hum yeah well uh i can see you know it's it's it's it's kind of funny because we it seems like we loan money you know we money with strings attached and if the government changes and the country that we loan the money to um i can see why the might have a different attitude towards paying it back it's a lot us that  you know we don't really loan money to to countries we loan money to governments and it's the, hypothesis=We don't loan a lot of money., label=1, idx=14
+premise=i'm not sure what the overnight low was, hypothesis=I don't know how cold it got last night., label=0, idx=15
+premise=so i have to find a way to supplement that, hypothesis=I need a way to add something extra., label=0, idx=16
+premise=the hologram makes up all these things and uh i mean sometimes  sometimes it's funny sometimes it's not but uh you know it's something to pass the time until we do and then and then we watch football, hypothesis=Sometimes it is amusing to see what the hologram creates., label=0, idx=17
+premise=5 The share of gross national saving used to replace depreciated capital has increased over the past 40 years., hypothesis=Gross national saving was highest this year., label=1, idx=18
+premise=So far, however, the number of mail pieces lost to alternative bill-paying methods is too small to have any material impact on First-Class volume., hypothesis=The amount of lost mail is huge and really impacts mail volume, label=2, idx=19
+premise=you want to punch the button and go, hypothesis=You don't want to push the button lightly, but rather punch it hard., label=1, idx=20
+premise=Buffet and a  la carte available., hypothesis=It has a buffet., label=0, idx=21
+premise=Blue says Blumenthal claimed Clinton had told him that Lewinsky had made unwanted sexual advances., hypothesis=Clinton said that Monica Lewinsky made unwanted sexual advances during her time as a journalist in the White House. , label=1, idx=22
+premise=We also have found that leading organizations strive to ensure that their core processes efficiently and effectively support mission-related outcomes., hypothesis=Leading organizations want to be sure their employees are safe., label=1, idx=23
+premise=oh uh-huh well no they wouldn't would they no, hypothesis=No, they wouldn't go there., label=1, idx=24
+premise=Sorry but that's how it is., hypothesis=This is how things are and there are no apologies about it., label=2, idx=25
+premise=Not quite as large is the Papal Crose commemorating Pope John Paul II's visit in 1979, when more than one million people gathered to celebrate mass., hypothesis=Pope John Paul II also visited in 1983., label=1, idx=26
+premise=The tourist industry continued to expand, and though it became one of the top two income earners in Spain, a realization that unrestricted mass tourism was leading to damaging long-term consequences also began to grow., hypothesis=Tourism is not very big in Spain., label=2, idx=27
+premise=She seemed so different  ", hypothesis=She had changed a lot since the last time we'd seen her., label=1, idx=28
+premise=i'm not opposed to it but when its when the time is right it will probably just kind of happen you know, hypothesis=I cannot wait for it to happen., label=1, idx=29

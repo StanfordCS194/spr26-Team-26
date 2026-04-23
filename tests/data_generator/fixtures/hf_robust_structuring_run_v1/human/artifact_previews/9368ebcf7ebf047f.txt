@@ -1,0 +1,42 @@
+artifact_id: 9368ebcf7ebf047f
+status: downloaded
+is_relevant: True
+is_reasonable: True
+reasonableness_reason: ok
+relevance_score: 0.2202
+source_url: https://huggingface.co/datasets/nyu-mll/glue
+artifact_url: https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/mnli_matched/test/0000.parquet
+local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_9368ebcf7ebf.parquet
+
+--- PREVIEW ---
+columns=['premise', 'hypothesis', 'label', 'idx']
+premise=Hierbas, ans seco, ans dulce, and frigola are just a few names worth keeping a look-out for., hypothesis=Hierbas is a name worth looking out for., label=-1, idx=0
+premise=The extent of the behavioral effects would depend in part on the structure of the individual account program and any limits on accessing the funds., hypothesis=Many people would be very unhappy to loose control over their own money., label=-1, idx=1
+premise=Timely access to information is in the best interests of both GAO and the agencies., hypothesis=It is in everyone's best interest to have access to information in a timely manner., label=-1, idx=2
+premise=Based in the Auvergnat spa town of Vichy, the French government often proved more zealous than its masters in suppressing civil liberties and drawing up anti-Jewish legislation., hypothesis=The French government passed anti-Jewish laws aimed at helping the Nazi., label=-1, idx=3
+premise=Built in 1870, its canopy of stained glass and cast iron is the oldest in Dublin; its enthusiastic interior decoration is also typical of the era., hypothesis=It was constructed in 1870 and has the oldest canopy in Dublin., label=-1, idx=4
+premise=95 a year and you get a free gift and blah, blah, blah., hypothesis=The cost was 95 a year and included a gift., label=-1, idx=5
+premise=Eighteen were website renewal grants to statewide websites begun in previous years., hypothesis=Many businesses don't need websites., label=-1, idx=6
+premise=Those who do not save and who do not have pensions will have to depend largely on Social Security in their old age., hypothesis=Those who do not save and who do not have pensions don't need Social Security support at all when they're elderly. , label=-1, idx=7
+premise=it's an accusation and and it's and it's based based on on uh perception that someone has of how a drug user would behave when some drugs users behave, hypothesis=They are behaving just like a user, they must be one. , label=-1, idx=8
+premise=However, one can assume that some patients referred to treatment had very positive outcomes in terms of reductions in drinking and of risk profiles., hypothesis=It is possible some patients had very positive outcomes., label=-1, idx=9
+premise=The tax was walloped by more than two-thirds of voters in a May referendum., hypothesis=Two-thirds of the voters voted for the tax., label=-1, idx=10
+premise=that's it i mean Big Bird would make a good judge, hypothesis=Big Bird has the qualities we look for judges., label=-1, idx=11
+premise=INDIRECT COST - A cost that cannot be identified specifically with or traced to a given cost object in an economically feasible way., hypothesis=Indirect cost is not a well known concept. , label=-1, idx=12
+premise=That is always the danger with you, Rita., hypothesis=There is never any worry about harm when you are dealing with Rita. , label=-1, idx=13
+premise=yeah so you're lucky too you don't have to worry about going out there and scraping and painting and, hypothesis=Scraping the paint would really hurt your back if you did it., label=-1, idx=14
+premise=yeah it is especially with the being in on the creative aspect aspect on the crafty end, hypothesis=No, there's not difference with being on the creative side of the crafty end., label=-1, idx=15
+premise=There may not be anyone else involved to insulate them., hypothesis=Nobody else can insulate them., label=-1, idx=16
+premise=I know my plastic surgeon friend is going to notice the changes when we get together and will likely feel hurt that I chose a competitor., hypothesis=I had a facelift recently from a plastic surgeon in the next town. , label=-1, idx=17
+premise=I can tell you, that was a surprise to us all. , hypothesis=Everyone expected this outcome., label=-1, idx=18
+premise=Another spear would take her down., hypothesis=She was badly wounded already., label=-1, idx=19
+premise=In our reviews of successful results-oriented organizations, we found numerous examples of organizations that achieved positive results by involving customers and other stakeholders in defining their missions and desired outcomes., hypothesis= In our reviews of successful results-oriented organizations, we found numerous examples of organizations that achieved very, very weird looking results., label=-1, idx=20
+premise=Following the Germans' lead in 1938, racist legislation was introduced against the country's 57,000 Jews., hypothesis=Germany was the first to introduce laws against their Jewish population., label=-1, idx=21
+premise=Since all costs are variable in the long run, it is reasonable that non-delivery institutional costs would decline over the large volume range we explore with this model., hypothesis=Costs are static over long periods of time., label=-1, idx=22
+premise=Nevertheless Tommy was now certain of what he had before only suspected., hypothesis=Tommy now knew what he thought was true all along.  , label=-1, idx=23
+premise=In this regard, holding managers accountable for results based on a specific dollar allocation versus FTE caps would be a major step in the right direction., hypothesis=Holding managers accountable if they don't make a certain amount of money works., label=-1, idx=24
+premise=it's a legal job you know, hypothesis=You know that job is shady and will get you arrested., label=-1, idx=25
+premise=For all types of evidence, various tests are used-sufficiency, competence, and relevance-to assess whether the evidence standard is met., hypothesis=There isn't enough evidence to allow a test. , label=-1, idx=26
+premise=Fishing is an extremely popular sport in Britain; with so many lakes to choose from and so much breathtaking countryside all around, the Lake District is an ideal place to try your hand., hypothesis=There is an abundance of lakes in Britain where fishing is possible., label=-1, idx=27
+premise=yeah and then uh he talked about a van and i said well you know i don't know i don't know how the gas is on most of these and another thing was that's the reason i said you know there was such a big difference you know in a little economy car but i said maybe we might have to get us an economy car to pull along, hypothesis=He talked to about a van but I was wary of the gas consumption., label=-1, idx=28
+premise=It drove Kedzierzyna of Tschekan to despair and to an after-therapy conclusion that he lived too intensely and needed to calm his frenzied mind., hypothesis=Kedzierzyna of Tschekan realized he was too calm., label=-1, idx=29
