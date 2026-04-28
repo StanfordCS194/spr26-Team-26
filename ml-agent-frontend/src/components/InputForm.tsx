@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import type { TaskType } from '../types';
+import type { TaskType, SkillLevel } from '../types';
 
 interface Props {
-  onStart: (prompt: string, budget: number, taskType: TaskType) => void;
+  onStart: (prompt: string, budget: number, taskType: TaskType, skillLevel: SkillLevel) => void;
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -19,7 +19,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 'var(--radius)',
     padding: '2rem',
     width: '100%',
-    maxWidth: '520px',
+    maxWidth: '560px',
   },
   header: {
     marginBottom: '1.5rem',
@@ -140,12 +140,62 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'background 0.15s',
     fontFamily: 'inherit',
   },
+  segGroup: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, 1fr)',
+    gap: '6px',
+  },
+  segLabel: {
+    fontSize: '13px',
+    fontWeight: 600,
+  },
+  segHint: {
+    fontSize: '10px',
+    color: 'var(--text-muted)',
+    fontWeight: 400,
+    letterSpacing: '0.02em',
+  },
+  levelDesc: {
+    fontSize: '11px',
+    color: 'var(--text-muted)',
+    marginTop: '0.375rem',
+    lineHeight: 1.5,
+  },
+};
+
+function segBtnStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: '0.625rem 0.5rem',
+    background: active ? 'var(--accent-dim)' : 'var(--bg-elevated)',
+    border: active ? '0.5px solid var(--accent)' : '0.5px solid var(--border)',
+    borderRadius: '6px',
+    color: active ? 'var(--accent)' : 'var(--text-secondary)',
+    fontSize: '13px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    textAlign: 'center' as const,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    gap: '2px',
+  };
+}
+
+const SKILL_DESCRIPTIONS: Record<SkillLevel, string> = {
+  beginner:
+    'Fully autonomous — the agent handles every decision. Clean summaries, no interruptions. Best if you just want results.',
+  intermediate:
+    'You approve the dataset and model choices before training. Richer logs with component tags. Some technical detail.',
+  expert:
+    'Full visibility: approval gates, raw config diffs, hyperparameter search space, unfiltered logs, token counts. No training wheels.',
 };
 
 export default function InputForm({ onStart }: Props) {
   const [prompt, setPrompt] = useState('');
   const [budget, setBudget] = useState(50);
   const [taskType, setTaskType] = useState<TaskType>('classification');
+  const [skillLevel, setSkillLevel] = useState<SkillLevel>('intermediate');
   const [error, setError] = useState('');
 
   const handleSubmit = () => {
@@ -158,13 +208,14 @@ export default function InputForm({ onStart }: Props) {
       return;
     }
     setError('');
-    onStart(prompt.trim(), budget, taskType);
+    onStart(prompt.trim(), budget, taskType, skillLevel);
   };
 
   const handleReset = () => {
     setPrompt('');
     setBudget(50);
     setTaskType('classification');
+    setSkillLevel('intermediate');
     setError('');
   };
 
@@ -223,6 +274,32 @@ export default function InputForm({ onStart }: Props) {
                 <option value="fine-tuning">Fine-tuning</option>
               </select>
             </div>
+          </div>
+
+          <div style={styles.field}>
+            <label style={styles.label}>ML Experience Level</label>
+            <div style={styles.segGroup} role="radiogroup" aria-label="ML experience level">
+              {(['beginner', 'intermediate', 'expert'] as SkillLevel[]).map(lvl => {
+                const active = skillLevel === lvl;
+                const hint = lvl === 'beginner' ? 'auto-pilot' : lvl === 'intermediate' ? 'some control' : 'full control';
+                return (
+                  <button
+                    key={lvl}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    style={segBtnStyle(active)}
+                    onClick={() => setSkillLevel(lvl)}
+                  >
+                    <span style={styles.segLabel}>
+                      {lvl.charAt(0).toUpperCase() + lvl.slice(1)}
+                    </span>
+                    <span style={styles.segHint}>{hint}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p style={styles.levelDesc}>{SKILL_DESCRIPTIONS[skillLevel]}</p>
           </div>
 
           {error && <p style={styles.error} role="alert">{error}</p>}

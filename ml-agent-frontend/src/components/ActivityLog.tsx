@@ -1,8 +1,9 @@
-import type { LogEntry } from '../types';
+import type { LogEntry, SkillLevel } from '../types';
 import Tooltip from './Tooltip';
 
 interface Props {
   logs: LogEntry[];
+  skillLevel: SkillLevel;
 }
 
 const typeColor: Record<LogEntry['type'], string> = {
@@ -11,16 +12,44 @@ const typeColor: Record<LogEntry['type'], string> = {
   default: 'var(--text-muted)',
 };
 
-export default function ActivityLog({ logs }: Props) {
+// Each skill level sees this level and anything below it.
+// beginner → shows beginner only (clean, high-level)
+// intermediate → shows beginner + intermediate (component-tagged, moderate detail)
+// expert → shows everything (raw HTTP calls, stepwise gradients, state graph edges)
+function canSee(entry: LogEntry, level: SkillLevel): boolean {
+  if (level === 'expert') return true;
+  if (level === 'intermediate') return entry.minLevel !== 'expert';
+  return entry.minLevel === 'beginner';
+}
+
+const verbosityHints: Record<SkillLevel, string> = {
+  beginner: 'friendly milestones only',
+  intermediate: 'component-tagged logs',
+  expert: 'all technical detail',
+};
+
+export default function ActivityLog({ logs, skillLevel }: Props) {
+  const visible = logs.filter(l => canSee(l, skillLevel));
+  const hiddenCount = logs.length - visible.length;
+
   return (
     <section style={{ marginBottom: '1.5rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem', gap: '0.5rem' }}>
         <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Activity Log</p>
         <Tooltip
           label="System Activity Log"
-          body="A real-time feed of events from each pipeline component, with timestamps. Useful for diagnosing slowdowns or unexpected behavior."
+          body="A real-time feed of events from each pipeline component, with timestamps. Verbosity adapts to your ML experience level."
           placement="bottom"
         />
+        <span style={{
+          fontSize: '10px',
+          color: 'var(--text-muted)',
+          marginLeft: 'auto',
+          fontStyle: 'italic',
+        }}>
+          {verbosityHints[skillLevel]}
+          {hiddenCount > 0 && ` · ${hiddenCount} technical log${hiddenCount === 1 ? '' : 's'} hidden`}
+        </span>
       </div>
       <div
         style={{
@@ -42,13 +71,15 @@ export default function ActivityLog({ logs }: Props) {
         aria-live="polite"
         aria-relevant="additions"
       >
-        {logs.length === 0 && (
+        {visible.length === 0 && (
           <span style={{ color: 'var(--text-muted)' }}>Waiting for pipeline to start…</span>
         )}
-        {logs.map((entry, i) => (
+        {visible.map((entry, i) => (
           <div key={i} style={{ display: 'flex', gap: '0.625rem' }}>
             <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>[{entry.time}]</span>
-            <span style={{ color: 'var(--accent)', flexShrink: 0 }}>{entry.component}:</span>
+            {skillLevel !== 'beginner' && (
+              <span style={{ color: 'var(--accent)', flexShrink: 0 }}>{entry.component}:</span>
+            )}
             <span style={{ color: typeColor[entry.type] }}>{entry.message}</span>
           </div>
         ))}
