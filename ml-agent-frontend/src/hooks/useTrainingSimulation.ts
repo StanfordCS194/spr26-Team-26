@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
-import type { TrainingState, PipelineStage, Iteration, LogEntry } from '../types';
+import type { TrainingState, PipelineStage, Iteration, LogEntry, ExperienceLevel } from '../types';
+import { getCapabilities } from '../utils/experience';
 
 const STAGE_LABELS = [
   'Manager Init',
@@ -105,6 +106,8 @@ export function useTrainingSimulation() {
     prompt: '',
     budget: 50,
     taskType: 'classification',
+    experience: 'Intermediate',
+    capabilities: getCapabilities('Intermediate'),
     costSpent: 0,
     metrics: [],
     iterations: [],
@@ -131,7 +134,7 @@ export function useTrainingSimulation() {
     });
   }, []);
 
-  const start = useCallback((prompt: string, budget: number, taskType: TrainingState['taskType']) => {
+  const start = useCallback((prompt: string, budget: number, taskType: TrainingState['taskType'], experience: ExperienceLevel = 'Intermediate') => {
     clearTimers();
     setState({
       status: 'running',
@@ -139,6 +142,8 @@ export function useTrainingSimulation() {
       prompt,
       budget,
       taskType,
+      experience,
+      capabilities: getCapabilities(experience),
       costSpent: 0,
       metrics: [],
       iterations: [],
@@ -249,6 +254,8 @@ export function useTrainingSimulation() {
       prompt: '',
       budget: 50,
       taskType: 'classification',
+      experience: 'Intermediate',
+      capabilities: getCapabilities('Intermediate'),
       costSpent: 0,
       metrics: [],
       iterations: [],

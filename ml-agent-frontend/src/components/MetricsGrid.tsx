@@ -5,6 +5,7 @@ interface Props {
   metrics: MetricPoint[];
   costSpent: number;
   budget?: number;
+  showCostDetail?: boolean;
 }
 
 const TOOLTIPS: Record<string, { label: string; body: string }> = {
@@ -56,11 +57,13 @@ function MetricCard({ label, value, tooltipKey }: CardProps) {
   );
 }
 
-export default function MetricsGrid({ metrics, costSpent }: Props) {
+export default function MetricsGrid({ metrics, costSpent, budget, showCostDetail = false }: Props) {
   const last = metrics[metrics.length - 1];
   const loss = last ? last.loss.toFixed(4) : '—';
   const accuracy = last ? `${(last.accuracy * 100).toFixed(1)}%` : '—';
-  const cost = `$${costSpent.toFixed(2)}`;
+  const cost = showCostDetail && budget
+    ? `$${costSpent.toFixed(2)} / $${budget}`
+    : `$${costSpent.toFixed(2)}`;
   const iter = `${metrics.length}/${Math.max(metrics.length, 12)}`;
 
   return (
