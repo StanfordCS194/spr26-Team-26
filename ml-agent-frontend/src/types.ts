@@ -34,10 +34,18 @@ export interface MetricPoint {
   iteration: number;
 }
 
+export interface IterationReasoning {
+  rationale: string;
+  expected_effect: string;
+  search_strategy: 'random' | 'local' | 'claude';
+  outcome_vs_expected: string;
+}
+
 export interface Iteration {
   id: string;
   experiment: string;
   diff?: string;
+  reasoning?: IterationReasoning;
   loss: number;
   f1: number;
   status: IterationStatus;

@@ -66,36 +66,78 @@ const ITERATIONS: Array<Omit<Iteration, 'id'>> = [
     experiment: 'Decrease learning_rate 3e-4→1.5e-4 to reduce loss spikes.',
     diff: '- learning_rate: 0.0003\n+ learning_rate: 0.00015',
     loss: 0.289, f1: 0.871, status: 'KEPT',
+    reasoning: {
+      rationale: 'Training loss showed high variance across batches, suggesting the learning rate is too large and causing the optimizer to overshoot minima. Halving it should smooth convergence.',
+      expected_effect: 'val_loss should decrease by ~5–10% and loss variance should drop within 1 epoch.',
+      search_strategy: 'local',
+      outcome_vs_expected: 'Matched — val_loss dropped 7.4% and variance stabilised. Patch kept.',
+    },
   },
   {
     experiment: 'Increase lora_rank 16→32 to expand model capacity for task.',
     diff: '- lora_rank: 16\n+ lora_rank: 32',
     loss: 0.271, f1: 0.901, status: 'KEPT',
+    reasoning: {
+      rationale: 'F1 plateau at 0.871 suggests the LoRA adapter lacks representational capacity for the task. Doubling rank adds more trainable parameters without touching the frozen base weights.',
+      expected_effect: 'F1 should improve by 2–4% at the cost of ~15% more compute per step.',
+      search_strategy: 'random',
+      outcome_vs_expected: 'Matched — F1 improved 3.4%. Compute overhead acceptable within budget.',
+    },
   },
   {
     experiment: 'Increase learning_rate 1.5e-4→6.1e-4 (local ±20% perturbation).',
     diff: '- learning_rate: 0.00015\n+ learning_rate: 0.00061',
     loss: 0.334, f1: 0.862, status: 'REVERTED',
+    reasoning: {
+      rationale: 'After stabilising at a lower LR, probing upward tests whether the current minima is a saddle point that a larger step could escape. Local perturbation of ±20% selected as a conservative range.',
+      expected_effect: 'Possible 1–2% F1 gain if a better basin exists nearby; risk of loss spike if not.',
+      search_strategy: 'local',
+      outcome_vs_expected: 'Did not match — loss spiked from 0.289 to 0.334. Patch reverted, previous config restored.',
+    },
   },
   {
     experiment: 'Increase warmup_steps 100→500 to stabilize early training.',
     diff: '- warmup_steps: 100\n+ warmup_steps: 500',
     loss: 0.248, f1: 0.914, status: 'KEPT',
+    reasoning: {
+      rationale: 'Early training logs show loss spikes in the first 80 steps consistent with a learning rate that ramps too quickly. Extending warmup gives the optimizer more time to find a stable trajectory before reaching peak LR.',
+      expected_effect: 'Smoother early loss curve and ~1–3% improvement in final val_loss.',
+      search_strategy: 'claude',
+      outcome_vs_expected: 'Matched — loss decreased a further 6.4% and early spike eliminated.',
+    },
   },
   {
     experiment: 'Decrease dropout 0.1→0.06 (local ±20% perturbation).',
     diff: '- dropout: 0.1\n+ dropout: 0.06',
     loss: 0.243, f1: 0.917, status: 'KEPT',
+    reasoning: {
+      rationale: 'Train/val loss gap is small (~0.005), indicating the model is not overfitting. Current dropout may be over-regularising. Reducing it slightly should allow the model to use more capacity without increasing overfitting risk.',
+      expected_effect: 'Minor F1 improvement of ~0.5–1% with negligible change in generalisation gap.',
+      search_strategy: 'local',
+      outcome_vs_expected: 'Matched — F1 improved 0.3% and train/val gap unchanged.',
+    },
   },
   {
     experiment: 'Increase num_epochs 3→4 to allow longer convergence.',
     diff: '- num_epochs: 3\n+ num_epochs: 4',
     loss: 0.261, f1: 0.908, status: 'REVERTED',
+    reasoning: {
+      rationale: 'Val loss curve was still gently declining at epoch 3, suggesting the model has not fully converged. Adding an epoch might extract further signal from the data.',
+      expected_effect: 'F1 improvement of 0.5–1.5% if convergence is genuinely incomplete.',
+      search_strategy: 'claude',
+      outcome_vs_expected: 'Did not match — val_loss increased on epoch 4, indicating overfitting onset. Patch reverted.',
+    },
   },
   {
     experiment: 'Decrease learning_rate 1.5e-4→1.2e-4 (local ±20% perturbation).',
     diff: '- learning_rate: 0.00015\n+ learning_rate: 0.00012',
     loss: 0.231, f1: 0.923, status: 'KEPT',
+    reasoning: {
+      rationale: 'With warmup now extended, the effective peak LR may still be slightly high for fine-tuning on this dataset size. A conservative downward nudge probes whether slower late-stage updates improve final convergence.',
+      expected_effect: 'val_loss decrease of 2–5% with no regression in F1.',
+      search_strategy: 'local',
+      outcome_vs_expected: 'Matched — best result so far. val_loss 0.231, F1 0.923. Patch kept.',
+    },
   },
 ];
 
