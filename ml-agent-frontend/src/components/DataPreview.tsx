@@ -38,7 +38,7 @@ export default function DataPreview({ preview, skillLevel, awaitingApproval, onA
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem', gap: '1rem', flexWrap: 'wrap' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '4px' }}>
-            <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
+            <h2 style={{ fontSize: '25px', fontWeight: 600, color: 'var(--text-primary)' }}>
               Dataset Preview
             </h2>
             {awaitingApproval && (
