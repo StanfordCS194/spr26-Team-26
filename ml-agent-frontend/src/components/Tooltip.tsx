@@ -42,8 +42,6 @@ export default function Tooltip({ label, body, placement = 'top' }: Props) {
     <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
       <button
         type="button"
-        onMouseEnter={show}
-        onMouseLeave={hide}
         onFocus={show}
         onBlur={hide}
         aria-label={`More info: ${label}`}
