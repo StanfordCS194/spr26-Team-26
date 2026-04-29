@@ -1,9 +1,15 @@
 import { useState } from 'react';
-import type { TaskType } from '../types';
+import type { TaskType, ExperienceLevel } from '../types';
 
 interface Props {
-  onStart: (prompt: string, budget: number, taskType: TaskType) => void;
+  onStart: (prompt: string, budget: number, taskType: TaskType, experience: ExperienceLevel) => void;
 }
+
+const EXPERIENCE_LEVELS: { value: ExperienceLevel; label: string; desc: string }[] = [
+  { value: 'Beginner',     label: 'Beginner',     desc: 'Simple view — just set a goal and budget' },
+  { value: 'Intermediate', label: 'Intermediate', desc: 'Metrics + AutoResearch summary' },
+  { value: 'Advanced',     label: 'Advanced',     desc: 'Full logs, diffs, and research diary' },
+];
 
 const styles: Record<string, React.CSSProperties> = {
   wrapper: {
@@ -21,9 +27,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     maxWidth: '520px',
   },
-  header: {
-    marginBottom: '1.5rem',
-  },
+  header: { marginBottom: '1.5rem' },
   logo: {
     fontSize: '11px',
     fontWeight: 500,
@@ -38,25 +42,10 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--text-primary)',
     marginBottom: '0.25rem',
   },
-  subtitle: {
-    fontSize: '13px',
-    color: 'var(--text-muted)',
-  },
-  fieldset: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '1rem',
-  },
-  field: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '0.375rem',
-  },
-  label: {
-    fontSize: '12px',
-    color: 'var(--text-secondary)',
-    fontWeight: 500,
-  },
+  subtitle: { fontSize: '13px', color: 'var(--text-muted)' },
+  fieldset: { display: 'flex', flexDirection: 'column' as const, gap: '1rem' },
+  field: { display: 'flex', flexDirection: 'column' as const, gap: '0.375rem' },
+  label: { fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 500 },
   textarea: {
     background: 'var(--bg-elevated)',
     border: '0.5px solid var(--border)',
@@ -71,11 +60,7 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'border-color 0.15s',
     width: '100%',
   },
-  row: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '0.75rem',
-  },
+  row: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' },
   input: {
     background: 'var(--bg-elevated)',
     border: '0.5px solid var(--border)',
@@ -106,16 +91,8 @@ const styles: Record<string, React.CSSProperties> = {
     paddingRight: '2rem',
     transition: 'border-color 0.15s',
   },
-  error: {
-    fontSize: '12px',
-    color: 'var(--danger)',
-    marginTop: '0.25rem',
-  },
-  actions: {
-    display: 'flex',
-    gap: '0.75rem',
-    marginTop: '0.5rem',
-  },
+  error: { fontSize: '12px', color: 'var(--danger)', marginTop: '0.25rem' },
+  actions: { display: 'flex', gap: '0.75rem', marginTop: '0.5rem' },
   btnPrimary: {
     flex: 1,
     padding: '0.625rem 1.25rem',
@@ -140,13 +117,22 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'background 0.15s',
     fontFamily: 'inherit',
   },
+  toggleGroup: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr 1fr',
+    gap: '0',
+    border: '0.5px solid var(--border)',
+    borderRadius: '6px',
+    overflow: 'hidden',
+  },
 };
 
 export default function InputForm({ onStart }: Props) {
-  const [prompt, setPrompt] = useState('');
-  const [budget, setBudget] = useState(50);
-  const [taskType, setTaskType] = useState<TaskType>('classification');
-  const [error, setError] = useState('');
+  const [prompt, setPrompt]       = useState('');
+  const [budget, setBudget]       = useState(50);
+  const [taskType, setTaskType]   = useState<TaskType>('classification');
+  const [experience, setExperience] = useState<ExperienceLevel>('Intermediate');
+  const [error, setError]         = useState('');
 
   const handleSubmit = () => {
     if (prompt.trim().length < 10) {
@@ -158,13 +144,14 @@ export default function InputForm({ onStart }: Props) {
       return;
     }
     setError('');
-    onStart(prompt.trim(), budget, taskType);
+    onStart(prompt.trim(), budget, taskType, experience);
   };
 
   const handleReset = () => {
     setPrompt('');
     setBudget(50);
     setTaskType('classification');
+    setExperience('Intermediate');
     setError('');
   };
 
@@ -223,6 +210,41 @@ export default function InputForm({ onStart }: Props) {
                 <option value="fine-tuning">Fine-tuning</option>
               </select>
             </div>
+          </div>
+
+          {/* Experience toggle */}
+          <div style={styles.field}>
+            <label style={styles.label}>Experience Level</label>
+            <div style={styles.toggleGroup} role="group" aria-label="Experience level">
+              {EXPERIENCE_LEVELS.map((lvl, i) => {
+                const active = experience === lvl.value;
+                return (
+                  <button
+                    key={lvl.value}
+                    onClick={() => setExperience(lvl.value)}
+                    title={lvl.desc}
+                    aria-pressed={active}
+                    style={{
+                      padding: '0.5rem 0.25rem',
+                      background: active ? 'var(--accent-dim)' : 'var(--bg-elevated)',
+                      border: 'none',
+                      borderLeft: i > 0 ? '0.5px solid var(--border)' : 'none',
+                      color: active ? 'var(--accent)' : 'var(--text-secondary)',
+                      fontSize: '12px',
+                      fontWeight: active ? 600 : 400,
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      transition: 'background 0.15s, color 0.15s',
+                    }}
+                  >
+                    {lvl.label}
+                  </button>
+                );
+              })}
+            </div>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              {EXPERIENCE_LEVELS.find(l => l.value === experience)?.desc}
+            </span>
           </div>
 
           {error && <p style={styles.error} role="alert">{error}</p>}

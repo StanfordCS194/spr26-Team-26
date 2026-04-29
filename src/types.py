@@ -58,6 +58,28 @@ class OrchestrationConfig(TypedDict):
     training_procedure: TrainingProcedure
 
 
+class CapabilityObservability(TypedDict):
+    run_status: str             # "basic" | "detailed"
+    metrics_visibility: str     # "none" | "summary" | "full"
+    autoresearch_diary_access: str  # "none" | "summary" | "full"
+    cost_visibility: str        # "summary" | "detailed"
+
+
+class CapabilityControl(TypedDict):
+    can_edit_hyperparameters: bool
+    hyperparameter_scope: str   # "none" | "high_level" | "full"
+    can_edit_training_script: bool
+    can_constrain_autoresearch_space: bool
+    can_set_custom_stopping_criteria: bool
+    strategy_hints_allowed: bool
+
+
+class UserCapabilityProfile(TypedDict):
+    comfort_level: str          # "BEGINNER" | "INTERMEDIATE" | "ADVANCED"
+    observability: CapabilityObservability
+    control: CapabilityControl
+
+
 class TaskReasoning(TypedDict):
     task_type: str
     data_format: str
