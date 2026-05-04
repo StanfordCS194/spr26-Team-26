@@ -3,17 +3,17 @@ import { useTrainingSimulation } from './hooks/useTrainingSimulation';
 import InputForm from './components/InputForm';
 import Dashboard from './components/Dashboard';
 import DiffViewer from './components/DiffViewer';
-import type { TaskType, ExperienceLevel } from './types';
+import type { TaskType, SkillLevel } from './types';
 
 type View = 'dashboard' | 'diffs';
 
 export default function App() {
-  const { state, start, reset } = useTrainingSimulation();
+  const { state, start, approve, reject, reset } = useTrainingSimulation();
   const [view, setView] = useState<View>('dashboard');
 
-  const handleStart = (prompt: string, budget: number, taskType: TaskType, experience: ExperienceLevel) => {
+  const handleStart = (prompt: string, budget: number, taskType: TaskType, skillLevel: SkillLevel) => {
     setView('dashboard');
-    start(prompt, budget, taskType, experience);
+    start(prompt, budget, taskType, skillLevel);
   };
 
   const handleReset = () => {
@@ -39,6 +39,8 @@ export default function App() {
     <Dashboard
       state={state}
       onReset={handleReset}
+      onApprove={approve}
+      onReject={reject}
       onOpenDiffs={() => setView('diffs')}
     />
   );

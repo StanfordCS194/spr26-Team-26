@@ -2,7 +2,10 @@ export type StageStatus = 'pending' | 'in-progress' | 'complete';
 export type TaskType = 'classification' | 'regression' | 'fine-tuning';
 export type LogType = 'default' | 'success' | 'warning';
 export type IterationStatus = 'KEPT' | 'REVERTED' | 'PENDING';
-export type ExperienceLevel = 'Beginner' | 'Intermediate' | 'Advanced';
+export type SkillLevel = 'beginner' | 'intermediate' | 'expert';
+export type DataSource = 'huggingface' | 'scraped' | 'synthetic';
+export type ApprovalStage = 'dataset' | 'model' | null;
+export type ProposalStrategy = 'random_search' | 'local_perturbation' | 'claude_proposal';
 
 export interface CapabilityProfile {
   comfort_level: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
@@ -35,10 +38,12 @@ export interface MetricPoint {
 }
 
 export interface IterationReasoning {
+  hypothesis: string;
+  strategy: ProposalStrategy;
+  expectedImpact: string;
   rationale: string;
-  expected_effect: string;
-  search_strategy: 'random' | 'local' | 'claude';
-  outcome_vs_expected: string;
+  lossBeforeAfter?: [number, number];
+  f1BeforeAfter?: [number, number];
 }
 
 export interface Iteration {
@@ -49,6 +54,7 @@ export interface Iteration {
   loss: number;
   f1: number;
   status: IterationStatus;
+  searchCoord?: { lr: number; loraRank: number };
 }
 
 export interface LogEntry {
@@ -56,16 +62,51 @@ export interface LogEntry {
   component: string;
   message: string;
   type: LogType;
+  minLevel: SkillLevel;
+}
+
+export interface DataSampleRow {
+  [columnName: string]: string | number;
+}
+
+export interface SyntheticDetails {
+  generationPrompt: string;
+  diversityScore: number;
+  validationsPassed: number;
+  validationsTotal: number;
+}
+
+export interface DataPreview {
+  source: DataSource;
+  datasetName: string;
+  totalSamples: number;
+  splits: { train: number; val: number; test: number };
+  columns: string[];
+  samples: DataSampleRow[];
+  classDistribution?: Record<string, number>;
+  reasoning: string[];
+  syntheticDetails?: SyntheticDetails;
+}
+
+export interface ModelPlan {
+  baseModel: string;
+  approach: 'fine-tune-lora' | 'pretrain' | 'full-finetune';
+  reasoning: string[];
+  hyperparams: Record<string, string | number>;
+  estimatedCost: number;
 }
 
 export interface TrainingState {
-  status: 'idle' | 'running' | 'complete';
+  status: 'idle' | 'running' | 'awaiting-approval' | 'complete';
   stage: number;
   prompt: string;
   budget: number;
   taskType: TaskType;
-  experience: ExperienceLevel;
+  skillLevel: SkillLevel;
   capabilities: CapabilityProfile;
+  pendingApproval: ApprovalStage;
+  dataPreview?: DataPreview;
+  modelPlan?: ModelPlan;
   costSpent: number;
   metrics: MetricPoint[];
   iterations: Iteration[];

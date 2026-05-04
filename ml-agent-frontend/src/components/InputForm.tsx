@@ -1,57 +1,83 @@
 import { useState } from 'react';
-import type { TaskType, ExperienceLevel } from '../types';
+import type { TaskType, SkillLevel } from '../types';
 
 interface Props {
-  onStart: (prompt: string, budget: number, taskType: TaskType, experience: ExperienceLevel) => void;
+  onStart: (prompt: string, budget: number, taskType: TaskType, skillLevel: SkillLevel) => void;
 }
-
-const EXPERIENCE_LEVELS: { value: ExperienceLevel; label: string; desc: string }[] = [
-  { value: 'Beginner',     label: 'Beginner',     desc: 'Simple view — just set a goal and budget' },
-  { value: 'Intermediate', label: 'Intermediate', desc: 'Metrics + AutoResearch summary' },
-  { value: 'Advanced',     label: 'Advanced',     desc: 'Full logs, diffs, and research diary' },
-];
 
 const styles: Record<string, React.CSSProperties> = {
   wrapper: {
     minHeight: '100vh',
     display: 'flex',
+    flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: '2rem 1rem',
+    padding: '8rem 1rem',
+    position: 'relative'
   },
   card: {
     background: 'var(--bg-surface)',
-    border: '0.5px solid var(--border)',
-    borderRadius: 'var(--radius)',
     padding: '2rem',
-    width: '100%',
-    maxWidth: '520px',
+    borderRadius: '16px',
+    boxShadow: '0px 0px 200px 15px rgba(59, 130, 246, 0.5)'
   },
-  header: { marginBottom: '1.5rem' },
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: '3fr 2fr',
+    gap: '1rem',
+    width: '1250px',
+  },
+  header: {
+    marginBottom: '1.5rem',
+    textAlign: 'center'
+  },
   logo: {
-    fontSize: '11px',
+    fontSize: '12px',
     fontWeight: 500,
     letterSpacing: '0.12em',
     textTransform: 'uppercase' as const,
     color: 'var(--accent)',
     marginBottom: '0.5rem',
+    position: 'absolute',
+    top: '1.5rem',
+    left: '1.5rem',
   },
   title: {
-    fontSize: '20px',
+    fontSize: '50px',
     fontWeight: 500,
     color: 'var(--text-primary)',
     marginBottom: '0.25rem',
   },
-  subtitle: { fontSize: '13px', color: 'var(--text-muted)' },
-  fieldset: { display: 'flex', flexDirection: 'column' as const, gap: '1rem' },
-  field: { display: 'flex', flexDirection: 'column' as const, gap: '0.375rem' },
-  label: { fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 500 },
+  subtitle: {
+    fontSize: '25px',
+    color: 'var(--text-muted)',
+    textAlign: 'center'
+  },
+  fieldset: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '2rem',
+  },
+  field: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '0.375rem',
+  },
+  label: {
+    fontSize: '35px',
+    color: 'var(--text-muted)',
+    fontWeight: 500,
+  },
+  smallLabel: {
+    fontSize: '25px',
+    color: 'var(--text-muted)',
+    fontWeight: 500,
+  },
   textarea: {
     background: 'var(--bg-elevated)',
     border: '0.5px solid var(--border)',
     borderRadius: '6px',
     color: 'var(--text-primary)',
-    fontSize: '14px',
+    fontSize: '20px',
     padding: '0.625rem 0.75rem',
     resize: 'vertical' as const,
     minHeight: '80px',
@@ -66,8 +92,8 @@ const styles: Record<string, React.CSSProperties> = {
     border: '0.5px solid var(--border)',
     borderRadius: '6px',
     color: 'var(--text-primary)',
-    fontSize: '14px',
-    padding: '0.625rem 0.75rem',
+    fontSize: '20px',
+    padding: '1rem 1.25rem',
     width: '100%',
     fontFamily: 'inherit',
     outline: 'none',
@@ -78,8 +104,8 @@ const styles: Record<string, React.CSSProperties> = {
     border: '0.5px solid var(--border)',
     borderRadius: '6px',
     color: 'var(--text-primary)',
-    fontSize: '14px',
-    padding: '0.625rem 0.75rem',
+    fontSize: '20px',
+    padding: '1rem 1.25rem',
     width: '100%',
     fontFamily: 'inherit',
     outline: 'none',
@@ -88,13 +114,21 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2364748b'/%3E%3C/svg%3E")`,
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'right 0.75rem center',
-    paddingRight: '2rem',
+    paddingRight: '4rem',
     transition: 'border-color 0.15s',
   },
-  error: { fontSize: '12px', color: 'var(--danger)', marginTop: '0.25rem' },
-  actions: { display: 'flex', gap: '0.75rem', marginTop: '0.5rem' },
+  error: {
+    fontSize: '20px',
+    color: 'var(--danger)',
+    marginTop: '0.25rem',
+  },
+  actions: {
+    display: 'flex',
+    gap: '2rem',
+    marginTop: '0.5rem',
+    justifyContent: 'center'
+  },
   btnPrimary: {
-    flex: 1,
     padding: '0.625rem 1.25rem',
     background: 'var(--accent-dim)',
     border: '0.5px solid var(--accent)',
@@ -117,22 +151,44 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'background 0.15s',
     fontFamily: 'inherit',
   },
-  toggleGroup: {
+  segGroup: {
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr 1fr',
-    gap: '0',
-    border: '0.5px solid var(--border)',
-    borderRadius: '6px',
-    overflow: 'hidden',
+    gridTemplateColumns: 'repeat(3, 1fr)',
+    gap: '6px',
+  },
+  segLabel: {
+    fontSize: '20px',
+    fontWeight: 600,
+  },
+  segHint: {
+    fontSize: '15px',
+    color: 'var(--text-muted)',
+    fontWeight: 400,
+    letterSpacing: '0.02em',
+  },
+  levelDesc: {
+    fontSize: '20px',
+    color: 'var(--text-muted)',
+    marginTop: '0.375rem',
+    lineHeight: 1.5,
   },
 };
 
+const SKILL_DESCRIPTIONS: Record<SkillLevel, string> = {
+  beginner:
+    'Fully autonomous: the agent runs from start to finish on its own',
+  intermediate:
+    'You approve the dataset and model type before training begins.',
+  expert:
+    'Full visibility: approval gates, raw config diffs, hyperparameter search space, unfiltered logs, token counts.',
+};
+
 export default function InputForm({ onStart }: Props) {
-  const [prompt, setPrompt]       = useState('');
-  const [budget, setBudget]       = useState(50);
-  const [taskType, setTaskType]   = useState<TaskType>('classification');
-  const [experience, setExperience] = useState<ExperienceLevel>('Intermediate');
-  const [error, setError]         = useState('');
+  const [prompt, setPrompt] = useState('');
+  const [budget, setBudget] = useState(50);
+  const [taskType, setTaskType] = useState<TaskType>('classification');
+  const [skillLevel, setSkillLevel] = useState<SkillLevel>('intermediate');
+  const [error, setError] = useState('');
 
   const handleSubmit = () => {
     if (prompt.trim().length < 10) {
@@ -144,120 +200,113 @@ export default function InputForm({ onStart }: Props) {
       return;
     }
     setError('');
-    onStart(prompt.trim(), budget, taskType, experience);
+    onStart(prompt.trim(), budget, taskType, skillLevel);
   };
 
   const handleReset = () => {
     setPrompt('');
     setBudget(50);
     setTaskType('classification');
-    setExperience('Intermediate');
+    setSkillLevel('intermediate');
     setError('');
   };
 
   return (
     <div style={styles.wrapper}>
-      <div style={styles.card}>
-        <div style={styles.header}>
-          <p style={styles.logo}>CS194 · Team 26</p>
-          <h1 style={styles.title}>ML Training Agent</h1>
-          <p style={styles.subtitle}>Autonomous model training with cost guardrails</p>
-        </div>
+      <p style={styles.logo}>CS194 · Team 26</p>
+      <div style={styles.header}>
+        <h1 style={styles.title}>AutoTrain Agent</h1>
+        <p style={styles.subtitle}>Autonomous model training with cost guardrails</p>
+      </div>
 
-        <div style={styles.fieldset}>
-          <div style={styles.field}>
-            <label style={styles.label} htmlFor="prompt">Training Objective</label>
-            <textarea
-              id="prompt"
-              style={styles.textarea}
-              placeholder="e.g. Classify sentiment in movie reviews"
-              value={prompt}
-              onChange={e => setPrompt(e.target.value)}
-              maxLength={500}
-              aria-label="Training prompt"
-            />
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'right' }}>
-              {prompt.length}/500
-            </span>
-          </div>
-
-          <div style={styles.row}>
+      <div style={styles.grid}>
+        <div style={styles.card}>
+          <div style={styles.fieldset}>
             <div style={styles.field}>
-              <label style={styles.label} htmlFor="budget">Budget Cap (USD)</label>
-              <input
-                id="budget"
-                type="number"
-                style={styles.input}
-                value={budget}
-                min={10}
-                max={500}
-                step={5}
-                onChange={e => setBudget(Number(e.target.value))}
-                aria-label="Budget cap in dollars"
+              <label style={styles.label} htmlFor="prompt">Training Objective</label>
+              <textarea
+                id="prompt"
+                style={styles.textarea}
+                placeholder="e.g. Classify sentiment in movie reviews"
+                value={prompt}
+                onChange={e => setPrompt(e.target.value)}
+                maxLength={500}
+                aria-label="Training prompt"
               />
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'right' }}>
+                {prompt.length}/500
+              </span>
             </div>
-            <div style={styles.field}>
-              <label style={styles.label} htmlFor="taskType">Task Type</label>
-              <select
-                id="taskType"
-                style={styles.select}
-                value={taskType}
-                onChange={e => setTaskType(e.target.value as TaskType)}
-                aria-label="Task type"
-              >
-                <option value="classification">Classification</option>
-                <option value="regression">Regression</option>
-                <option value="fine-tuning">Fine-tuning</option>
-              </select>
+            <div style={styles.actions}>
+              <button className="btn-primary" onClick={handleSubmit} aria-label="Start training">
+                Start Training
+              </button>
+              <button className="btn-secondary" onClick={handleReset} aria-label="Reset form">
+                Reset
+              </button>
+              {error && <p style={styles.error} role="alert">{error}</p>}
             </div>
-          </div>
-
-          {/* Experience toggle */}
-          <div style={styles.field}>
-            <label style={styles.label}>Experience Level</label>
-            <div style={styles.toggleGroup} role="group" aria-label="Experience level">
-              {EXPERIENCE_LEVELS.map((lvl, i) => {
-                const active = experience === lvl.value;
-                return (
-                  <button
-                    key={lvl.value}
-                    onClick={() => setExperience(lvl.value)}
-                    title={lvl.desc}
-                    aria-pressed={active}
-                    style={{
-                      padding: '0.5rem 0.25rem',
-                      background: active ? 'var(--accent-dim)' : 'var(--bg-elevated)',
-                      border: 'none',
-                      borderLeft: i > 0 ? '0.5px solid var(--border)' : 'none',
-                      color: active ? 'var(--accent)' : 'var(--text-secondary)',
-                      fontSize: '12px',
-                      fontWeight: active ? 600 : 400,
-                      cursor: 'pointer',
-                      fontFamily: 'inherit',
-                      transition: 'background 0.15s, color 0.15s',
-                    }}
-                  >
-                    {lvl.label}
-                  </button>
-                );
-              })}
-            </div>
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-              {EXPERIENCE_LEVELS.find(l => l.value === experience)?.desc}
-            </span>
-          </div>
-
-          {error && <p style={styles.error} role="alert">{error}</p>}
-
-          <div style={styles.actions}>
-            <button style={styles.btnPrimary} onClick={handleSubmit} aria-label="Start training">
-              Start Training
-            </button>
-            <button style={styles.btnSecondary} onClick={handleReset} aria-label="Reset form">
-              Reset
-            </button>
           </div>
         </div>
+
+        <div style={styles.card}>
+          <div style={styles.fieldset}>
+            <div style={styles.row}>
+              <div style={styles.field}>
+                <label style={styles.smallLabel} htmlFor="budget">Budget Cap (USD)</label>
+                <input
+                  id="budget"
+                  type="number"
+                  style={styles.input}
+                  value={budget}
+                  min={10}
+                  max={500}
+                  step={5}
+                  onChange={e => setBudget(Number(e.target.value))}
+                  aria-label="Budget cap in dollars"
+                />
+              </div>
+              <div style={styles.field}>
+                <label style={styles.smallLabel} htmlFor="taskType">Task Type</label>
+                <select
+                  id="taskType"
+                  style={styles.select}
+                  value={taskType}
+                  onChange={e => setTaskType(e.target.value as TaskType)}
+                  aria-label="Task type"
+                >
+                  <option value="classification">Classification</option>
+                  <option value="regression">Regression</option>
+                  <option value="fine-tuning">Fine-tuning</option>
+                </select>
+              </div>
+            </div>
+            <div style={styles.field}>
+              <label style={styles.smallLabel}>ML Experience Level</label>
+              <div style={styles.segGroup} role="radiogroup" aria-label="ML experience level">
+                {(['beginner', 'intermediate', 'expert'] as SkillLevel[]).map(lvl => {
+                  const active = skillLevel === lvl;
+                  return (
+                    <button
+                      key={lvl}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      className={`seg-btn ${active ? 'seg-btn--active' : ''}`}
+                      onClick={() => setSkillLevel(lvl)}
+                    >
+                      <span style={styles.segLabel}>
+                        {lvl.charAt(0).toUpperCase() + lvl.slice(1)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p style={styles.levelDesc}>{SKILL_DESCRIPTIONS[skillLevel]}</p>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   );

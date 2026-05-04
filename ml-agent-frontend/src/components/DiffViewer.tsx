@@ -45,16 +45,16 @@ function DecisionBadge({ status }: { status: Iteration['status'] }) {
   );
 }
 
-const STRATEGY_LABELS: Record<IterationReasoning['search_strategy'], string> = {
-  local:  'Local Perturbation',
-  random: 'Random Search',
-  claude: 'Claude Haiku',
+const STRATEGY_LABELS: Record<IterationReasoning['strategy'], string> = {
+  local_perturbation: 'Local Perturbation',
+  random_search:      'Random Search',
+  claude_proposal:    'Claude Haiku',
 };
 
-const STRATEGY_COLORS: Record<IterationReasoning['search_strategy'], string> = {
-  local:  'var(--accent)',
-  random: 'var(--text-muted)',
-  claude: 'var(--success)',
+const STRATEGY_COLORS: Record<IterationReasoning['strategy'], string> = {
+  local_perturbation: 'var(--accent)',
+  random_search:      'var(--text-muted)',
+  claude_proposal:    'var(--success)',
 };
 
 function ReasoningPanel({ reasoning, status }: { reasoning: IterationReasoning; status: Iteration['status'] }) {
@@ -82,24 +82,24 @@ function ReasoningPanel({ reasoning, status }: { reasoning: IterationReasoning; 
           fontSize: '10px', fontWeight: 600, letterSpacing: '0.06em',
           padding: '1px 6px', borderRadius: '3px',
           background: 'transparent',
-          border: `0.5px solid ${STRATEGY_COLORS[reasoning.search_strategy]}`,
-          color: STRATEGY_COLORS[reasoning.search_strategy],
+          border: `0.5px solid ${STRATEGY_COLORS[reasoning.strategy]}`,
+          color: STRATEGY_COLORS[reasoning.strategy],
         }}>
-          {STRATEGY_LABELS[reasoning.search_strategy]}
+          {STRATEGY_LABELS[reasoning.strategy]}
         </span>
       </div>
 
-      {/* Rationale */}
+      {/* Hypothesis */}
       <div>
         <p style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.08em', marginBottom: '3px' }}>
-          RATIONALE
+          HYPOTHESIS
         </p>
         <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-          {reasoning.rationale}
+          {reasoning.hypothesis}
         </p>
       </div>
 
-      {/* Expected effect + outcome side by side */}
+      {/* Expected impact + rationale side by side */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
         <div style={{
           background: 'var(--bg-elevated)',
@@ -108,10 +108,10 @@ function ReasoningPanel({ reasoning, status }: { reasoning: IterationReasoning; 
           borderLeft: '2px solid var(--accent)',
         }}>
           <p style={{ fontSize: '10px', fontWeight: 600, color: 'var(--accent)', letterSpacing: '0.08em', marginBottom: '3px' }}>
-            EXPECTED
+            EXPECTED IMPACT
           </p>
           <p style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-            {reasoning.expected_effect}
+            {reasoning.expectedImpact}
           </p>
         </div>
         <div style={{
@@ -122,13 +122,39 @@ function ReasoningPanel({ reasoning, status }: { reasoning: IterationReasoning; 
           opacity: status === 'PENDING' ? 0.4 : 1,
         }}>
           <p style={{ fontSize: '10px', fontWeight: 600, color: outcomeColor, letterSpacing: '0.08em', marginBottom: '3px' }}>
-            {status === 'PENDING' ? 'OUTCOME (PENDING)' : 'OUTCOME'}
+            RATIONALE
           </p>
           <p style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-            {reasoning.outcome_vs_expected}
+            {reasoning.rationale}
           </p>
         </div>
       </div>
+
+      {/* Numeric before/after if available */}
+      {(reasoning.lossBeforeAfter || reasoning.f1BeforeAfter) && (
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          {reasoning.lossBeforeAfter && (
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+              Loss{' '}
+              <span style={{ color: 'var(--text-secondary)' }}>{reasoning.lossBeforeAfter[0].toFixed(4)}</span>
+              {' → '}
+              <span style={{ color: reasoning.lossBeforeAfter[1] < reasoning.lossBeforeAfter[0] ? 'var(--success)' : 'var(--warning)' }}>
+                {reasoning.lossBeforeAfter[1].toFixed(4)}
+              </span>
+            </span>
+          )}
+          {reasoning.f1BeforeAfter && (
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+              F1{' '}
+              <span style={{ color: 'var(--text-secondary)' }}>{reasoning.f1BeforeAfter[0].toFixed(3)}</span>
+              {' → '}
+              <span style={{ color: reasoning.f1BeforeAfter[1] > reasoning.f1BeforeAfter[0] ? 'var(--success)' : 'var(--warning)' }}>
+                {reasoning.f1BeforeAfter[1].toFixed(3)}
+              </span>
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

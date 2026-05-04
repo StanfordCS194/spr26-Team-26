@@ -1,15 +1,20 @@
 import { useState } from 'react';
-import type { TrainingState } from '../types';
+import type { TrainingState, SkillLevel } from '../types';
 import PipelineProgress from './PipelineProgress';
 import MetricsGrid from './MetricsGrid';
 import MetricsChart from './MetricsChart';
 import IterationsList from './IterationsList';
 import ActivityLog from './ActivityLog';
 import FinalResults from './FinalResults';
+import DataPreview from './DataPreview';
+import ApprovalCheckpoint from './ApprovalCheckpoint';
+import SearchSpaceViz from './SearchSpaceViz';
 
 interface Props {
   state: TrainingState;
   onReset: () => void;
+  onApprove: () => void;
+  onReject: () => void;
   onOpenDiffs?: () => void;
 }
 
@@ -25,15 +30,18 @@ const headerStyle: React.CSSProperties = {
   justifyContent: 'space-between',
 };
 
-const TIER_COLORS: Record<string, string> = {
-  BEGINNER:     'var(--text-muted)',
-  INTERMEDIATE: 'var(--accent)',
-  ADVANCED:     'var(--success)',
-};
-
 function StatusDot({ status }: { status: TrainingState['status'] }) {
-  const color = status === 'complete' ? 'var(--success)' : status === 'running' ? 'var(--accent)' : 'var(--text-muted)';
-  const label = status === 'complete' ? 'COMPLETE' : status === 'running' ? 'RUNNING' : 'IDLE';
+  const color =
+    status === 'complete' ? 'var(--success)' :
+    status === 'running' ? 'var(--accent)' :
+    status === 'awaiting-approval' ? 'var(--warning)' :
+    'var(--text-muted)';
+  const label =
+    status === 'complete' ? 'COMPLETE' :
+    status === 'running' ? 'RUNNING' :
+    status === 'awaiting-approval' ? 'WAITING FOR YOU' :
+    'IDLE';
+  const pulsing = status === 'running' || status === 'awaiting-approval';
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -44,7 +52,7 @@ function StatusDot({ status }: { status: TrainingState['status'] }) {
           borderRadius: '50%',
           background: color,
           display: 'inline-block',
-          animation: status === 'running' ? 'pulse 1.5s ease-in-out infinite' : 'none',
+          animation: pulsing ? 'pulse 1.5s ease-in-out infinite' : 'none',
         }}
       />
       <span style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.1em', color }}>
@@ -54,20 +62,42 @@ function StatusDot({ status }: { status: TrainingState['status'] }) {
   );
 }
 
-export default function Dashboard({ state, onReset, onOpenDiffs }: Props) {
-  const { capabilities } = state;
-  const obs = capabilities.observability;
+const levelColor: Record<SkillLevel, string> = {
+  beginner: 'var(--success)',
+  intermediate: 'var(--accent)',
+  expert: 'var(--warning)',
+};
 
-  const showMetricsChart   = obs.metrics_visibility !== 'none';
-  const showIterations     = obs.autoresearch_diary_access !== 'none';
-  const showActivityLog    = obs.run_status === 'detailed';
-  const showCostDetail     = obs.cost_visibility === 'detailed';
-  const showDiaryGateway   = capabilities.comfort_level === 'ADVANCED';
+function SkillLevelBadge({ level }: { level: SkillLevel }) {
+  const color = levelColor[level];
+  return (
+    <span
+      style={{
+        fontSize: '10px',
+        fontWeight: 600,
+        letterSpacing: '0.08em',
+        padding: '2px 7px',
+        borderRadius: '4px',
+        background: 'var(--bg-surface)',
+        color,
+        border: `0.5px solid ${color}`,
+        textTransform: 'uppercase',
+      }}
+      aria-label={`Skill level: ${level}`}
+    >
+      {level}
+    </span>
+  );
+}
+
+export default function Dashboard({ state, onReset, onApprove, onReject, onOpenDiffs }: Props) {
+  const { skillLevel, pendingApproval, dataPreview, modelPlan } = state;
+  const isExpert = skillLevel === 'expert';
+  const isBeginner = skillLevel === 'beginner';
+  const showDiaryGateway = isExpert;
 
   const [gatewayHovered, setGatewayHovered] = useState(false);
   const latestDiff = state.iterations.find(it => it.diff)?.diff ?? null;
-
-  const tierColor = TIER_COLORS[capabilities.comfort_level] ?? 'var(--text-muted)';
 
   return (
     <div style={{ minHeight: '100vh' }}>
@@ -84,21 +114,9 @@ export default function Dashboard({ state, onReset, onOpenDiffs }: Props) {
             ML Training Agent
           </span>
           <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>CS194 · Team 26</span>
-          {/* Experience tier badge */}
-          <span style={{
-            fontSize: '10px',
-            fontWeight: 600,
-            letterSpacing: '0.08em',
-            padding: '2px 7px',
-            borderRadius: '4px',
-            background: 'var(--bg-elevated)',
-            border: `0.5px solid ${tierColor}`,
-            color: tierColor,
-          }}>
-            {capabilities.comfort_level}
-          </span>
+          <SkillLevelBadge level={skillLevel} />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <StatusDot status={state.status} />
           <button
             onClick={onReset}
@@ -150,44 +168,90 @@ export default function Dashboard({ state, onReset, onOpenDiffs }: Props) {
         {/* Pipeline + budget — always visible */}
         <PipelineProgress stages={state.stages} costSpent={state.costSpent} budget={state.budget} />
 
-        {/* Metric cards — always visible (detail controlled by cost_visibility) */}
+        {/* Data preview — shown once DataGen has finished. Highlights while awaiting approval. */}
+        {dataPreview && (
+          <DataPreview
+            preview={dataPreview}
+            skillLevel={skillLevel}
+            awaitingApproval={pendingApproval === 'dataset'}
+            onApprove={onApprove}
+            onReject={onReject}
+          />
+        )}
+
+        {/* Model plan checkpoint — only shown while awaiting model approval (Int/Exp). */}
+        {modelPlan && pendingApproval === 'model' && (
+          <ApprovalCheckpoint
+            plan={modelPlan}
+            skillLevel={skillLevel}
+            onApprove={onApprove}
+            onReject={onReject}
+          />
+        )}
+
+        {/* Metric cards — Beginner gets 3 cards (loss hidden), everyone else gets 4. */}
         <MetricsGrid
           metrics={state.metrics}
           costSpent={state.costSpent}
           budget={state.budget}
-          showCostDetail={showCostDetail}
+          skillLevel={skillLevel}
         />
 
-        {/* Chart + iterations — gated */}
-        {(showMetricsChart || showIterations) && (
-          <div style={{
+        {/* 2-col: chart + iterations */}
+        <div
+          style={{
             display: 'grid',
-            gridTemplateColumns: showMetricsChart && showIterations ? '1fr 1fr' : '1fr',
+            gridTemplateColumns: '1fr 1fr',
             gap: '12px',
             marginBottom: '1.5rem',
-          }}>
-            {showMetricsChart && <MetricsChart metrics={state.metrics} />}
-            {showIterations && <IterationsList iterations={state.iterations} />}
-          </div>
+          }}
+        >
+          <MetricsChart metrics={state.metrics} />
+          <IterationsList iterations={state.iterations} skillLevel={skillLevel} />
+        </div>
+
+        {/* Search-space viz — shown for non-beginners once AutoResearch iterations land. */}
+        {!isBeginner && state.iterations.length > 0 && (
+          <SearchSpaceViz iterations={state.iterations} />
         )}
 
-        {/* Activity log — only for detailed run_status */}
-        {showActivityLog && <ActivityLog logs={state.logs} />}
+        {/* Activity log — filters by skill level internally. */}
+        <ActivityLog logs={state.logs} skillLevel={skillLevel} />
 
-        {/* Beginner: simple status message while running */}
-        {!showActivityLog && state.status === 'running' && (
-          <div style={{
+        {/* Expert-only: raw state snapshot for debugging during demo */}
+        {isExpert && state.status !== 'complete' && (
+          <details style={{
             background: 'var(--bg-surface)',
             border: '0.5px solid var(--border)',
             borderRadius: 'var(--radius)',
-            padding: '1rem',
+            padding: '0.5rem 0.875rem',
             marginBottom: '1.5rem',
-            textAlign: 'center',
+            fontSize: '11px',
+            color: 'var(--text-muted)',
           }}>
-            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-              Training is running — results will appear when complete.
-            </span>
-          </div>
+            <summary style={{ cursor: 'pointer', userSelect: 'none' }}>
+              Raw state snapshot (Expert)
+            </summary>
+            <pre style={{
+              fontFamily: 'ui-monospace, Consolas, monospace',
+              fontSize: '11px',
+              color: 'var(--text-secondary)',
+              overflowX: 'auto',
+              marginTop: '8px',
+              background: 'var(--bg-base)',
+              padding: '8px',
+              borderRadius: '4px',
+            }}>
+{JSON.stringify({
+  status: state.status,
+  stage: state.stage,
+  pendingApproval,
+  costSpent: state.costSpent,
+  iterations: state.iterations.length,
+  metrics: state.metrics.length,
+}, null, 2)}
+            </pre>
+          </details>
         )}
 
         {state.status === 'complete' && (
@@ -195,7 +259,7 @@ export default function Dashboard({ state, onReset, onOpenDiffs }: Props) {
         )}
       </main>
 
-      {/* Advanced-only: floating Research Diary gateway */}
+      {/* Expert-only: floating Research Diary gateway */}
       {showDiaryGateway && onOpenDiffs && (
         <div style={{ position: 'fixed', bottom: '1.5rem', right: '1.5rem', zIndex: 50 }}>
           {/* Hover preview card */}

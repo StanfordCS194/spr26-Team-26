@@ -1,7 +1,7 @@
-import type { CapabilityProfile, ExperienceLevel } from '../types';
+import type { CapabilityProfile, SkillLevel } from '../types';
 
-const PROFILES: Record<string, CapabilityProfile> = {
-  Beginner: {
+const PROFILES: Record<SkillLevel, CapabilityProfile> = {
+  beginner: {
     comfort_level: 'BEGINNER',
     observability: {
       run_status: 'basic',
@@ -18,7 +18,7 @@ const PROFILES: Record<string, CapabilityProfile> = {
       strategy_hints_allowed: true,
     },
   },
-  Intermediate: {
+  intermediate: {
     comfort_level: 'INTERMEDIATE',
     observability: {
       run_status: 'detailed',
@@ -35,7 +35,7 @@ const PROFILES: Record<string, CapabilityProfile> = {
       strategy_hints_allowed: true,
     },
   },
-  Advanced: {
+  expert: {
     comfort_level: 'ADVANCED',
     observability: {
       run_status: 'detailed',
@@ -54,6 +54,6 @@ const PROFILES: Record<string, CapabilityProfile> = {
   },
 };
 
-export function getCapabilities(level: ExperienceLevel): CapabilityProfile {
+export function getCapabilities(level: SkillLevel): CapabilityProfile {
   return PROFILES[level];
 }
