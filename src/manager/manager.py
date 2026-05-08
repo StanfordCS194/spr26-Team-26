@@ -123,7 +123,19 @@ def build_orchestration_config(
     has_data: bool,
 ) -> OrchestrationConfig:
     """Assembles the OrchestrationConfig dict passed to all downstream agents."""
-    raise NotImplementedError
+    return OrchestrationConfig(
+        data=has_data,
+        prompt=prompt,
+        compute_budget=budget,
+        training_procedure={
+            "task_type": reasoning["task_type"],
+            "data_format": reasoning["data_format"],
+            "training_type": reasoning["training_type"],
+            "base_model": reasoning["suggested_base_model"],
+            "hyperparameters": reasoning["hyperparameters"],
+            "notes": reasoning["notes"],
+        },
+    )
 
 
 def log_decision(step: str, rationale: str, config: OrchestrationConfig) -> None:
