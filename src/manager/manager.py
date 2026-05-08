@@ -40,17 +40,30 @@ def invoke_manager_graph(
 
 def query_data_node(state: ManagerState) -> dict:
     """LangGraph node. Calls query_user_for_data(). Returns: { has_data, data_path }."""
-    raise NotImplementedError
+    path = query_user_for_data()
+    return {"has_data": path is not None, "data_path": path}
 
 
 def reason_node(state: ManagerState) -> dict:
     """LangGraph node. Calls reason_about_task() via Claude API. Returns: { task_reasoning }."""
-    raise NotImplementedError
+    reasoning = reason_about_task(state["prompt"], state["budget"], state["has_data"])
+    return {"task_reasoning": reasoning}
 
 
 def build_config_node(state: ManagerState) -> dict:
-    """LangGraph node. Calls build_orchestration_config() and log_decision(). Returns: { config }."""
-    raise NotImplementedError
+    """LangGraph node. Builds OrchestrationConfig and logs the decision. Returns: { config }."""
+    config = build_orchestration_config(
+        state["task_reasoning"],
+        state["prompt"],
+        state["budget"],
+        state["has_data"],
+    )
+    log_decision(
+        step="build_config",
+        rationale=state["task_reasoning"]["notes"],
+        config=config,
+    )
+    return {"config": config}
 
 
 def orchestrate_node(state: ManagerState) -> dict:
