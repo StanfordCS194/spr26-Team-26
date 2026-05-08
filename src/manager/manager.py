@@ -180,6 +180,3 @@ def build_orchestration_config(
     )
 
 
-def log_decision(step: str, rationale: str, config: OrchestrationConfig) -> None:
-    """Appends a timestamped entry to the audit trail log (decisions.jsonl)."""
-    raise NotImplementedError
