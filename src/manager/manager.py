@@ -87,8 +87,33 @@ def log_decision(step: str, rationale: str, config: OrchestrationConfig) -> None
 
 
 def reason_about_task(prompt: str, budget: float, has_data: bool) -> TaskReasoning:
-    """Calls Claude API (claude-sonnet-4-6) to infer task type, training type, base model, hyperparams."""
-    raise NotImplementedError
+    """Calls Claude API to infer task type, training type, base model, and starting hyperparams."""
+    import anthropic
+
+    client = anthropic.Anthropic()
+    system = (
+        "You are an ML infrastructure planner. Given a task description and budget, "
+        "return a JSON object with these exact keys:\n"
+        "  task_type: str (e.g. 'text-classification', 'seq2seq', 'token-classification', 'custom')\n"
+        "  data_format: str (e.g. 'jsonl with input/output fields', 'csv', 'image directory')\n"
+        "  training_type: str ('SFT', 'RL', or 'pre-train')\n"
+        "  suggested_base_model: str or null (HuggingFace model ID, e.g. 'bert-base-uncased')\n"
+        "  hyperparameters: dict with keys learning_rate, batch_size, epochs, max_seq_len\n"
+        "  notes: str (one sentence reasoning summary)\n"
+        "Respond with raw JSON only. No markdown, no explanation."
+    )
+    user_msg = (
+        f"Task: {prompt}\n"
+        f"Budget: ${budget:.2f}\n"
+        f"User has existing data: {has_data}"
+    )
+    message = client.messages.create(
+        model="claude-haiku-4-5",
+        max_tokens=512,
+        system=system,
+        messages=[{"role": "user", "content": user_msg}],
+    )
+    return json.loads(message.content[0].text)
 
 
 def build_orchestration_config(
