@@ -8,12 +8,18 @@ LangGraph StateGraph(ManagerState) with 4 linear nodes:
 
 from __future__ import annotations
 
+import json
+import os
+from datetime import datetime, timezone
+
 from src.types import (
     ManagerState,
     OrchestrationConfig,
     TaskReasoning,
     TrainedModel,
 )
+
+LOG_PATH = os.environ.get("DECISIONS_LOG", "decisions.jsonl")
 
 
 def build_manager_graph():
@@ -55,8 +61,29 @@ def orchestrate_node(state: ManagerState) -> dict:
 # ─── HELPER FUNCTIONS ─────────────────────────────────────────────────────────
 
 def query_user_for_data() -> str | None:
-    """Interactively asks the user whether they have existing training data."""
-    raise NotImplementedError
+    """Interactively asks the user whether they have existing training data.
+    Returns the file path if provided, else None.
+    """
+    answer = input("Do you have existing training data? (y/n): ").strip().lower()
+    if answer != "y":
+        return None
+    path = input("Enter the path to your data file or directory: ").strip()
+    if not path or not os.path.exists(path):
+        print(f"[Manager] Path '{path}' not found — proceeding without user data.")
+        return None
+    return os.path.abspath(path)
+
+
+def log_decision(step: str, rationale: str, config: OrchestrationConfig) -> None:
+    """Appends a timestamped entry to the audit trail log (decisions.jsonl)."""
+    entry = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "step": step,
+        "rationale": rationale,
+        "config_snapshot": dict(config),
+    }
+    with open(LOG_PATH, "a") as f:
+        f.write(json.dumps(entry) + "\n")
 
 
 def reason_about_task(prompt: str, budget: float, has_data: bool) -> TaskReasoning:
