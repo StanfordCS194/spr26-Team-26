@@ -23,8 +23,26 @@ LOG_PATH = os.environ.get("DECISIONS_LOG", "decisions.jsonl")
 
 
 def build_manager_graph():
-    """Constructs and compiles the Manager LangGraph StateGraph. Called once at startup."""
-    raise NotImplementedError
+    """Constructs and compiles the Manager LangGraph StateGraph. Called once at startup.
+
+    Graph: query_data → reason → build_config → orchestrate (linear, no branching)
+    """
+    from langgraph.graph import StateGraph, END
+
+    graph = StateGraph(ManagerState)
+
+    graph.add_node("query_data", query_data_node)
+    graph.add_node("reason", reason_node)
+    graph.add_node("build_config", build_config_node)
+    graph.add_node("orchestrate", orchestrate_node)
+
+    graph.set_entry_point("query_data")
+    graph.add_edge("query_data", "reason")
+    graph.add_edge("reason", "build_config")
+    graph.add_edge("build_config", "orchestrate")
+    graph.add_edge("orchestrate", END)
+
+    return graph.compile()
 
 
 def invoke_manager_graph(
@@ -32,8 +50,19 @@ def invoke_manager_graph(
     budget: float,
     data_path: str | None = None,
 ) -> TrainedModel:
-    """Main entry point for the entire system. Invokes the compiled Manager graph."""
-    raise NotImplementedError
+    """Main entry point for the entire system. Builds and invokes the Manager graph."""
+    graph = build_manager_graph()
+    initial_state: ManagerState = {
+        "prompt": prompt,
+        "budget": budget,
+        "data_path": data_path,
+        "has_data": data_path is not None,
+        "task_reasoning": None,
+        "config": None,
+        "result": None,
+    }
+    final_state = graph.invoke(initial_state)
+    return final_state["result"]
 
 
 # ─── NODE FUNCTIONS ───────────────────────────────────────────────────────────
