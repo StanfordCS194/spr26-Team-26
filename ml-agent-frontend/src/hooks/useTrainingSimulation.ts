@@ -8,7 +8,7 @@ const STAGE_LABELS = [
   'Manager Init',
   'Data Discovery',
   'Model Selection',
-  'Baseline Training',
+  'Code Development',
   'AutoResearch Setup',
   'Experiment Loop',
   'Final Run',
@@ -42,7 +42,6 @@ function buildStageLogs(cfg: TaskConfig): Array<Array<{ component: string; messa
     ? `${(totalSamples / 1_000_000).toFixed(1)}M`
     : `${Math.round(totalSamples / 1000)}k`;
 
-  const bl = cfg.baseline;
   const fn = cfg.final;
   const metricFmt = (v: number) =>
     cfg.evalMetric === 'BLEU' || cfg.evalMetric === 'ROUGE-L'
@@ -76,25 +75,24 @@ function buildStageLogs(cfg: TaskConfig): Array<Array<{ component: string; messa
       { component: 'Decision',     message: `LoRA config: rank=${cfg.loraRank}, alpha=${cfg.loraRank * 2}, dropout=0.05, modules=${cfg.targetModules}`, type: 'success' },
       { component: 'Decision',     message: 'Training script written → outputs/scripts/train.py',       type: 'success' },
     ],
-    // 3 Baseline Training
+    // 3 Code Development
     [
-      { component: 'Tinker',       message: `Creating LoRA training client — ${cfg.model}`,             type: 'default' },
-      { component: 'Tinker',       message: `Tokenizing ${Math.round(totalSamples * 0.8 / 1000)}k train samples`, type: 'default' },
-      { component: 'Tinker',       message: `Epoch 1/3 — loss: ${(bl.loss * 1.12).toFixed(3)}, ${cfg.evalMetric}: ${metricFmt(bl.metric * 0.91)}`, type: 'default' },
-      { component: 'Tinker',       message: `Epoch 2/3 — loss: ${(bl.loss * 1.06).toFixed(3)}, ${cfg.evalMetric}: ${metricFmt(bl.metric * 0.96)}`, type: 'default' },
-      { component: 'Tinker',       message: `Epoch 3/3 — loss: ${bl.loss.toFixed(3)}, ${cfg.evalMetric}: ${metricFmt(bl.metric)}`,                  type: 'default' },
-      { component: 'CostManager',  message: 'Baseline training cost: $1.14',                            type: 'warning' },
-      { component: 'Tinker',       message: 'Baseline weights saved → outputs/model/baseline',          type: 'success' },
+      { component: 'Decision',     message: `Scaffolding training script for ${cfg.model}`,             type: 'default' },
+      { component: 'Decision',     message: `Writing LoRA config: rank=${cfg.loraRank}, alpha=${cfg.loraRank * 2}, modules=${cfg.targetModules}`, type: 'default' },
+      { component: 'Decision',     message: `Writing data loader — ${Math.round(totalSamples * 0.8 / 1000)}k train / ${Math.round(totalSamples * 0.1 / 1000)}k val samples`, type: 'default' },
+      { component: 'Decision',     message: `Writing eval harness — primary metric: ${cfg.evalMetric}`, type: 'default' },
+      { component: 'Decision',     message: 'Writing optimizer config: AdamW, cosine LR schedule',      type: 'default' },
+      { component: 'Decision',     message: 'Smoke-testing script on 32 samples — no errors',           type: 'success' },
+      { component: 'Decision',     message: 'Training script ready → outputs/scripts/train.py',         type: 'success' },
     ],
     // 4 AutoResearch Setup
     [
       { component: 'AutoResearch', message: 'Initializing AutoResearch loop',                           type: 'default' },
       { component: 'AutoResearch', message: `Creating eval suite — primary metric: ${cfg.evalMetric}`,  type: 'default' },
-      { component: 'AutoResearch', message: `Loading test split — ${Math.round(totalSamples * 0.1 / 1000)}k samples`, type: 'default' },
-      { component: 'AutoResearch', message: 'Running baseline evaluation on test set…',                 type: 'default' },
-      { component: 'AutoResearch', message: `Baseline score — loss: ${bl.loss}, ${cfg.evalMetric}: ${metricFmt(bl.metric)}`, type: 'success' },
+      { component: 'AutoResearch', message: `Loading splits — ${Math.round(totalSamples * 0.8 / 1000)}k train / ${Math.round(totalSamples * 0.1 / 1000)}k val`, type: 'default' },
+      { component: 'AutoResearch', message: `Initial config: lr=3e-4, lora_rank=${cfg.loraRank}, epochs=3`, type: 'default' },
       { component: 'AutoResearch', message: 'Research diary initialized — max 20 iterations, early-stop at 3 no-improve', type: 'success' },
-      { component: 'AutoResearch', message: 'Entering experiment loop…',                                type: 'success' },
+      { component: 'AutoResearch', message: 'Handing off to experiment loop — training begins now',     type: 'success' },
     ],
     // 5 Experiment Loop (per-iteration logs injected separately in scheduleExperimentLoop)
     [
@@ -235,25 +233,6 @@ export function useTrainingSimulation() {
             dataSamples: cfg.samples ?? [],
           }));
         }, stageStart + Math.round(dur * 0.62));
-      }
-
-      // ── Baseline Training (3): loss curve from high → baseline ─────────────
-      if (stageIdx === 3) {
-        const { baseline: bl } = cfg;
-        const tickCount = Math.floor(dur / 400);
-        for (let t = 0; t < tickCount; t++) {
-          const p = t / tickCount;
-          schedule(() => {
-            setState(prev => ({
-              ...prev,
-              metrics: [...prev.metrics, {
-                loss:     jitter(bl.loss * (1.22 - p * 0.22), 0.012),
-                accuracy: jitter(bl.metric * (0.87 + p * 0.13), 0.008),
-                iteration: prev.metrics.length + 1,
-              }],
-            }));
-          }, stageStart + t * 400 + 150);
-        }
       }
 
       // ── Experiment Loop (5): iterations appear one-by-one ──────────────────
