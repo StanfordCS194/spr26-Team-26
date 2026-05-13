@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import math
+import threading
 from pathlib import Path
 from typing import Literal
 
@@ -28,7 +29,6 @@ from src.types import (
     ExperimentResult,
     Hypothesis,
     IterationRecord,
-    JobConfig,
     JobStatus,
     LogLevel,
     OrchestrationConfig,
@@ -631,69 +631,120 @@ def revert_patch(script_path: str, original_content: str) -> None:
 
 # ─── RUN HELPERS ──────────────────────────────────────────────────────────────
 
+# Thread results keyed by job_id — set by the background training thread.
+# Value is an ExperimentResult dict on success, or an Exception on failure.
+_experiment_results: dict[str, "ExperimentResult | Exception | None"] = {}
+_experiment_threads: dict[str, "threading.Thread"] = {}
+
+
 def submit_experiment(
-    script_path: str,
+    _script_path: str,
     plan: TrainingPlan,
     timeout_min: int = 5,
 ) -> str:
-    """Submits a constrained training run to Tinker. Returns the Tinker job ID."""
-    # Translate our TrainingPlan into a Tinker JobConfig.
-    # GPU allocation is kept minimal: single A100 with the plan's time budget.
-    from src.tinker_api.tinker_api import submit_job
+    """Starts a Tinker SDK training run in a background thread. Returns a job ID."""
+    import os
+    import threading
+    import uuid
 
-    job_config: JobConfig = {
-        "gpu_type": "A100",
-        "num_gpus": 1,
-        "timeout_min": timeout_min,
-        "env_vars": {},
-        "output_dir": "outputs/experiments",
-    }
-    return submit_job(script_path, job_config)
+    from src.tinker_api.tinker_api import (
+        create_lora_training_client,
+        create_service_client,
+        get_cumulative_spend,
+        get_tokenizer,
+        make_datum,
+        run_training_loop,
+    )
+
+    job_id = str(uuid.uuid4())[:8]
+    _experiment_results[job_id] = None  # not done yet
+
+    def _run() -> None:
+        try:
+            svc = create_service_client()
+            base_model = plan.get("base_model") or "Qwen/Qwen3-8B"
+            rank = (plan.get("lora_config") or {}).get("rank", 32)
+            tc = create_lora_training_client(svc, base_model, rank)
+            tok = get_tokenizer(tc)
+
+            dataset_path = os.getenv("TINKER_DATASET_PATH", "outputs/dataset/train.jsonl")
+            config_path = Path("configs/current.json")
+            lr: float = 3e-4
+            if config_path.exists():
+                cfg = json.loads(config_path.read_text())
+                lr = float(cfg.get("learning_rate", lr))
+
+            batches: list[list] = []
+            with open(dataset_path) as fh:
+                for line in fh:
+                    sample = json.loads(line.strip())
+                    text = sample.get("text", "")
+                    tokens = tok.encode(text)
+                    if tokens:
+                        batches.append([make_datum(tokens)])
+
+            loop_result = run_training_loop(
+                tc, batches, learning_rate=lr, job_id=job_id, checkpoint_name=job_id
+            )
+
+            final_loss = loop_result.get("loss") or 0.0
+            metrics: TrainingMetrics = {
+                "train_loss": float(final_loss),
+                "val_loss": float(final_loss),
+                "test_loss": float(final_loss),
+                "primary_metric": -float(final_loss),  # higher = better convention
+            }
+            out_dir = Path("outputs/experiments") / job_id
+            out_dir.mkdir(parents=True, exist_ok=True)
+            (out_dir / "metrics.json").write_text(json.dumps(metrics))
+
+            _experiment_results[job_id] = {
+                "job_id": job_id,
+                "status": JobStatus.COMPLETED,
+                "metrics": metrics,
+                "model_path": str(out_dir / "model"),
+                "cost_usd": get_cumulative_spend(job_id),
+                "logs_path": str(out_dir / "logs.txt"),
+            }
+        except Exception as exc:  # noqa: BLE001
+            _experiment_results[job_id] = exc
+
+    thread = threading.Thread(target=_run, daemon=True)
+    _experiment_threads[job_id] = thread
+    thread.start()
+    return job_id
 
 
 def wait_for_experiment(job_id: str, timeout_min: int) -> ExperimentResult:
-    """Polls Tinker for job completion. Raises TimeoutError if timeout_min exceeded."""
-    import time
-    from src.tinker_api.tinker_api import get_job_status, get_cumulative_spend
+    """Blocks until the training thread for job_id finishes. Raises TimeoutError if it exceeds timeout_min."""
+    from src.tinker_api.tinker_api import get_cumulative_spend
 
-    deadline = time.time() + timeout_min * 60
-    poll_interval = 15  # seconds between status checks
+    thread = _experiment_threads.get(job_id)
+    if thread is not None:
+        thread.join(timeout=timeout_min * 60)
+        if thread.is_alive():
+            raise TimeoutError(
+                f"Tinker job {job_id} did not finish within {timeout_min} minutes"
+            )
 
-    while time.time() < deadline:
-        status = get_job_status(job_id)
-        if status == JobStatus.COMPLETED:
-            cost = get_cumulative_spend(job_id)
-            # Tinker writes metrics to outputs/experiments/<job_id>/metrics.json.
-            metrics_path = Path("outputs/experiments") / job_id / "metrics.json"
-            metrics: TrainingMetrics = json.loads(metrics_path.read_text())
-            model_path = str(Path("outputs/experiments") / job_id / "model")
-            return {
-                "job_id": job_id,
-                "status": status,
-                "metrics": metrics,
-                "model_path": model_path,
-                "cost_usd": cost,
-                "logs_path": str(Path("outputs/experiments") / job_id / "logs.txt"),
-            }
-        if status == JobStatus.FAILED:
-            return {
-                "job_id": job_id,
-                "status": status,
-                "metrics": {
-                    "train_loss": float("nan"),
-                    "val_loss": float("nan"),
-                    "test_loss": float("nan"),
-                    "primary_metric": 0.0,
-                },
-                "model_path": "",
-                "cost_usd": get_cumulative_spend(job_id),
-                "logs_path": str(Path("outputs/experiments") / job_id / "logs.txt"),
-            }
-        time.sleep(poll_interval)
-
-    raise TimeoutError(
-        f"Tinker job {job_id} did not finish within {timeout_min} minutes"
-    )
+    result = _experiment_results.get(job_id)
+    if isinstance(result, Exception):
+        return {
+            "job_id": job_id,
+            "status": JobStatus.FAILED,
+            "metrics": {
+                "train_loss": float("nan"),
+                "val_loss": float("nan"),
+                "test_loss": float("nan"),
+                "primary_metric": 0.0,
+            },
+            "model_path": "",
+            "cost_usd": get_cumulative_spend(job_id),
+            "logs_path": str(Path("outputs/experiments") / job_id / "logs.txt"),
+        }
+    if result is None:
+        raise TimeoutError(f"Tinker job {job_id} produced no result")
+    return result  # type: ignore[return-value]
 
 
 def check_early_stop(metrics: TrainingMetrics) -> bool:

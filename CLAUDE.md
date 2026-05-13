@@ -25,7 +25,7 @@ This is the single source of truth. Before implementing any function, verify:
 | Decision Engine | Plain functions — no LangGraph |
 | Cost Manager | Background thread — no LangGraph |
 | Observability | Utility module — no LangGraph |
-| Tinker API | HTTP client wrapper — no LangGraph |
+| Tinker API | Tinker SDK wrapper (`import tinker`) — no LangGraph |
 
 **LangGraph node functions** must:
 - Accept a single `state: XState` argument
@@ -62,6 +62,35 @@ Use the Claude API (Anthropic SDK) for:
 - `mode_c_node` in Data Generator (synthetic data generation)
 
 Use `claude-haiku-4-5-20251001` for high-frequency calls (AutoResearch proposals, synthetic data batches). Use `claude-sonnet-4-6` for one-time reasoning calls (Manager task reasoning).
+
+## Tinker SDK
+
+The training backend is Thinking Machines Lab's **Tinker SDK** (`pip install tinker`), **not** a REST API.
+Use the wrapper in `src/tinker_api/tinker_api.py`.
+
+Key call sequence:
+```python
+svc = create_service_client()                              # reads TINKER_API_KEY
+tc  = create_lora_training_client(svc, base_model, rank)
+tok = get_tokenizer(tc)
+dat = make_datum(input_tokens)                             # auto-shifts for causal LM
+result = run_training_step(tc, batch, learning_rate, job_id)
+sc  = save_checkpoint(tc, "checkpoint-name")               # returns SamplingClient
+```
+
+Cost tracking is **token-based at $0.40/million tokens** via `record_tokens` / `get_cumulative_spend`.
+There is no REST billing endpoint.
+
+## Testing rules
+
+- Every source module must have a corresponding test in `tests/`.
+- Tests must never make live network calls. Mock with `unittest.mock.patch`.
+- To mock the Tinker SDK, inject a fake `tinker` module into `sys.modules` before import
+  (see `tests/test_tinker_api.py` for the pattern).
+- Run the full suite before any commit:
+  ```
+  python -m pytest tests/ --ignore=tests/test_mode_b_hf_retrieval.py -v
+  ```
 
 ## Owner assignments
 
