@@ -5,9 +5,11 @@ import os
 import pytest
 from unittest.mock import MagicMock, patch
 from src.manager.manager import (
+    _handoff_to_dataset_result,
     build_manager_graph,
     build_orchestration_config,
     log_decision,
+    orchestrate_node,
     reason_about_task,
 )
 from src.types import OrchestrationConfig, TaskReasoning
@@ -78,4 +80,88 @@ def test_reason_about_task_returns_task_reasoning():
 
 
 def test_invoke_manager_graph_returns_trained_model():
-    pytest.skip("orchestrate_node not yet implemented — end-to-end test deferred")
+    pytest.skip("end-to-end graph test requires LangGraph + live sub-agents")
+
+
+# ── _handoff_to_dataset_result ────────────────────────────────────────────────
+
+def test_handoff_to_dataset_result_writes_jsonl(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    handoff = {
+        "mode_used": "B",
+        "raw_data": {"records": [{"input": "hello", "output": "1"}] * 10},
+    }
+    result = _handoff_to_dataset_result(handoff)
+    assert result["mode_used"] == "B"
+    assert result["dataset"]["train_size"] == 8
+    assert result["dataset"]["format"] == "jsonl"
+    assert os.path.exists(result["dataset"]["path"])
+    assert result["validation_report"]["passed"] is True
+
+
+def test_handoff_to_dataset_result_empty_records(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    handoff = {"mode_used": "C", "raw_data": {"records": []}}
+    result = _handoff_to_dataset_result(handoff)
+    assert result["validation_report"]["passed"] is False
+    assert result["validation_report"]["issues"] != []
+
+
+# ── orchestrate_node (mocked sub-agents) ─────────────────────────────────────
+
+def _make_orchestrate_state():
+    config = build_orchestration_config(MOCK_REASONING, "classify sentiment", 50.0, False)
+    return {
+        "prompt": "classify sentiment",
+        "budget": 50.0,
+        "data_path": None,
+        "has_data": False,
+        "task_reasoning": MOCK_REASONING,
+        "config": config,
+        "result": None,
+    }
+
+
+def test_orchestrate_node_returns_trained_model(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    fake_handoff = {
+        "mode_used": "B",
+        "raw_data": {"records": [{"input": "x", "output": "1"}] * 20},
+    }
+    fake_result = {
+        "weights_path": "outputs/model/final",
+        "metrics": {"scalar": 0.85, "metrics": {}, "critique": "good"},
+        "cost": {"data_gen_usd": 0.0, "training_usd": 1.0, "llm_calls_usd": 0.0,
+                 "total_usd": 1.0, "termination_reason": "training_complete"},
+        "n_iterations": 3,
+        "research_diary_path": "outputs/logs/diary.jsonl",
+    }
+
+    with patch("src.data_generator.graph.invoke_data_generator_graph",
+               return_value=fake_handoff), \
+         patch("src.decision_engine.decision_engine.run_decision_engine") as mock_de, \
+         patch("src.autoresearch.autoresearch.invoke_autoresearch_graph",
+               return_value=fake_result), \
+         patch("src.observability.observability.log_event"):
+
+        from src.types import TrainingPlan
+        mock_plan: TrainingPlan = {
+            "strategy": "fine-tune",
+            "base_model": "distilbert-base-uncased",
+            "lora_config": None,
+            "estimated_cost": 1.0,
+            "estimated_time_min": 10,
+            "training_script_path": str(tmp_path / "train.py"),
+            "eval_metric": "accuracy",
+        }
+        # write a dummy script so autoresearch doesn't choke
+        (tmp_path / "train.py").write_text("print('ok')")
+        mock_de.return_value = mock_plan
+
+        state = _make_orchestrate_state()
+        out = orchestrate_node(state)
+
+    assert "result" in out
+    assert out["result"]["n_iterations"] == 3
+    assert out["result"]["cost"]["total_usd"] == 1.0
