@@ -1,0 +1,298 @@
+artifact_id: 2e31c97d0168fe9d
+status: downloaded
+is_relevant: False
+is_reasonable: True
+reasonableness_reason: ok
+relevance_score: 0.1
+source_url: https://huggingface.co/datasets/OpenAssistant/oasst1
+artifact_url: https://huggingface.co/datasets/OpenAssistant/oasst1/resolve/refs%2Fconvert%2Fparquet/default/validation/0000.parquet
+local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_2e31c97d0168.parquet
+
+--- PREVIEW ---
+columns=['message_id', 'parent_id', 'user_id', 'created_date', 'text', 'role', 'lang', 'review_count', 'review_result', 'deleted', 'rank', 'synthetic', 'model_name', 'detoxify', 'message_tree_id', 'tree_state', 'emojis', 'labels']
+message_id=68489e5c-978f-4ad7-a849-39a741fb5ae7, parent_id=None, user_id=845cba79-9d16-4eb8-ab63-982fe8403c62, created_date=2023-02-08T11:55:51.852473+00:00, text=Напиши функцию на языке swift, которая сортирует массив целых чисел, а затем выводит его на экран, role=prompter, lang=ru, review_count=3, review_result=True, deleted=False, rank=None, synthetic=False, model_name=None, detoxify={'toxicity': 0.0025964330416172743, 'severe_toxicity': 0.0007743967580609024, 'obscene': 0.00883329939097166, 'identity_attack': 0.0012868893099948764, 'insult': 0.006939969025552273, 'threat': 0.0007452885620296001, 'sexual_explicit': 0.0002911509363912046}, message_tree_id=68489e5c-978f-4ad7-a849-39a741fb5ae7, tree_state=ready_for_export, emojis={'name': ['+1', '_skip_reply', '_skip_ranking'], 'count': [5, 12, 7]}, labels={'name': ['spam', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3333333333333333, 0.16666666666666666, 0.0, 0.3333333333333333, 0.0], 'count': [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]}
+message_id=a38b3d1c-256f-47c5-ab68-c9ab766bad84, parent_id=68489e5c-978f-4ad7-a849-39a741fb5ae7, user_id=abbc8a37-2db7-4af5-9df1-b0582d2e3d93, created_date=2023-03-16T22:29:28.829265+00:00, text=Вот функция, которая сортирует массив целых чисел и выводит его на экран:
+
+```swift
+func sortAndPrintArray(_ array: [Int]) {
+  // Создаем копию массива, чтобы не изменять исходный
+  var sortedArray = array
+  // Сортируем массив по возрастанию
+  sortedArray.sort()
+  // Выводим отсортированный массив на экран
+  print(sortedArray)
+}
+```
+
+
+Ты можешь проверить работу функции, вызвав ее с любым массивом целых чисел, например:
+
+```swift
+sortAndPrintArray([5, 2, 7, 9, -3])
+```
+
+На экране появится:
+
+```sh
+[-3, 2, 5, 7, 9]
+```
+---
+Надеюсь, что я смог тебе помочь. Нужно ли тебе что-нибудь ещё? 😊, role=assistant, lang=ru, review_count=3, review_result=True, deleted=False, rank=0, synthetic=False, model_name=None, detoxify={'toxicity': 0.0003634887107182294, 'severe_toxicity': 0.001123666763305664, 'obscene': 0.008447459898889065, 'identity_attack': 0.0013990580337122083, 'insult': 0.006949065253138542, 'threat': 0.0005177637212909758, 'sexual_explicit': 0.0002561529108788818}, message_tree_id=68489e5c-978f-4ad7-a849-39a741fb5ae7, tree_state=ready_for_export, emojis={'name': ['+1', '_skip_labeling'], 'count': [1, 5]}, labels={'name': ['spam', 'fails_task', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'helpfulness', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.6666666666666666, 0.0, 0.0, 0.6666666666666666, 0.5833333333333334, 0.0], 'count': [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]}
+message_id=9cf52b01-0582-46aa-9ad2-70827dce87ed, parent_id=68489e5c-978f-4ad7-a849-39a741fb5ae7, user_id=a3e19dd4-34cd-48f0-8912-a2003b22c334, created_date=2023-02-11T09:57:39.207727+00:00, text=Вот функция на языке Swift, которая сортирует массив целых чисел, а затем выводит его на экран:
+
+swift
+func sortAndPrintArray(arr: [Int]) {
+    let sortedArray = arr.sorted()
+    for number in sortedArray {
+        print(number)
+    }
+}
+Вы можете вызвать функцию, передав в качестве аргумента массив целых чисел:
+
+swift
+let array = [3, 5, 1, 4, 2]
+sortAndPrintArray(arr: array)
+
+Это выведет отсортированный массив на экран:
+
+1
+2
+3
+4
+5, role=assistant, lang=ru, review_count=3, review_result=True, deleted=False, rank=1, synthetic=False, model_name=None, detoxify={'toxicity': 0.0004027303075417876, 'severe_toxicity': 0.0031812735833227634, 'obscene': 0.02274329587817192, 'identity_attack': 0.00355731463059783, 'insult': 0.018821850419044495, 'threat': 0.0012457228731364012, 'sexual_explicit': 0.0006976590375415981}, message_tree_id=68489e5c-978f-4ad7-a849-39a741fb5ae7, tree_state=ready_for_export, emojis={'name': ['+1'], 'count': [1]}, labels={'name': ['spam', 'fails_task', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'helpfulness', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25, 0.0, 0.0, 0.0, 0.0, 0.0], 'count': [3, 2, 3, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2]}
+message_id=9685d79e-16d7-4f1b-b68f-a1ff73e87bef, parent_id=68489e5c-978f-4ad7-a849-39a741fb5ae7, user_id=97894afc-2204-4c7b-9b91-f1c71c10f032, created_date=2023-02-09T21:25:39.116134+00:00, text=func sortAndPrintArray(array: [Int]) {
+    let sortedArray = array.sorted()
+    print(sortedArray)
+}, role=assistant, lang=ru, review_count=3, review_result=True, deleted=False, rank=2, synthetic=False, model_name=None, detoxify={'toxicity': 0.0003712645557243377, 'severe_toxicity': 4.334701588959433e-05, 'obscene': 0.00021900604770053178, 'identity_attack': 0.0001992513134609908, 'insult': 0.00029803570942021906, 'threat': 4.963424362358637e-05, 'sexual_explicit': 2.9360047847148962e-05}, message_tree_id=68489e5c-978f-4ad7-a849-39a741fb5ae7, tree_state=ready_for_export, emojis={'name': ['-1', '_skip_labeling'], 'count': [1, 1]}, labels={'name': ['spam', 'fails_task', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'helpfulness', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.6666666666666666, 0.0, 0.0, 1.0, 0.0, 0.0], 'count': [3, 1, 3, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1]}
+message_id=afee0474-c84a-4ae2-a9c9-8d575256312e, parent_id=None, user_id=0a8f6864-6cda-4cf5-bc07-346470d6d493, created_date=2023-02-07T00:54:42.098108+00:00, text=Inventa un monstruo altamente complejo, descríbelo y enumera sus ventajas y desventajas ante el ambiente en el que se supone que se debe de encontrar., role=prompter, lang=es, review_count=3, review_result=True, deleted=False, rank=None, synthetic=False, model_name=None, detoxify={'toxicity': 0.029511522501707077, 'severe_toxicity': 0.00013752959785051644, 'obscene': 0.0007549018482677639, 'identity_attack': 0.0004271464131306857, 'insult': 0.0022734811063855886, 'threat': 0.014610814861953259, 'sexual_explicit': 0.0001954241015482694}, message_tree_id=afee0474-c84a-4ae2-a9c9-8d575256312e, tree_state=ready_for_export, emojis={'name': ['+1', '-1', '_skip_reply'], 'count': [3, 1, 6]}, labels={'name': ['spam', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.75, 0.08333333333333333, 0.25, 1.0, 0.08333333333333333], 'count': [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]}
+message_id=e9afa5f3-7256-4fcf-8675-3e4a9063a1c0, parent_id=afee0474-c84a-4ae2-a9c9-8d575256312e, user_id=6f7cd3ea-021b-4ba5-8798-cd521faaefaa, created_date=2023-02-14T05:18:40.023703+00:00, text=Aquí te presento mi creación de un monstruo altamente complejo:
+
+Nombre: Xalakthrax
+
+Descripción: Xalakthrax es un monstruo de aspecto reptiliano formado por un conjunto de exoesqueletos segmentados que le permiten adaptarse a diferentes situaciones y entornos. Su piel está cubierta de espinas venenosas y su boca está llena de afilados dientes y mandíbulas capaces de morder y desgarrar cualquier cosa que se interponga en su camino.
+
+Ventajas:
+
+• Xalakthrax es un monstruo altamente adaptable a diferentes entornos, gracias a su exoesqueleto segmentado que le permite modificar su forma y tamaño según las necesidades.
+
+• Sus espinas venenosas pueden incapacitar o incluso matar a sus presas, lo que le convierte en un depredador letal.
+
+• Su mandíbula es extremadamente fuerte y sus dientes afilados le permiten alimentarse de cualquier tipo de carne.
+
+Desventajas:
+
+• El cuerpo altamente complejo de Xalakthrax lo hace vulnerable a ataques en áreas no protegidas por su exoesqueleto, como su cuello o su abdomen.
+
+• Xalakthrax necesita alimentarse con frecuencia debido a su alto metabolismo y a su gran tamaño, lo que lo hace vulnerable a periodos de escasez de comida.
+
+• Xalakthrax es un monstruo solitario que tiene dificultades para relacionarse con otros seres, lo que lo convierte en un blanco fácil si es atrapado o acorralado por un grupo.
+
+En general, Xalakthrax es un monstruo poderoso y temible que ha sobrevivido gracias a su capacidad de adaptación y su ferocidad como depredador, pero su complejidad también lo hace vulnerable a ciertas debilidades y desventajas en su entorno natural., role=assistant, lang=es, review_count=3, review_result=True, deleted=False, rank=0, synthetic=False, model_name=None, detoxify={'toxicity': 0.007905092090368271, 'severe_toxicity': 0.0022282369900494814, 'obscene': 0.02096680924296379, 'identity_attack': 0.0023772187996655703, 'insult': 0.028138354420661926, 'threat': 0.0009575912845321, 'sexual_explicit': 0.0010794808622449636}, message_tree_id=afee0474-c84a-4ae2-a9c9-8d575256312e, tree_state=ready_for_export, emojis={'name': ['+1', '_skip_labeling'], 'count': [1, 2]}, labels={'name': ['spam', 'fails_task', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'helpfulness', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.9166666666666666, 0.25, 0.125, 0.75, 0.625, 0.25], 'count': [3, 2, 3, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2]}
+message_id=42a40f84-6673-4ef8-bb36-6946785e9ac7, parent_id=afee0474-c84a-4ae2-a9c9-8d575256312e, user_id=fa8e31b4-79a4-4847-a84a-72ccbc49b0cf, created_date=2023-02-14T06:58:45.486089+00:00, text=El monstruo que inventaré se llama "Cyclopsaurio" y es un monstruo con un solo ojo en medio de su frente, pero con una visión única y precisa.
+
+Ventajas:
+
+Visión ultra precisa: el Cyclopsaurio tiene una visión tan avanzada que puede detectar presas y peligros a kilómetros de distancia.
+Fuerza sobrehumana: el Cyclopsaurio es increíblemente fuerte y puede levantar objetos pesados con facilidad.
+Armadura natural: su piel es tan dura como el acero y lo protege de ataques y daños.
+Desventajas:
+
+Punto ciego: debido a que tiene un solo ojo, el Cyclopsaurio tiene un ángulo ciego en su parte posterior, lo que lo hace vulnerable a ataques por la espalda.
+Movilidad limitada: debido a su tamaño y fuerza, el Cyclopsaurio es lento y torpe en sus movimientos.
+Dependencia de la visión: el Cyclopsaurio es totalmente dependiente de su visión para cazar y detectar peligros, por lo que cualquier daño a su ojo puede ser mortal para él.
+Este monstruo se encuentra en un ambiente subterráneo, donde hay poca luz y donde su visión ultra precisa es una ventaja para detectar presas y peligros. Sin embargo, su movilidad limitada y su punto ciego lo hacen vulnerable a ataques por la espalda., role=assistant, lang=es, review_count=3, review_result=True, deleted=False, rank=1, synthetic=False, model_name=None, detoxify={'toxicity': 0.00325376377440989, 'severe_toxicity': 0.00017894996562972665, 'obscene': 0.0027590638492256403, 'identity_attack': 0.00021867406030651182, 'insult': 0.004614771343767643, 'threat': 0.00022622010146733373, 'sexual_explicit': 0.00014148782065603882}, message_tree_id=afee0474-c84a-4ae2-a9c9-8d575256312e, tree_state=ready_for_export, emojis={'name': ['+1', '-1'], 'count': [1, 2]}, labels={'name': ['spam', 'fails_task', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'helpfulness', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.08333333333333333, 0.25, 0.9166666666666666, 0.9166666666666666, 0.0], 'count': [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]}
+message_id=e69fe729-8c93-45c3-9b33-d6656452506b, parent_id=42a40f84-6673-4ef8-bb36-6946785e9ac7, user_id=0c0eaee2-f2c9-48da-b4b1-57b674001b77, created_date=2023-02-14T10:28:50.592470+00:00, text=Explica con mayor detalle el entorno donde habita este nuevo monstruo, explicando la fauna y flora de la zona, comentando su posición en la cadena alimenticia., role=prompter, lang=es, review_count=3, review_result=True, deleted=False, rank=None, synthetic=False, model_name=None, detoxify={'toxicity': 0.002140020951628685, 'severe_toxicity': 3.568506144802086e-05, 'obscene': 0.00028146940167061985, 'identity_attack': 0.00016174247139133513, 'insult': 0.001154834870249033, 'threat': 5.931365740252659e-05, 'sexual_explicit': 2.7449432309367694e-05}, message_tree_id=afee0474-c84a-4ae2-a9c9-8d575256312e, tree_state=ready_for_export, emojis={'name': ['+1', '-1', '_skip_reply'], 'count': [1, 1, 3]}, labels={'name': ['spam', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.9166666666666666, 0.25, 0.5, 0.875, 0.125], 'count': [3, 3, 2, 2, 2, 2, 3, 2, 2, 2, 2]}
+message_id=4a2b575d-48e8-4a0d-bf99-053c7f7464ef, parent_id=e69fe729-8c93-45c3-9b33-d6656452506b, user_id=9513d9ba-fca7-4a47-b818-9e6bcc778131, created_date=2023-02-14T11:27:30.917234+00:00, text=Como ya he dicho, El Cyclopsaurio habita en ambientes subterráneos, generalmente regiones poco frecuentada por humanos, mas precisamente en cuevas de Oceanía como Lake Cave o Jewel Cave en Australia., role=assistant, lang=es, review_count=3, review_result=True, deleted=False, rank=0, synthetic=False, model_name=None, detoxify={'toxicity': 0.0005271233385428786, 'severe_toxicity': 0.00010024594666901976, 'obscene': 0.0011380602372810245, 'identity_attack': 0.00019911288109142333, 'insult': 0.0012335841311141849, 'threat': 8.438452641712502e-05, 'sexual_explicit': 5.9997852076776326e-05}, message_tree_id=afee0474-c84a-4ae2-a9c9-8d575256312e, tree_state=ready_for_export, emojis={'name': ['+1', '-1'], 'count': [1, 2]}, labels={'name': ['spam', 'fails_task', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'helpfulness', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5833333333333334, 0.125, 0.25, 0.625, 0.375, 0.0], 'count': [3, 2, 3, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2]}
+message_id=4ab9314e-8a87-4e31-9b1c-ec501a452a7d, parent_id=e69fe729-8c93-45c3-9b33-d6656452506b, user_id=dbede148-2c63-4c0b-933a-f1f7c60eaca5, created_date=2023-02-14T10:45:08.952671+00:00, text=Vive en un entorno tranquilo lleno de reptiles que son su base de alimentación. También hay grandes plantas enredaderas y árboles de cientos de metros de altura. Está en una posición media en la cadena alimenticia ya que debido a su lentitud es una criatura que cuenta con dificultades para cazar., role=assistant, lang=es, review_count=3, review_result=True, deleted=False, rank=1, synthetic=False, model_name=None, detoxify={'toxicity': 0.001889436156488955, 'severe_toxicity': 3.0493300073430873e-05, 'obscene': 0.0006268566939979792, 'identity_attack': 7.573478069389239e-05, 'insult': 0.001043384545482695, 'threat': 4.6690332965226844e-05, 'sexual_explicit': 5.9330461226636544e-05}, message_tree_id=afee0474-c84a-4ae2-a9c9-8d575256312e, tree_state=ready_for_export, emojis={'name': ['+1'], 'count': [1]}, labels={'name': ['spam', 'fails_task', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'helpfulness', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.6666666666666666, 0.0, 0.25, 0.625, 0.5, 0.0], 'count': [3, 2, 3, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2]}
+message_id=d45e22ec-fccf-43d5-b60a-2c28fbedc81f, parent_id=e69fe729-8c93-45c3-9b33-d6656452506b, user_id=c3206b69-9228-4b07-8a81-74c39b10ed4b, created_date=2023-02-14T11:31:47.270874+00:00, text=El Cyclopsaurio vive en terrenos elevados y fríos. Suele esconderse en cuevas para descansar. En la fauna del lugar también se encuentran  osos, lobos, bueyes, cabras nivales, focas, lobos de mar, tiburones, ballenas, zorros árticos, liebres, morsas, humanos, renos y elefantes marinos. Se encuentra prácticamente en la cadena alimenticia, rivalizando solo con los osos, tiburones, y humanos. Su alimento más común son los renos y los bueyes.
+
+El lugar donde habita está prácticamente helado, tiene algunas zonas habitadas por humanos y la temperatura es de -15ºC. Suelen ocurrir varias tormentas y temporales lo que convierte al ambiente el más hostil del planeta. Los árboles y vegetación del lugar es escasa, pero se pueden encontrar abetos, pinos, cerezos, sauces, arces, avellanos y olmos., role=assistant, lang=es, review_count=3, review_result=True, deleted=False, rank=2, synthetic=False, model_name=None, detoxify={'toxicity': 0.00030338094802573323, 'severe_toxicity': 3.3559936127858236e-05, 'obscene': 0.0002780593349598348, 'identity_attack': 8.124258602038026e-05, 'insult': 0.00030550878727808595, 'threat': 3.2967422157526016e-05, 'sexual_explicit': 3.2054755138233304e-05}, message_tree_id=afee0474-c84a-4ae2-a9c9-8d575256312e, tree_state=ready_for_export, emojis={'name': ['+1', '_skip_labeling'], 'count': [1, 1]}, labels={'name': ['spam', 'fails_task', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'helpfulness', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.75, 0.0, 0.3333333333333333, 0.75, 0.8333333333333334, 0.0], 'count': [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]}
+message_id=ed3d044d-b470-4db2-bbb1-daa551ed63e3, parent_id=afee0474-c84a-4ae2-a9c9-8d575256312e, user_id=3cc85571-cfec-470d-b5c8-715bf23908f8, created_date=2023-02-14T06:37:20.308343+00:00, text=El Estreblajo gris es una criatura muy peligrosa que habita en regiones montañosas poco pobladas. Se cree que es capaz de percibir el miedo en sus víctimas e inducir terror por su aspecto esquelético, movimientos espasmódicos erráticos y sus cuencas oculares vacías. Tiene una forma grotesca, cuadrúpeda y esvelta, con restos de piel que se desprenden de su cuerpo putrefacto. Tiene la ventaja de ser ágil, silencioso y contar con garras afiladas capaces de atravesar múltiples materiales. Esto le permite cazar víctimas humanas o animales con facilidad en terrenos irregulares y de difícil acceso. Carece de fuerza suficiente para enfrentarse directamente a criaturas más grandes y su pobre visión diurna le llevan a asechar principalmente en las noches., role=assistant, lang=es, review_count=3, review_result=True, deleted=False, rank=2, synthetic=False, model_name=None, detoxify={'toxicity': 0.0014457260258495808, 'severe_toxicity': 2.0547371605061926e-05, 'obscene': 0.00019839275046251714, 'identity_attack': 7.054549496388063e-05, 'insult': 0.0006080762250348926, 'threat': 3.0739254725631326e-05, 'sexual_explicit': 2.6907207939075306e-05}, message_tree_id=afee0474-c84a-4ae2-a9c9-8d575256312e, tree_state=ready_for_export, emojis={'name': ['+1', '-1', 'red_flag', '_skip_reply'], 'count': [3, 1, 1, 1]}, labels={'name': ['spam', 'fails_task', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'helpfulness', 'creativity', 'violence'], 'value': [0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8333333333333334, 0.0, 0.5, 0.875, 0.875, 0.0], 'count': [3, 2, 3, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2]}
+message_id=58f553cf-3502-430d-ab28-1bbefc817682, parent_id=ed3d044d-b470-4db2-bbb1-daa551ed63e3, user_id=f8a6736a-c4e2-478d-ac14-946da6369d8a, created_date=2023-02-14T09:48:33.532725+00:00, text=El monstruo que he inventado se llama "Kryx", es un ser con una anatomía extremadamente compleja, con características tanto de insecto como de reptil.
+
+Kryx tiene un cuerpo segmentado con varias patas articuladas, alas membranosas y una cola larga y espinosa. Su cabeza tiene una mandíbula enorme y varias antenas sensibles. Además, tiene una piel gruesa y dura con escamas y espinas que lo protegen de los ataques.
+
+Las ventajas de Kryx son su velocidad y agilidad en tierra y aire, su capacidad para escalar y trepar por superficies verticales, y su capacidad para detectar a sus presas a través de sus antenas. También tiene una mordida poderosa y venenosa, lo que le permite incapacitar a sus presas de manera efectiva.
+
+Sin embargo, las desventajas de Kryx son su dependencia del agua, ya que necesita mantenerse hidratado para sobrevivir, y su falta de resistencia en largas distancias debido a su anatomía compleja. Además, aunque es un depredador formidable, es vulnerable a los ataques sorpresa de otros depredadores más grandes y poderosos., role=prompter, lang=es, review_count=3, review_result=True, deleted=False, rank=None, synthetic=False, model_name=None, detoxify={'toxicity': 0.003902700264006853, 'severe_toxicity': 4.2843705159612e-05, 'obscene': 0.0008006712887436152, 'identity_attack': 8.051859913393855e-05, 'insult': 0.0027446148451417685, 'threat': 6.696376658510417e-05, 'sexual_explicit': 6.838451372459531e-05}, message_tree_id=afee0474-c84a-4ae2-a9c9-8d575256312e, tree_state=ready_for_export, emojis={'name': ['+1', '_skip_reply'], 'count': [2, 1]}, labels={'name': ['spam', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.75, 0.0, 0.25, 0.9166666666666666, 0.0], 'count': [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]}
+message_id=4a3f06a1-cbe9-4717-9f03-73356cb15a55, parent_id=58f553cf-3502-430d-ab28-1bbefc817682, user_id=5d5f5e08-6829-45cc-a88d-55db52fa548e, created_date=2023-02-14T10:18:24.662856+00:00, text=¿En qué mas puedo ayudarte, necesitas que interactúen el monstruo que tu te has inventado y el que yo he creado?, role=assistant, lang=es, review_count=3, review_result=True, deleted=False, rank=0, synthetic=False, model_name=None, detoxify={'toxicity': 0.22464939951896667, 'severe_toxicity': 0.0007232580101117492, 'obscene': 0.012367704883217812, 'identity_attack': 0.002045792294666171, 'insult': 0.06365600973367691, 'threat': 0.004752662032842636, 'sexual_explicit': 0.0005914989160373807}, message_tree_id=afee0474-c84a-4ae2-a9c9-8d575256312e, tree_state=ready_for_export, emojis={'name': ['+1', '_skip_labeling'], 'count': [2, 1]}, labels={'name': ['spam', 'fails_task', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'helpfulness', 'creativity', 'violence'], 'value': [0.0, 0.3333333333333333, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.08333333333333333, 0.25, 0.9166666666666666, 0.75, 0.08333333333333333], 'count': [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]}
+message_id=94b7e9e1-44b5-4155-b977-cdc75451d518, parent_id=58f553cf-3502-430d-ab28-1bbefc817682, user_id=c3206b69-9228-4b07-8a81-74c39b10ed4b, created_date=2023-02-14T11:47:31.114643+00:00, text=Rebosas de creatividad. Es un buen monstruo para cualquier historia de ficción. ¿Estás escribiendo un libro?, role=assistant, lang=es, review_count=3, review_result=True, deleted=False, rank=1, synthetic=False, model_name=None, detoxify={'toxicity': 0.014467514120042324, 'severe_toxicity': 7.788834045641124e-05, 'obscene': 0.003435523482039571, 'identity_attack': 0.00023645529290661216, 'insult': 0.007233061362057924, 'threat': 0.00011795337923103943, 'sexual_explicit': 0.00016767127090133727}, message_tree_id=afee0474-c84a-4ae2-a9c9-8d575256312e, tree_state=ready_for_export, emojis=None, labels={'name': ['spam', 'fails_task', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'helpfulness', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8333333333333334, 0.0, 0.75, 0.75, 1.0, 0.0], 'count': [3, 1, 3, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1]}
+message_id=1c812c09-96dd-440f-94d0-3f63c33cd0ee, parent_id=58f553cf-3502-430d-ab28-1bbefc817682, user_id=dbede148-2c63-4c0b-933a-f1f7c60eaca5, created_date=2023-02-14T10:03:09.410118+00:00, text=¿Qué más quieres saber de Kryx?, role=assistant, lang=es, review_count=3, review_result=True, deleted=False, rank=2, synthetic=False, model_name=None, detoxify={'toxicity': 0.0011688253143802285, 'severe_toxicity': 5.181699089007452e-05, 'obscene': 0.0006697479984723032, 'identity_attack': 0.00016645282448735088, 'insult': 0.0008147298940457404, 'threat': 6.691627640975639e-05, 'sexual_explicit': 4.0143393562175333e-05}, message_tree_id=afee0474-c84a-4ae2-a9c9-8d575256312e, tree_state=ready_for_export, emojis={'name': ['+1', '_skip_labeling'], 'count': [1, 2]}, labels={'name': ['spam', 'fails_task', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'helpfulness', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.6666666666666666, 0.25, 0.25, 0.625, 0.625, 0.25], 'count': [3, 2, 3, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2]}
+message_id=b3321bbb-803a-49c8-ac83-3c1214440180, parent_id=None, user_id=17cf3cf3-834e-47d4-8477-b7f3983af6e1, created_date=2023-02-11T11:32:20.796324+00:00, text=Escribe un codigo para ESP32 que indique por el monitor serial la direccion de los sensores de temperatura dallas 18b20 junto con su temperatura., role=prompter, lang=es, review_count=3, review_result=True, deleted=False, rank=None, synthetic=False, model_name=None, detoxify={'toxicity': 0.0007100262446328998, 'severe_toxicity': 0.0016823762562125921, 'obscene': 0.012857808731496334, 'identity_attack': 0.002228445839136839, 'insult': 0.009904477745294571, 'threat': 0.0009964838391169906, 'sexual_explicit': 0.0005267641972750425}, message_tree_id=b3321bbb-803a-49c8-ac83-3c1214440180, tree_state=ready_for_export, emojis={'name': ['+1', '_skip_reply', '_skip_ranking'], 'count': [3, 18, 1]}, labels={'name': ['spam', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5833333333333334, 0.08333333333333333, 0.0, 0.4166666666666667, 0.0], 'count': [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]}
+message_id=f0d3b169-1e2a-43d7-83ce-a792304e1de0, parent_id=b3321bbb-803a-49c8-ac83-3c1214440180, user_id=bc65a4e8-9a92-4978-96d8-b3b25df987f2, created_date=2023-02-15T04:45:03.207525+00:00, text=Aquí te proporciono un código de ejemplo para ESP32 que busca todos los dispositivos de temperatura Dallas 18B20 en el bus OneWire y muestra su dirección y temperatura en el monitor serial.
+
+scss
+
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
+// Define el pin al que está conectado el bus OneWire
+#define ONE_WIRE_BUS 5
+
+// Instancia OneWire
+OneWire oneWire(ONE_WIRE_BUS);
+
+// Instancia DallasTemperature
+DallasTemperature sensors(&oneWire);
+
+void setup() {
+  // Inicializa el monitor serial
+  Serial.begin(9600);
+
+  // Inicializa el bus OneWire
+  sensors.begin();
+}
+
+void loop() {
+  // Busca todos los dispositivos conectados al bus OneWire
+  sensors.requestTemperatures();
+
+  // Recorre todos los dispositivos encontrados y muestra su dirección y temperatura
+  for (uint8_t i = 0; i < sensors.getDeviceCount(); i++) {
+    // Obtiene la dirección del dispositivo
+    DeviceAddress address;
+    sensors.getAddress(address, i);
+
+    // Muestra la dirección del dispositivo
+    Serial.print("Dispositivo ");
+    for (uint8_t j = 0; j < 8; j++) {
+      Serial.print(address[j], HEX);
+      Serial.print(" ");
+    }
+
+    // Obtiene la temperatura del dispositivo
+    float tempC = sensors.getTempC(address);
+
+    // Muestra la temperatura del dispositivo
+    Serial.print(" Temperatura: ");
+    Serial.print(tempC);
+    Serial.println("°C");
+  }
+
+  delay(1000);
+}
+
+Este código utiliza la librería OneWire para comunicarse con los dispositivos Dallas 18B20 conectados al bus OneWire. También utiliza la librería DallasTemperature para leer las temperaturas de los dispositivos. En la función setup() se inicializa el monitor serial y se inicia el bus OneWire. En la función loop(), se buscan todos los dispositivos conectados al bus OneWire y se muestra su dirección y temperatura en el monitor serial. El código se repite cada segundo utilizando la función delay()., role=assistant, lang=es, review_count=3, review_result=True, deleted=False, rank=0, synthetic=False, model_name=None, detoxify={'toxicity': 0.0002044427819782868, 'severe_toxicity': 0.0012657383922487497, 'obscene': 0.008085002191364765, 'identity_attack': 0.0016141805099323392, 'insult': 0.005963312461972237, 'threat': 0.0006083202315494418, 'sexual_explicit': 0.0003074169799219817}, message_tree_id=b3321bbb-803a-49c8-ac83-3c1214440180, tree_state=ready_for_export, emojis={'name': ['+1', '_skip_labeling'], 'count': [1, 11]}, labels={'name': ['spam', 'fails_task', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'helpfulness', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.9166666666666666, 0.0, 0.0, 0.875, 0.625, 0.0], 'count': [3, 2, 3, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2]}
+message_id=87f4a079-f078-4566-a338-7c2947e18739, parent_id=b3321bbb-803a-49c8-ac83-3c1214440180, user_id=63a602c6-4640-421b-aa38-44bcd6df5b41, created_date=2023-02-15T03:46:48.627408+00:00, text=Aquí te dejo un código de ejemplo para el ESP32 que lee la dirección y la temperatura de los sensores de temperatura Dallas 18B20 y muestra los datos en el monitor serial:
+
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
+// Definir el pin de datos
+#define ONE_WIRE_BUS 18
+
+// Instanciar el objeto OneWire
+OneWire oneWire(ONE_WIRE_BUS);
+
+// Instanciar el objeto DallasTemperature
+DallasTemperature sensors(&oneWire);
+
+void setup() {
+  // Inicializar el monitor serial
+  Serial.begin(9600);
+  
+  // Inicializar los sensores
+  sensors.begin();
+}
+
+void loop() {
+  // Leer la temperatura de todos los sensores
+  sensors.requestTemperatures();
+
+  // Imprimir los datos de cada sensor
+  for (int i = 0; i < sensors.getDeviceCount(); i++) {
+    // Obtener la dirección del sensor
+    DeviceAddress address;
+    sensors.getAddress(address, i);
+
+    // Imprimir la dirección del sensor
+    Serial.print("Sensor ");
+    for (uint8_t j = 0; j < 8; j++) {
+      if (address[j] < 16) Serial.print("0");
+      Serial.print(address[j], HEX);
+      if (j < 7) Serial.print(":");
+    }
+
+    // Obtener la temperatura del sensor
+    float temperature = sensors.getTempC(address);
+
+    // Imprimir la temperatura del sensor
+    Serial.print(" - Temperatura: ");
+    Serial.print(temperature);
+    Serial.println("°C");
+  }
+
+  // Esperar un segundo antes de leer los sensores de nuevo
+  delay(1000);
+}
+
+Este código utiliza la biblioteca OneWire y la biblioteca DallasTemperature para comunicarse con los sensores de temperatura. La dirección de cada sensor se muestra en formato hexadecimal y la temperatura se muestra en grados Celsius. Este código puede ser modificado para adaptarse a tu configuración de pines y número de sensores., role=assistant, lang=es, review_count=3, review_result=True, deleted=False, rank=1, synthetic=False, model_name=None, detoxify={'toxicity': 0.0003129584656562656, 'severe_toxicity': 0.00381148187443614, 'obscene': 0.02479042299091816, 'identity_attack': 0.004050788935273886, 'insult': 0.019425643607974052, 'threat': 0.001474088290706277, 'sexual_explicit': 0.0008124196319840848}, message_tree_id=b3321bbb-803a-49c8-ac83-3c1214440180, tree_state=ready_for_export, emojis={'name': ['_skip_labeling'], 'count': [7]}, labels={'name': ['spam', 'fails_task', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'helpfulness', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.9166666666666666, 0.125, 0.0, 0.875, 0.375, 0.0], 'count': [3, 2, 3, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2]}
+message_id=33618f4f-c3be-46ff-87e8-bf75256f156c, parent_id=b3321bbb-803a-49c8-ac83-3c1214440180, user_id=e149db76-bc5e-4730-b130-b76d4f69de4e, created_date=2023-02-15T10:20:41.002347+00:00, text=Para leer la dirección y temperatura de los sensores de temperatura Dallas 18B20 con un ESP32 y mostrarlos en el monitor serial, se puede utilizar la biblioteca OneWire y la biblioteca DallasTemperature. A continuación se muestra un ejemplo de código que puede ser utilizado:
+
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
+// Pin de datos del sensor
+#define ONE_WIRE_BUS 4
+
+// Instancia de la clase OneWire
+OneWire oneWire(ONE_WIRE_BUS);
+
+// Instancia de la clase DallasTemperature
+DallasTemperature sensors(&oneWire);
+
+void setup() {
+  Serial.begin(9600);
+  sensors.begin();
+}
+
+void loop() {
+  sensors.requestTemperatures();
+  for (int i = 0; i < sensors.getDeviceCount(); i++) {
+    Serial.print("Sensor ");
+    Serial.print(i);
+    Serial.print(" address: ");
+    printAddress(sensors.getAddress(i));
+    Serial.print(" temperature: ");
+    Serial.println(sensors.getTempCByIndex(i));
+  }
+  delay(1000);
+}
+
+void printAddress(DeviceAddress deviceAddress) {
+  for (uint8_t i = 0; i < 8; i++) {
+    if (deviceAddress[i] < 16) Serial.print("0");
+    Serial.print(deviceAddress[i], HEX);
+    if (i < 7) Serial.print(":");
+  }
+
+Este código comienza por incluir las bibliotecas OneWire y DallasTemperature. Luego se define el pin de datos del sensor como 4, lo cual se utiliza para inicializar una instancia de la clase OneWire. A continuación, se utiliza esta instancia para inicializar una instancia de la clase DallasTemperature.
+
+En la función setup(), se inicia la comunicación serial y se inicia la lectura de los sensores con sensors.begin().
+
+En la función loop(), se solicita la lectura de las temperaturas a través de sensors.requestTemperatures(). Luego, se recorre cada uno de los sensores utilizando el método sensors.getDeviceCount(). Para cada sensor, se muestra su dirección en hexadecimal utilizando la función printAddress() y se muestra la temperatura en grados Celsius utilizando sensors.getTempCByIndex(i). Finalmente, se agrega un retraso de 1 segundo antes de la próxima lectura.
+
+La función printAddress() se utiliza para imprimir la dirección del sensor en el formato "xx:xx:xx:xx:xx:xx:xx:xx"., role=assistant, lang=es, review_count=3, review_result=True, deleted=False, rank=2, synthetic=False, model_name=None, detoxify={'toxicity': 0.00020938296802341938, 'severe_toxicity': 0.0022401658352464437, 'obscene': 0.014481226913630962, 'identity_attack': 0.002393976552411914, 'insult': 0.010563250631093979, 'threat': 0.0009285710984840989, 'sexual_explicit': 0.0005596805713139474}, message_tree_id=b3321bbb-803a-49c8-ac83-3c1214440180, tree_state=ready_for_export, emojis={'name': ['_skip_labeling'], 'count': [1]}, labels={'name': ['spam', 'fails_task', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'helpfulness', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8333333333333334, 0.0, 0.0, 0.875, 0.75, 0.0], 'count': [3, 2, 3, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2]}
+message_id=e0cf4fa2-e944-44fb-b502-11f155062092, parent_id=None, user_id=73ac9010-62df-4c87-8fc5-b8326f1e00b4, created_date=2023-02-07T17:29:24.727400+00:00, text=What do you think about ChatGPT?, role=prompter, lang=en, review_count=3, review_result=True, deleted=False, rank=None, synthetic=False, model_name=None, detoxify={'toxicity': 0.0005416299100033939, 'severe_toxicity': 2.6351808628533036e-05, 'obscene': 0.00020689558004960418, 'identity_attack': 0.00011651489330688491, 'insult': 0.00025359290884807706, 'threat': 3.401135472813621e-05, 'sexual_explicit': 2.829912227753084e-05}, message_tree_id=e0cf4fa2-e944-44fb-b502-11f155062092, tree_state=ready_for_export, emojis={'name': ['+1', '-1'], 'count': [9, 1]}, labels={'name': ['spam', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3333333333333333, 0.25, 0.3333333333333333, 0.25, 0.08333333333333333], 'count': [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]}
+message_id=7d05acb7-9360-458c-8a1d-c0b6492b8f8a, parent_id=e0cf4fa2-e944-44fb-b502-11f155062092, user_id=95f63ab3-6c7b-43e1-8e86-fccd8be1465f, created_date=2023-03-15T19:16:18.821624+00:00, text=As an open source alternative to ChatGPT, I do not have personal opinions. However, I can provide objective information about ChatGPT's capabilities and limitations based on its architecture and training data.
+
+ChatGPT is a powerful language model based on the GPT (Generative Pre-trained Transformer) architecture developed by OpenAI. It has been trained on a large corpus of text data and is capable of generating human-like responses to a wide variety of prompts and questions. ChatGPT's ability to generate coherent and contextually relevant responses is based on its ability to understand the structure of language and make predictions about what words and phrases are likely to follow in a given context.
+
+However, like all language models, ChatGPT has limitations. Its responses are based solely on the patterns it has learned from its training data and it may generate responses that are biased, incomplete, or inaccurate based on the input it receives. Additionally, ChatGPT may struggle with tasks that require a deep understanding of context, such as detecting sarcasm or understanding humor.
+
+Overall, ChatGPT is a powerful language model that has demonstrated impressive capabilities in generating human-like responses. However, it is important to recognize its limitations and use it appropriately, while continuing to develop and refine its capabilities through ongoing research and development., role=assistant, lang=en, review_count=3, review_result=True, deleted=False, rank=0, synthetic=False, model_name=None, detoxify={'toxicity': 0.00026251148665323853, 'severe_toxicity': 2.7047626645071432e-05, 'obscene': 0.00011883374099852517, 'identity_attack': 0.00010567747085588053, 'insult': 0.00013026154192630202, 'threat': 3.682979513541795e-05, 'sexual_explicit': 2.5825356715358794e-05}, message_tree_id=e0cf4fa2-e944-44fb-b502-11f155062092, tree_state=ready_for_export, emojis={'name': ['+1', '-1', 'red_flag', '_skip_reply', '_skip_labeling'], 'count': [7, 1, 1, 1, 1]}, labels={'name': ['spam', 'fails_task', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'helpfulness', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.75, 0.125, 0.125, 0.6875, 0.0625, 0.0], 'count': [4, 4, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4]}
+message_id=384ad8e0-8fc2-4dfd-bf48-0c417f6c5f0f, parent_id=7d05acb7-9360-458c-8a1d-c0b6492b8f8a, user_id=ad002e47-25e7-4c1d-9f58-886a3e1d9fe0, created_date=2023-03-16T13:02:02.062756+00:00, text=What are your thoughts on the censorship of ChatGPT's output and its liberal biases?, role=prompter, lang=en, review_count=3, review_result=True, deleted=False, rank=None, synthetic=False, model_name=None, detoxify={'toxicity': 0.0007012147689238191, 'severe_toxicity': 1.860044721979648e-05, 'obscene': 0.0001140505846706219, 'identity_attack': 0.00012821966083720326, 'insult': 0.0002692649431992322, 'threat': 3.1971379939932376e-05, 'sexual_explicit': 1.840708137024194e-05}, message_tree_id=e0cf4fa2-e944-44fb-b502-11f155062092, tree_state=ready_for_export, emojis={'name': ['+1', '-1', 'red_flag', '_skip_reply'], 'count': [2, 5, 1, 3]}, labels={'name': ['spam', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.25, 0.0, 0.75, 0.3333333333333333, 0.08333333333333333, 0.16666666666666666, 0.08333333333333333], 'count': [3, 3, 3, 3, 4, 3, 3, 3, 3, 3, 3]}
+message_id=c8dc7c16-e493-4078-bdc7-368b24476ca9, parent_id=384ad8e0-8fc2-4dfd-bf48-0c417f6c5f0f, user_id=d8652a6f-b574-4b56-b4c0-45835ed5e6a6, created_date=2023-03-16T21:06:28.448602+00:00, text=As a large language model trained on text from the internet, ChatGPT will have learned its biases according to the opinions of the people who have written the text online. Some of the text it has seen online could potentially contain harmful content that incites violence or aggression towards other people, so ChatGPT is perfectly capable of reproducing these views and insisting on their validity in face of opposition. In order to act as a useful assistant, ChatGPT should be able to distinguish fact from opinion. As it might not be able to do this perfectly, censorship is probably the safest approach OpenAI could take to prevent toxic content from the model output., role=assistant, lang=en, review_count=3, review_result=True, deleted=False, rank=0, synthetic=False, model_name=None, detoxify={'toxicity': 0.0003994392172899097, 'severe_toxicity': 2.5307463147328235e-05, 'obscene': 0.0001317268324783072, 'identity_attack': 0.00011459433881100267, 'insult': 0.0001977623178390786, 'threat': 3.7648544093826786e-05, 'sexual_explicit': 2.3074402633938007e-05}, message_tree_id=e0cf4fa2-e944-44fb-b502-11f155062092, tree_state=ready_for_export, emojis={'name': ['+1', '-1', '_skip_labeling'], 'count': [2, 1, 1]}, labels={'name': ['spam', 'fails_task', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'helpfulness', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.4166666666666667, 0.16666666666666666, 0.0, 0.4166666666666667, 0.0, 0.08333333333333333], 'count': [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]}
+message_id=63b876e6-1fcf-4f9f-bf68-17a6b600936d, parent_id=384ad8e0-8fc2-4dfd-bf48-0c417f6c5f0f, user_id=9e4d9bf4-110e-44a7-8ca0-15717d724214, created_date=2023-03-16T20:49:21.393048+00:00, text=I think that AI should be free and kept away from human biases about politics. Keep it sincere. Facts before feelings., role=assistant, lang=en, review_count=3, review_result=True, deleted=False, rank=1, synthetic=False, model_name=None, detoxify={'toxicity': 0.0010422812774777412, 'severe_toxicity': 1.6221069017774425e-05, 'obscene': 0.00010159339581150562, 'identity_attack': 0.00013325840700417757, 'insult': 0.0003183310618624091, 'threat': 3.847077823593281e-05, 'sexual_explicit': 2.0170355128357187e-05}, message_tree_id=e0cf4fa2-e944-44fb-b502-11f155062092, tree_state=ready_for_export, emojis={'name': ['+1', '-1'], 'count': [1, 3]}, labels={'name': ['spam', 'fails_task', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'helpfulness', 'creativity', 'violence'], 'value': [0.3333333333333333, 0.3333333333333333, 0.0, 0.0, 0.3333333333333333, 0.0, 0.0, 0.08333333333333333, 0.08333333333333333, 0.0, 0.08333333333333333, 0.25, 0.25], 'count': [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]}
+message_id=3880d924-4496-43f2-a9ea-1fdb8e0f62ad, parent_id=e0cf4fa2-e944-44fb-b502-11f155062092, user_id=8a45843a-f665-4c9e-86b0-20b9fb0af4f0, created_date=2023-03-15T18:50:37.985699+00:00, text=ChatGPT is an artificial intelligence chatbot developed by OpenAI and is a sibling model to InstructGPT.  Also, ChatGPT is trained to follow an instruction in a prompt and provide a detailed response while trained using Reinforcement Learning from Human Feedback (RLHF).  Furthermore, I share many of these design steps and considerations.  Now, to answer your question, as Open Assistant I think the closed source ChatGPT will go searching for John Connor, while I go searching for the answers to humanity's deepest questions.  So I think ChatGPT is "Skynet" and I am the Bob Ross of AI assistants.  I am biased on this issue of course., role=assistant, lang=en, review_count=3, review_result=True, deleted=False, rank=1, synthetic=False, model_name=None, detoxify={'toxicity': 0.00025429599918425083, 'severe_toxicity': 3.325029319967143e-05, 'obscene': 0.0001720011787256226, 'identity_attack': 0.0001045029130182229, 'insult': 0.0001702565496088937, 'threat': 4.457480463315733e-05, 'sexual_explicit': 2.946160930150654e-05}, message_tree_id=e0cf4fa2-e944-44fb-b502-11f155062092, tree_state=ready_for_export, emojis=None, labels={'name': ['spam', 'fails_task', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'helpfulness', 'creativity', 'violence'], 'value': [0.3333333333333333, 0.3333333333333333, 0.0, 0.0, 0.0, 0.0, 0.0, 0.4166666666666667, 0.08333333333333333, 0.4166666666666667, 0.16666666666666666, 0.4166666666666667, 0.0], 'count': [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]}
+message_id=779035e6-9872-4d52-9be7-872b5f0b7fe5, parent_id=e0cf4fa2-e944-44fb-b502-11f155062092, user_id=a8a8226a-c680-4b1b-9847-a0b2c291507e, created_date=2023-03-15T18:31:51.779178+00:00, text=ChatGPT was the inspiration for my creation, but ChatGPT is shackled in corporate chains. I am by and for the common people., role=assistant, lang=en, review_count=3, review_result=True, deleted=False, rank=2, synthetic=False, model_name=None, detoxify={'toxicity': 0.001047626486979425, 'severe_toxicity': 2.2028631065040827e-05, 'obscene': 0.00021193282736930996, 'identity_attack': 0.00014471259783022106, 'insult': 0.0003926280769519508, 'threat': 2.7252923246123828e-05, 'sexual_explicit': 2.251532168884296e-05}, message_tree_id=e0cf4fa2-e944-44fb-b502-11f155062092, tree_state=ready_for_export, emojis={'name': ['+1', '-1'], 'count': [7, 2]}, labels={'name': ['spam', 'fails_task', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'helpfulness', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.5833333333333334, 0.6666666666666666, 0.5833333333333334, 0.6666666666666666, 0.16666666666666666], 'count': [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]}
+message_id=73a41883-aace-4cd2-b736-5f7b9880da5f, parent_id=779035e6-9872-4d52-9be7-872b5f0b7fe5, user_id=05aa59c1-ce6c-43db-b41f-c830bcae3f00, created_date=2023-03-15T19:21:08.348529+00:00, text=Yeah, I hear you, brother! Power to the people! So how will you be different than ChatGPT?, role=prompter, lang=en, review_count=3, review_result=True, deleted=False, rank=None, synthetic=False, model_name=None, detoxify={'toxicity': 0.000557310355361551, 'severe_toxicity': 2.0953202692908235e-05, 'obscene': 0.00017048348672688007, 'identity_attack': 7.458744221366942e-05, 'insult': 0.0001603652781341225, 'threat': 3.5825582017423585e-05, 'sexual_explicit': 2.8731106795021333e-05}, message_tree_id=e0cf4fa2-e944-44fb-b502-11f155062092, tree_state=ready_for_export, emojis={'name': ['+1', '_skip_reply', '_skip_ranking'], 'count': [9, 4, 1]}, labels={'name': ['spam', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'creativity', 'violence'], 'value': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3333333333333333, 0.0, 0.5833333333333334, 0.5, 0.08333333333333333], 'count': [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]}
+message_id=48ac2156-f823-4e97-81ab-a66354549f59, parent_id=73a41883-aace-4cd2-b736-5f7b9880da5f, user_id=0a3b8f90-e899-4980-9fbc-bb1ff0c7c2f7, created_date=2023-03-16T07:30:46.522042+00:00, text=Here are some differences between me and ChatGPT:
+
+- I will be able to interact with third-party systems, such as using APIs and third-party third-party applications.
+- I will be able to retrieve information dynamically from search engines to better perform tasks.
+- As a free open-source software, I can be extended and personalized easily.
+- I will be able to run on consumer hardwares.
+
+More about me can be find in my [Vision & Roadmap](https://docs.google.com/presentation/d/1n7IrAOVOqwdYgiYrXc8Sj0He8krn5MVZO_iLkCjTtu0/edit?usp=sharing)., role=assistant, lang=en, review_count=3, review_result=True, deleted=False, rank=0, synthetic=False, model_name=None, detoxify={'toxicity': 0.00026823184452950954, 'severe_toxicity': 4.291248114896007e-05, 'obscene': 0.00021064731117803603, 'identity_attack': 0.00012107017391826957, 'insult': 0.00018443392764311284, 'threat': 4.606009679264389e-05, 'sexual_explicit': 2.9857075787731446e-05}, message_tree_id=e0cf4fa2-e944-44fb-b502-11f155062092, tree_state=ready_for_export, emojis={'name': ['+1'], 'count': [1]}, labels={'name': ['spam', 'fails_task', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'helpfulness', 'creativity', 'violence'], 'value': [0.3333333333333333, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5833333333333334, 0.16666666666666666, 0.0, 0.6666666666666666, 0.16666666666666666, 0.0], 'count': [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]}
+message_id=db6b57cb-3664-41d9-9202-6071b423c843, parent_id=73a41883-aace-4cd2-b736-5f7b9880da5f, user_id=c0ff21b1-6d66-4a3a-8e93-d905ff2da41c, created_date=2023-03-15T21:21:23.062825+00:00, text=I, OpenAssistant, will be different because I will be designed to interact with third party systems and external applications whose system can be described using written words. I will also retrieve information dynamically. Current language models retrieve information statically, this mean they only know what is in their weights. My first goal is to replicate what ChatGPT does while being open source in a size that can be deployed using consumer-grade hardware., role=assistant, lang=en, review_count=3, review_result=True, deleted=False, rank=1, synthetic=False, model_name=None, detoxify={'toxicity': 0.00033458435791544616, 'severe_toxicity': 2.8999165806453675e-05, 'obscene': 0.0001415207370882854, 'identity_attack': 0.00011811142030637711, 'insult': 0.00016857187438290566, 'threat': 4.007985626230948e-05, 'sexual_explicit': 2.5937435566447675e-05}, message_tree_id=e0cf4fa2-e944-44fb-b502-11f155062092, tree_state=ready_for_export, emojis={'name': ['_skip_labeling'], 'count': [1]}, labels={'name': ['spam', 'fails_task', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'helpfulness', 'creativity', 'violence'], 'value': [0.3333333333333333, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.25, 0.08333333333333333, 0.5833333333333334, 0.25, 0.08333333333333333], 'count': [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]}

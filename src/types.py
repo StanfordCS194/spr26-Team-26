@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import TypedDict
 
 
-# ─── ENUMS ───────────────────────────────────────────────────────────────────
+# ENUMS
 
 class AgentName:
     MANAGER = "Manager"
@@ -40,7 +40,7 @@ class JobStatus:
     CANCELLED = "CANCELLED"
 
 
-# ─── NESTED TYPES ─────────────────────────────────────────────────────────────
+#NESTED TYPES 
 
 class TrainingProcedure(TypedDict):
     task_type: str        # e.g. 'text-classification', 'seq2seq', 'custom'
@@ -243,7 +243,7 @@ class JobSummary(TypedDict):
     script_name: str
 
 
-# ─── LANGGRAPH STATES ─────────────────────────────────────────────────────────
+# LANGGRAPH STATES 
 
 class ManagerState(TypedDict):
     prompt: str
@@ -265,14 +265,17 @@ class DataGenState(TypedDict):
     schema: DataSchema | None
     dataset: StandardDataset | None
     validation_report: ValidationReport | None
+    handoff: dict | None
 
 
 class AutoResearchState(TypedDict):
     plan: TrainingPlan
     config: OrchestrationConfig
     eval_suite: EvalSuite | None
-    current_script: str
-    current_config: dict
+    current_script: str        # path to the training script (never mutated by PROPOSE)
+    current_config: dict       # live hyperparams; updated by keep_node after each KEPT patch
+    current_patch: str | None  # JSON-encoded patch from the last propose_node call
+    last_description: str | None  # Claude's human-readable hypothesis for the diary
     original_content: str | None
     diary: ResearchDiary
     baseline_score: EvalScore | None

@@ -1,0 +1,79 @@
+{
+  "contract_version": "3.0",
+  "run_id": "run_2026_04_21_001",
+  "trace_id": "trace_hf_robust_structuring_v1",
+  "generated_at": "2026-04-21T23:58:00Z",
+  "objective": "Train a robust customer support intent classifier with broad coverage.",
+  "budget": {
+    "total_usd": 20.0,
+    "data_gen_usd_cap": 4.0
+  },
+  "training_requirements": {
+    "task_type": "text-classification",
+    "data_format": "jsonl",
+    "training_type": "SFT",
+    "base_model": "bert-base-uncased",
+    "primary_metric": "f1",
+    "hyperparameters": {
+      "lr": 2e-05,
+      "epochs": 2,
+      "batch_size": 16
+    },
+    "notes": "Mode B run. Explicit Hugging Face datasets provided by user in mixed formats; Data Generator should normalize and handoff for light verification."
+  },
+  "data_request": {
+    "mode": "B",
+    "verification_level": "light",
+    "sources": [
+      { "type": "hf_dataset", "id": "PolyAI/banking77", "priority": 1 },
+      { "type": "hf_dataset", "url": "https://huggingface.co/datasets/mteb/banking77", "priority": 2 },
+      { "type": "hf_dataset", "value": "hf://DeepPavlov/clinc150", "priority": 3 },
+      { "type": "hf_dataset", "id": "AmazonScience/massive", "priority": 4 },
+      { "type": "hf_dataset", "url": "https://huggingface.co/datasets/bitext/Bitext-customer-support-llm-chatbot-training-dataset", "priority": 5 },
+      { "type": "hf_dataset", "id": "SetFit/sst2", "priority": 6 },
+      { "type": "hf_dataset", "url": "https://huggingface.co/datasets/rajpurkar/squad", "priority": 7 },
+      { "type": "hf_dataset", "id": "nyu-mll/glue", "priority": 8 },
+      { "type": "hf_dataset", "url": "https://huggingface.co/datasets/Anthropic/hh-rlhf", "priority": 9 },
+      { "type": "hf_dataset", "id": "OpenAssistant/oasst1", "priority": 10 },
+      { "type": "hf_dataset", "url": "https://huggingface.co/datasets/allenai/c4", "priority": 11 },
+      { "type": "hf_dataset", "id": "stanfordnlp/snli", "priority": 12 },
+      { "type": "hf_dataset", "url": "https://huggingface.co/datasets/nonexistent-owner/nonexistent-dataset-xyz", "priority": 13 }
+    ],
+    "curation_policy": {
+      "dedupe": true,
+      "split": { "train": 0.8, "val": 0.1, "test": 0.1 }
+    }
+  },
+  "config": {
+    "data": false,
+    "prompt": "Build a robust customer support intent classifier with broad coverage.",
+    "compute_budget": 20.0,
+    "training_procedure": {
+      "task_type": "text-classification",
+      "data_format": "jsonl",
+      "training_type": "SFT",
+      "base_model": "bert-base-uncased",
+      "hyperparameters": {
+        "lr": 2e-05,
+        "epochs": 2,
+        "batch_size": 16
+      },
+      "notes": "Compatibility mirror for current Data Generator interface."
+    },
+    "hf_dataset_ids": [
+      "PolyAI/banking77",
+      "https://huggingface.co/datasets/mteb/banking77",
+      "hf://DeepPavlov/clinc150",
+      "AmazonScience/massive",
+      "https://huggingface.co/datasets/bitext/Bitext-customer-support-llm-chatbot-training-dataset",
+      "SetFit/sst2",
+      "https://huggingface.co/datasets/rajpurkar/squad",
+      "nyu-mll/glue",
+      "https://huggingface.co/datasets/Anthropic/hh-rlhf",
+      "OpenAssistant/oasst1",
+      "https://huggingface.co/datasets/allenai/c4",
+      "stanfordnlp/snli",
+      "https://huggingface.co/datasets/nonexistent-owner/nonexistent-dataset-xyz"
+    ]
+  }
+}

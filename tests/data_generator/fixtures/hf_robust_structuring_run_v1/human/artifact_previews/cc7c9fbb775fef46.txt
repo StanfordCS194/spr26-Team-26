@@ -1,0 +1,42 @@
+artifact_id: cc7c9fbb775fef46
+status: downloaded
+is_relevant: True
+is_reasonable: True
+reasonableness_reason: ok
+relevance_score: 0.3
+source_url: https://huggingface.co/datasets/nyu-mll/glue
+artifact_url: https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/cola/validation/0000.parquet
+local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_cc7c9fbb775f.parquet
+
+--- PREVIEW ---
+columns=['sentence', 'label', 'idx']
+sentence=The sailors rode the breeze clear of the rocks., label=1, idx=0
+sentence=The weights made the rope stretch over the pulley., label=1, idx=1
+sentence=The mechanical doll wriggled itself loose., label=1, idx=2
+sentence=If you had eaten more, you would want less., label=1, idx=3
+sentence=As you eat the most, you want the least., label=0, idx=4
+sentence=The more you would want, the less you would eat., label=0, idx=5
+sentence=I demand that the more John eat, the more he pays., label=0, idx=6
+sentence=Mary listens to the Grateful Dead, she gets depressed., label=1, idx=7
+sentence=The angrier Mary got, the more she looked at pictures., label=1, idx=8
+sentence=The higher the stakes, the lower his expectations are., label=1, idx=9
+sentence=The more Fred is obnoxious, the less attention you should pay to him., label=1, idx=10
+sentence=John was lots more obnoxious than Fred., label=1, idx=11
+sentence=The more people you give beer to, the more people get sick., label=1, idx=12
+sentence=The more does Bill smoke, the more Susan hates him., label=0, idx=13
+sentence=The more pictures of him that appear in the news, the more embarrassed John becomes., label=1, idx=14
+sentence=Every senator seems to become more corrupt, as he talks to more lobbyists., label=1, idx=15
+sentence=Who does John visit Sally because he likes?, label=0, idx=16
+sentence=Marianne did not leave., label=1, idx=17
+sentence=He could not] have been working., label=1, idx=18
+sentence=He can not have been working., label=1, idx=19
+sentence=You will believe Bob., label=1, idx=20
+sentence=John has not kissed Mary., label=1, idx=21
+sentence=I said that never in my life had I seen a place like Bangor., label=1, idx=22
+sentence=Mickey looked up it., label=0, idx=23
+sentence=There tended to be a lot of discussion., label=1, idx=24
+sentence=John tried to be a good boy., label=1, idx=25
+sentence=John is eager., label=1, idx=26
+sentence=We want John to win., label=1, idx=27
+sentence=The box contained the ball from the tree., label=0, idx=28
+sentence=The tube was escaped by gas., label=0, idx=29

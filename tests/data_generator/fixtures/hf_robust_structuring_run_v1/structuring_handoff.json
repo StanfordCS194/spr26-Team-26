@@ -1,0 +1,1590 @@
+{
+  "handoff_version": "1.0",
+  "generated_at": "2026-04-20T04:32:39.728758+00:00",
+  "producer": "retrieval_agent",
+  "task_name": "hf_robust_structuring_handoff_test",
+  "retrieval_mode": "hybrid",
+  "target_schema": {
+    "example_unit": "one support or intent utterance",
+    "input_fields": [
+      "message_text"
+    ],
+    "output_fields": [
+      "label"
+    ],
+    "label_space": [
+      "card_declined",
+      "refund_not_received",
+      "transfer_failed",
+      "account_locked",
+      "fraud_report",
+      "other"
+    ]
+  },
+  "collection_summary": {
+    "attempted_sources": 23,
+    "attempted_artifacts": 68,
+    "downloaded_artifacts": 59,
+    "relevant_artifacts": 20,
+    "reasonable_artifacts": 44,
+    "failed_artifacts": 9,
+    "output_dir": "tests/results/hf_robust_structuring_run_v1/raw"
+  },
+  "downstream_instructions": {
+    "owner": "structuring_agent",
+    "goal": "Decide relevance/curation and construct structured dataset.",
+    "note": "All successfully fetched artifacts are included below; use scores as hints, not hard filters."
+  },
+  "artifact_manifest": [
+    {
+      "artifact_id": "9175cda36bdbf47e",
+      "source_id": "explicit_8eb2c5c75455",
+      "source_url": "https://huggingface.co/datasets/PolyAI/banking77",
+      "artifact_url": "https://huggingface.co/datasets/PolyAI/banking77/resolve/main/dataset_infos.json",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/dataset_infos_9175cda36bdb.json",
+      "content_type": "text/plain",
+      "size_bytes": 5892,
+      "retrieved_at": "2026-04-20T04:30:58.719971+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.4675,
+      "is_relevant": true,
+      "matched_terms": [
+        "text classification",
+        "token:account",
+        "token:banking",
+        "token:card",
+        "token:declined",
+        "token:failed",
+        "token:intent",
+        "token:received",
+        "token:refund",
+        "token:test",
+        "token:transfer"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "JSON parsed with non-empty content."
+      ],
+      "notes": []
+    },
+    {
+      "artifact_id": "0300212d8dfe1df5",
+      "source_id": "explicit_50635fee5f2e",
+      "source_url": "https://huggingface.co/datasets/mteb/banking77",
+      "artifact_url": "https://huggingface.co/datasets/mteb/banking77/resolve/refs%2Fconvert%2Fparquet/default/test/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_0300212d8dfe.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 91367,
+      "retrieved_at": "2026-04-20T04:30:59.263650+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.3368,
+      "is_relevant": true,
+      "matched_terms": [
+        "token:card",
+        "token:received"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=3076, cols=3."
+      ],
+      "notes": []
+    },
+    {
+      "artifact_id": "5fdd3a6e4486c352",
+      "source_id": "explicit_50635fee5f2e",
+      "source_url": "https://huggingface.co/datasets/mteb/banking77",
+      "artifact_url": "https://huggingface.co/datasets/mteb/banking77/resolve/refs%2Fconvert%2Fparquet/default/train/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_5fdd3a6e4486.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 294377,
+      "retrieved_at": "2026-04-20T04:30:59.757244+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.3368,
+      "is_relevant": true,
+      "matched_terms": [
+        "token:card",
+        "token:received"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=9993, cols=3."
+      ],
+      "notes": []
+    },
+    {
+      "artifact_id": "7daea6c8182c2d9f",
+      "source_id": "explicit_4f1e489ead4d",
+      "source_url": "https://huggingface.co/datasets/DeepPavlov/clinc150",
+      "artifact_url": "https://huggingface.co/datasets/DeepPavlov/clinc150/resolve/refs%2Fconvert%2Fparquet/default/test/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_7daea6c8182c.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 127966,
+      "retrieved_at": "2026-04-20T04:31:00.436304+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.3184,
+      "is_relevant": true,
+      "matched_terms": [
+        "token:utterance"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=5500, cols=2."
+      ],
+      "notes": []
+    },
+    {
+      "artifact_id": "655cb91209a8e528",
+      "source_id": "explicit_4f1e489ead4d",
+      "source_url": "https://huggingface.co/datasets/DeepPavlov/clinc150",
+      "artifact_url": "https://huggingface.co/datasets/DeepPavlov/clinc150/resolve/refs%2Fconvert%2Fparquet/default/train/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_655cb91209a8.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 343838,
+      "retrieved_at": "2026-04-20T04:31:00.750137+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.3184,
+      "is_relevant": true,
+      "matched_terms": [
+        "token:utterance"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=15200, cols=2."
+      ],
+      "notes": []
+    },
+    {
+      "artifact_id": "f4743f864e2ee198",
+      "source_id": "explicit_4f1e489ead4d",
+      "source_url": "https://huggingface.co/datasets/DeepPavlov/clinc150",
+      "artifact_url": "https://huggingface.co/datasets/DeepPavlov/clinc150/resolve/refs%2Fconvert%2Fparquet/default/validation/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_f4743f864e2e.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 70780,
+      "retrieved_at": "2026-04-20T04:31:01.100518+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.3368,
+      "is_relevant": true,
+      "matched_terms": [
+        "token:account",
+        "token:utterance"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=3100, cols=2."
+      ],
+      "notes": []
+    },
+    {
+      "artifact_id": "e2aa90b0683f67b1",
+      "source_id": "explicit_4f1e489ead4d",
+      "source_url": "https://huggingface.co/datasets/DeepPavlov/clinc150",
+      "artifact_url": "https://huggingface.co/datasets/DeepPavlov/clinc150/resolve/refs%2Fconvert%2Fparquet/intents/intents/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_e2aa90b0683f.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 5519,
+      "retrieved_at": "2026-04-20T04:31:01.424168+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.1386,
+      "is_relevant": false,
+      "matched_terms": [
+        "card declined",
+        "token:account",
+        "token:card",
+        "token:declined"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=150, cols=6."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "a8e65fe2551e295f",
+      "source_id": "explicit_4f1e489ead4d",
+      "source_url": "https://huggingface.co/datasets/DeepPavlov/clinc150",
+      "artifact_url": "https://huggingface.co/datasets/DeepPavlov/clinc150/resolve/refs%2Fconvert%2Fparquet/intentsqwen3-32b/intents/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_a8e65fe2551e.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 10431,
+      "retrieved_at": "2026-04-20T04:31:01.680630+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.1386,
+      "is_relevant": false,
+      "matched_terms": [
+        "card declined",
+        "token:account",
+        "token:card",
+        "token:declined"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=150, cols=6."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "e624a4d64f5c1e93",
+      "source_id": "explicit_29ddfa2357ef",
+      "source_url": "https://huggingface.co/datasets/AmazonScience/massive",
+      "artifact_url": "https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/af-ZA/test/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_e624a4d64f5c.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 217060,
+      "retrieved_at": "2026-04-20T04:31:02.288833+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.1368,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:intent",
+        "token:test"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=2974, cols=10."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "c79269e16f9f5019",
+      "source_id": "explicit_29ddfa2357ef",
+      "source_url": "https://huggingface.co/datasets/AmazonScience/massive",
+      "artifact_url": "https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/af-ZA/train/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_c79269e16f9f.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 785315,
+      "retrieved_at": "2026-04-20T04:31:02.574570+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.1184,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:intent"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=11514, cols=10."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "ee5bb771c7401faf",
+      "source_id": "explicit_29ddfa2357ef",
+      "source_url": "https://huggingface.co/datasets/AmazonScience/massive",
+      "artifact_url": "https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/af-ZA/validation/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_ee5bb771c740.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 158061,
+      "retrieved_at": "2026-04-20T04:31:02.921291+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.1184,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:intent"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=2033, cols=10."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "d898cf20542ea689",
+      "source_id": "explicit_29ddfa2357ef",
+      "source_url": "https://huggingface.co/datasets/AmazonScience/massive",
+      "artifact_url": "https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/all/test/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_d898cf20542e.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 12096113,
+      "retrieved_at": "2026-04-20T04:31:03.190833+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.1368,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:intent",
+        "token:test"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=151674, cols=10."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "d122fe02bbe71d08",
+      "source_id": "explicit_29ddfa2357ef",
+      "source_url": "https://huggingface.co/datasets/AmazonScience/massive",
+      "artifact_url": "https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/all/train/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_d122fe02bbe7.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 41943040,
+      "retrieved_at": "2026-04-20T04:31:04.225252+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.0553,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:failed",
+        "token:robust",
+        "token:structuring"
+      ],
+      "is_reasonable": false,
+      "reasonableness_reason": "parquet_read_error",
+      "reasonableness_details": [
+        "Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0000_d122fe02bbe7.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0000_d122fe02bbe7.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file."
+      ],
+      "notes": [
+        "Download was truncated due to max_download_bytes limit.",
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec.",
+        "Artifact was collected and kept, but failed reasonableness check: parquet_read_error."
+      ]
+    },
+    {
+      "artifact_id": "4153bc67c5367448",
+      "source_id": "explicit_29ddfa2357ef",
+      "source_url": "https://huggingface.co/datasets/AmazonScience/massive",
+      "artifact_url": "https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/all/validation/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_4153bc67c536.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 8431787,
+      "retrieved_at": "2026-04-20T04:31:06.485028+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.1184,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:intent"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=103683, cols=10."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "44debf0ac3e48edf",
+      "source_id": "explicit_29ddfa2357ef",
+      "source_url": "https://huggingface.co/datasets/AmazonScience/massive",
+      "artifact_url": "https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/all_1.1/test/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_44debf0ac3e4.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 12310908,
+      "retrieved_at": "2026-04-20T04:31:07.405407+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.1368,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:intent",
+        "token:test"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=154648, cols=10."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "0d98daad42f8f83d",
+      "source_id": "explicit_29ddfa2357ef",
+      "source_url": "https://huggingface.co/datasets/AmazonScience/massive",
+      "artifact_url": "https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/all_1.1/train/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_0d98daad42f8.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 41943040,
+      "retrieved_at": "2026-04-20T04:31:08.406612+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.0553,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:failed",
+        "token:robust",
+        "token:structuring"
+      ],
+      "is_reasonable": false,
+      "reasonableness_reason": "parquet_read_error",
+      "reasonableness_details": [
+        "Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0000_0d98daad42f8.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0000_0d98daad42f8.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file."
+      ],
+      "notes": [
+        "Download was truncated due to max_download_bytes limit.",
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec.",
+        "Artifact was collected and kept, but failed reasonableness check: parquet_read_error."
+      ]
+    },
+    {
+      "artifact_id": "5508e53919483815",
+      "source_id": "explicit_29ddfa2357ef",
+      "source_url": "https://huggingface.co/datasets/AmazonScience/massive",
+      "artifact_url": "https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/all_1.1/validation/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_5508e5391948.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 8578415,
+      "retrieved_at": "2026-04-20T04:31:10.612974+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.1184,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:intent"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=105716, cols=10."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "62d98f5de7af645d",
+      "source_id": "explicit_29ddfa2357ef",
+      "source_url": "https://huggingface.co/datasets/AmazonScience/massive",
+      "artifact_url": "https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/am-ET/test/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_62d98f5de7af.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 269935,
+      "retrieved_at": "2026-04-20T04:31:11.895554+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.2202,
+      "is_relevant": true,
+      "matched_terms": [
+        "other",
+        "token:intent",
+        "token:test"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=2974, cols=10."
+      ],
+      "notes": []
+    },
+    {
+      "artifact_id": "cb66337f2addc5c2",
+      "source_id": "explicit_29ddfa2357ef",
+      "source_url": "https://huggingface.co/datasets/AmazonScience/massive",
+      "artifact_url": "https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/am-ET/train/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_cb66337f2add.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 994445,
+      "retrieved_at": "2026-04-20T04:31:12.335436+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.1184,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:intent"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=11514, cols=10."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "fe86b2259191be04",
+      "source_id": "explicit_29ddfa2357ef",
+      "source_url": "https://huggingface.co/datasets/AmazonScience/massive",
+      "artifact_url": "https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/am-ET/validation/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_fe86b2259191.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 195904,
+      "retrieved_at": "2026-04-20T04:31:12.800427+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.1184,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:intent"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=2033, cols=10."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "b498ffac4bfda762",
+      "source_id": "explicit_689cc3c5a37b",
+      "source_url": "https://huggingface.co/datasets/bitext/Bitext-customer-support-llm-chatbot-training-dataset",
+      "artifact_url": "https://huggingface.co/datasets/bitext/Bitext-customer-support-llm-chatbot-training-dataset/resolve/refs%2Fconvert%2Fparquet/default/train/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_b498ffac4bfd.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 6048908,
+      "retrieved_at": "2026-04-20T04:31:13.788465+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.2386,
+      "is_relevant": true,
+      "matched_terms": [
+        "customer support",
+        "token:account",
+        "token:category",
+        "token:intent"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=26872, cols=5."
+      ],
+      "notes": []
+    },
+    {
+      "artifact_id": "a5c6357e6ddf8a5a",
+      "source_id": "explicit_f86a3f0fcbd8",
+      "source_url": "https://huggingface.co/datasets/SetFit/sst2",
+      "artifact_url": "https://huggingface.co/datasets/SetFit/sst2/resolve/refs%2Fconvert%2Fparquet/default/test/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_a5c6357e6ddf.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 138667,
+      "retrieved_at": "2026-04-20T04:31:14.713926+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.3,
+      "is_relevant": true,
+      "matched_terms": [],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=1821, cols=3."
+      ],
+      "notes": []
+    },
+    {
+      "artifact_id": "582ee0000b13764e",
+      "source_id": "explicit_f86a3f0fcbd8",
+      "source_url": "https://huggingface.co/datasets/SetFit/sst2",
+      "artifact_url": "https://huggingface.co/datasets/SetFit/sst2/resolve/refs%2Fconvert%2Fparquet/default/train/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_582ee0000b13.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 522440,
+      "retrieved_at": "2026-04-20T04:31:14.978052+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.3,
+      "is_relevant": true,
+      "matched_terms": [],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=6920, cols=3."
+      ],
+      "notes": []
+    },
+    {
+      "artifact_id": "b60474e606b7e094",
+      "source_id": "explicit_f86a3f0fcbd8",
+      "source_url": "https://huggingface.co/datasets/SetFit/sst2",
+      "artifact_url": "https://huggingface.co/datasets/SetFit/sst2/resolve/refs%2Fconvert%2Fparquet/default/validation/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_b60474e606b7.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 68024,
+      "retrieved_at": "2026-04-20T04:31:15.282101+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.3833,
+      "is_relevant": true,
+      "matched_terms": [
+        "other"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=872, cols=3."
+      ],
+      "notes": []
+    },
+    {
+      "artifact_id": "bcad859b2db3566a",
+      "source_id": "explicit_abe621db2297",
+      "source_url": "https://huggingface.co/datasets/rajpurkar/squad",
+      "artifact_url": "https://huggingface.co/datasets/rajpurkar/squad/resolve/refs%2Fconvert%2Fparquet/plain_text/train/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_bcad859b2db3.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 14458314,
+      "retrieved_at": "2026-04-20T04:31:15.854682+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.0833,
+      "is_relevant": false,
+      "matched_terms": [
+        "other"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=87599, cols=5."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "50b11f6c5caf24be",
+      "source_id": "explicit_abe621db2297",
+      "source_url": "https://huggingface.co/datasets/rajpurkar/squad",
+      "artifact_url": "https://huggingface.co/datasets/rajpurkar/squad/resolve/refs%2Fconvert%2Fparquet/plain_text/validation/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_50b11f6c5caf.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 1819889,
+      "retrieved_at": "2026-04-20T04:31:16.926388+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.0,
+      "is_relevant": false,
+      "matched_terms": [],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=10570, cols=5."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "dc1db39299b98c53",
+      "source_id": "explicit_68f43191490c",
+      "source_url": "https://huggingface.co/datasets/nyu-mll/glue",
+      "artifact_url": "https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/ax/test/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_dc1db39299b9.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 80767,
+      "retrieved_at": "2026-04-20T04:31:17.767053+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.1,
+      "is_relevant": false,
+      "matched_terms": [],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=1104, cols=4."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "99ce30b9277fbeb0",
+      "source_id": "explicit_68f43191490c",
+      "source_url": "https://huggingface.co/datasets/nyu-mll/glue",
+      "artifact_url": "https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/cola/test/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_99ce30b9277f.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 37719,
+      "retrieved_at": "2026-04-20T04:31:18.321234+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.3,
+      "is_relevant": true,
+      "matched_terms": [],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=1063, cols=3."
+      ],
+      "notes": []
+    },
+    {
+      "artifact_id": "7647177d4e598896",
+      "source_id": "explicit_68f43191490c",
+      "source_url": "https://huggingface.co/datasets/nyu-mll/glue",
+      "artifact_url": "https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/cola/train/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_7647177d4e59.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 251124,
+      "retrieved_at": "2026-04-20T04:31:18.895204+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.3,
+      "is_relevant": true,
+      "matched_terms": [],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=8551, cols=3."
+      ],
+      "notes": []
+    },
+    {
+      "artifact_id": "cc7c9fbb775fef46",
+      "source_id": "explicit_68f43191490c",
+      "source_url": "https://huggingface.co/datasets/nyu-mll/glue",
+      "artifact_url": "https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/cola/validation/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_cc7c9fbb775f.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 37551,
+      "retrieved_at": "2026-04-20T04:31:19.376486+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.3,
+      "is_relevant": true,
+      "matched_terms": [],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=1043, cols=3."
+      ],
+      "notes": []
+    },
+    {
+      "artifact_id": "e7e0e2bec8842116",
+      "source_id": "explicit_68f43191490c",
+      "source_url": "https://huggingface.co/datasets/nyu-mll/glue",
+      "artifact_url": "https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/mnli/test_matched/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_e7e0e2bec884.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 1220119,
+      "retrieved_at": "2026-04-20T04:31:19.810469+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.2202,
+      "is_relevant": true,
+      "matched_terms": [
+        "other",
+        "token:account",
+        "token:test"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=9796, cols=4."
+      ],
+      "notes": []
+    },
+    {
+      "artifact_id": "b33dfe3c0426d553",
+      "source_id": "explicit_68f43191490c",
+      "source_url": "https://huggingface.co/datasets/nyu-mll/glue",
+      "artifact_url": "https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/mnli/test_mismatched/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_b33dfe3c0426.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 1257857,
+      "retrieved_at": "2026-04-20T04:31:20.529697+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.2202,
+      "is_relevant": true,
+      "matched_terms": [
+        "other",
+        "token:category",
+        "token:report"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=9847, cols=4."
+      ],
+      "notes": []
+    },
+    {
+      "artifact_id": "6428542e4158192b",
+      "source_id": "explicit_68f43191490c",
+      "source_url": "https://huggingface.co/datasets/nyu-mll/glue",
+      "artifact_url": "https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/mnli/train/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_6428542e4158.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 41943040,
+      "retrieved_at": "2026-04-20T04:31:21.299197+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.0553,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:failed",
+        "token:robust",
+        "token:structuring"
+      ],
+      "is_reasonable": false,
+      "reasonableness_reason": "parquet_read_error",
+      "reasonableness_details": [
+        "Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0000_6428542e4158.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0000_6428542e4158.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file."
+      ],
+      "notes": [
+        "Download was truncated due to max_download_bytes limit.",
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec.",
+        "Artifact was collected and kept, but failed reasonableness check: parquet_read_error."
+      ]
+    },
+    {
+      "artifact_id": "0d5ae3484cbcc5fa",
+      "source_id": "explicit_68f43191490c",
+      "source_url": "https://huggingface.co/datasets/nyu-mll/glue",
+      "artifact_url": "https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/mnli/validation_matched/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_0d5ae3484cbc.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 1214936,
+      "retrieved_at": "2026-04-20T04:31:25.193671+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.1833,
+      "is_relevant": false,
+      "matched_terms": [
+        "other"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=9815, cols=4."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "d2ebcd00948c5025",
+      "source_id": "explicit_68f43191490c",
+      "source_url": "https://huggingface.co/datasets/nyu-mll/glue",
+      "artifact_url": "https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/mnli/validation_mismatched/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_d2ebcd00948c.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 1251152,
+      "retrieved_at": "2026-04-20T04:31:25.749566+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.2202,
+      "is_relevant": true,
+      "matched_terms": [
+        "other",
+        "token:category",
+        "token:report"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=9832, cols=4."
+      ],
+      "notes": []
+    },
+    {
+      "artifact_id": "9368ebcf7ebf047f",
+      "source_id": "explicit_68f43191490c",
+      "source_url": "https://huggingface.co/datasets/nyu-mll/glue",
+      "artifact_url": "https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/mnli_matched/test/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_9368ebcf7ebf.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 1220119,
+      "retrieved_at": "2026-04-20T04:31:26.344705+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.2202,
+      "is_relevant": true,
+      "matched_terms": [
+        "other",
+        "token:account",
+        "token:test"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=9796, cols=4."
+      ],
+      "notes": []
+    },
+    {
+      "artifact_id": "18a7e69c2c08fe83",
+      "source_id": "explicit_68f43191490c",
+      "source_url": "https://huggingface.co/datasets/nyu-mll/glue",
+      "artifact_url": "https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/mnli_matched/validation/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_18a7e69c2c08.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 1214936,
+      "retrieved_at": "2026-04-20T04:31:26.730324+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.1833,
+      "is_relevant": false,
+      "matched_terms": [
+        "other"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=9815, cols=4."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "cd0f6fe47f1bcc8f",
+      "source_id": "explicit_68f43191490c",
+      "source_url": "https://huggingface.co/datasets/nyu-mll/glue",
+      "artifact_url": "https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/mnli_mismatched/test/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_cd0f6fe47f1b.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 1257857,
+      "retrieved_at": "2026-04-20T04:31:27.094863+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.2202,
+      "is_relevant": true,
+      "matched_terms": [
+        "other",
+        "token:category",
+        "token:report"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=9847, cols=4."
+      ],
+      "notes": []
+    },
+    {
+      "artifact_id": "afa8a52d3e4e1e04",
+      "source_id": "explicit_3877c6e288c5",
+      "source_url": "https://huggingface.co/datasets/Anthropic/hh-rlhf",
+      "artifact_url": "https://huggingface.co/datasets/Anthropic/hh-rlhf/resolve/refs%2Fconvert%2Fparquet/default/test/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_afa8a52d3e4e.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 9386761,
+      "retrieved_at": "2026-04-20T04:31:27.811275+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.1202,
+      "is_relevant": false,
+      "matched_terms": [
+        "other",
+        "token:category",
+        "token:test"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=8552, cols=2."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "5da0a8f212be2d03",
+      "source_id": "explicit_3877c6e288c5",
+      "source_url": "https://huggingface.co/datasets/Anthropic/hh-rlhf",
+      "artifact_url": "https://huggingface.co/datasets/Anthropic/hh-rlhf/resolve/refs%2Fconvert%2Fparquet/default/train/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_5da0a8f212be.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 41943040,
+      "retrieved_at": "2026-04-20T04:31:29.348824+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.0553,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:failed",
+        "token:robust",
+        "token:structuring"
+      ],
+      "is_reasonable": false,
+      "reasonableness_reason": "parquet_read_error",
+      "reasonableness_details": [
+        "Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0000_5da0a8f212be.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0000_5da0a8f212be.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file."
+      ],
+      "notes": [
+        "Download was truncated due to max_download_bytes limit.",
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec.",
+        "Artifact was collected and kept, but failed reasonableness check: parquet_read_error."
+      ]
+    },
+    {
+      "artifact_id": "dd5f72d066b18b46",
+      "source_id": "explicit_2c7c0cc79bf7",
+      "source_url": "https://huggingface.co/datasets/OpenAssistant/oasst1",
+      "artifact_url": "https://huggingface.co/datasets/OpenAssistant/oasst1/resolve/refs%2Fconvert%2Fparquet/default/train/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_dd5f72d066b1.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 39516251,
+      "retrieved_at": "2026-04-20T04:31:36.071798+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.2018,
+      "is_relevant": true,
+      "matched_terms": [
+        "other",
+        "token:banking"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=84437, cols=18."
+      ],
+      "notes": []
+    },
+    {
+      "artifact_id": "2e31c97d0168fe9d",
+      "source_id": "explicit_2c7c0cc79bf7",
+      "source_url": "https://huggingface.co/datasets/OpenAssistant/oasst1",
+      "artifact_url": "https://huggingface.co/datasets/OpenAssistant/oasst1/resolve/refs%2Fconvert%2Fparquet/default/validation/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_2e31c97d0168.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 2080179,
+      "retrieved_at": "2026-04-20T04:31:38.359449+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.1,
+      "is_relevant": false,
+      "matched_terms": [],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=4401, cols=18."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "0e0c5efffb7ace75",
+      "source_id": "explicit_1dac26d7027b",
+      "source_url": "https://huggingface.co/datasets/allenai/c4",
+      "artifact_url": "https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-train/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_0e0c5efffb7a.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 41943040,
+      "retrieved_at": "2026-04-20T04:31:39.951106+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.0553,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:failed",
+        "token:robust",
+        "token:structuring"
+      ],
+      "is_reasonable": false,
+      "reasonableness_reason": "parquet_read_error",
+      "reasonableness_details": [
+        "Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0000_0e0c5efffb7a.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0000_0e0c5efffb7a.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file."
+      ],
+      "notes": [
+        "Download was truncated due to max_download_bytes limit.",
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec.",
+        "Artifact was collected and kept, but failed reasonableness check: parquet_read_error."
+      ]
+    },
+    {
+      "artifact_id": "aa6f88d1774e858d",
+      "source_id": "explicit_1dac26d7027b",
+      "source_url": "https://huggingface.co/datasets/allenai/c4",
+      "artifact_url": "https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-train/0001.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0001_aa6f88d1774e.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 41943040,
+      "retrieved_at": "2026-04-20T04:31:42.792857+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.0553,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:failed",
+        "token:robust",
+        "token:structuring"
+      ],
+      "is_reasonable": false,
+      "reasonableness_reason": "parquet_read_error",
+      "reasonableness_details": [
+        "Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0001_aa6f88d1774e.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0001_aa6f88d1774e.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file."
+      ],
+      "notes": [
+        "Download was truncated due to max_download_bytes limit.",
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec.",
+        "Artifact was collected and kept, but failed reasonableness check: parquet_read_error."
+      ]
+    },
+    {
+      "artifact_id": "092060366ea45092",
+      "source_id": "explicit_1dac26d7027b",
+      "source_url": "https://huggingface.co/datasets/allenai/c4",
+      "artifact_url": "https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-train/0002.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0002_092060366ea4.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 41943040,
+      "retrieved_at": "2026-04-20T04:31:45.932269+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.0553,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:failed",
+        "token:robust",
+        "token:structuring"
+      ],
+      "is_reasonable": false,
+      "reasonableness_reason": "parquet_read_error",
+      "reasonableness_details": [
+        "Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0002_092060366ea4.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0002_092060366ea4.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file."
+      ],
+      "notes": [
+        "Download was truncated due to max_download_bytes limit.",
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec.",
+        "Artifact was collected and kept, but failed reasonableness check: parquet_read_error."
+      ]
+    },
+    {
+      "artifact_id": "d6b4fb2224baab62",
+      "source_id": "explicit_1dac26d7027b",
+      "source_url": "https://huggingface.co/datasets/allenai/c4",
+      "artifact_url": "https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-train/0003.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0003_d6b4fb2224ba.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 41943040,
+      "retrieved_at": "2026-04-20T04:31:48.794853+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.0553,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:failed",
+        "token:robust",
+        "token:structuring"
+      ],
+      "is_reasonable": false,
+      "reasonableness_reason": "parquet_read_error",
+      "reasonableness_details": [
+        "Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0003_d6b4fb2224ba.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0003_d6b4fb2224ba.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file."
+      ],
+      "notes": [
+        "Download was truncated due to max_download_bytes limit.",
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec.",
+        "Artifact was collected and kept, but failed reasonableness check: parquet_read_error."
+      ]
+    },
+    {
+      "artifact_id": "bf847fe041028a36",
+      "source_id": "explicit_1dac26d7027b",
+      "source_url": "https://huggingface.co/datasets/allenai/c4",
+      "artifact_url": "https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-train/0004.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0004_bf847fe04102.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 41943040,
+      "retrieved_at": "2026-04-20T04:31:52.041871+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.0553,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:failed",
+        "token:robust",
+        "token:structuring"
+      ],
+      "is_reasonable": false,
+      "reasonableness_reason": "parquet_read_error",
+      "reasonableness_details": [
+        "Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0004_bf847fe04102.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0004_bf847fe04102.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file."
+      ],
+      "notes": [
+        "Download was truncated due to max_download_bytes limit.",
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec.",
+        "Artifact was collected and kept, but failed reasonableness check: parquet_read_error."
+      ]
+    },
+    {
+      "artifact_id": "a81418daf71bc1f4",
+      "source_id": "explicit_1dac26d7027b",
+      "source_url": "https://huggingface.co/datasets/allenai/c4",
+      "artifact_url": "https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-train/0005.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0005_a81418daf71b.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 41943040,
+      "retrieved_at": "2026-04-20T04:31:54.822991+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.0553,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:failed",
+        "token:robust",
+        "token:structuring"
+      ],
+      "is_reasonable": false,
+      "reasonableness_reason": "parquet_read_error",
+      "reasonableness_details": [
+        "Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0005_a81418daf71b.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0005_a81418daf71b.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file."
+      ],
+      "notes": [
+        "Download was truncated due to max_download_bytes limit.",
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec.",
+        "Artifact was collected and kept, but failed reasonableness check: parquet_read_error."
+      ]
+    },
+    {
+      "artifact_id": "2356a3d19d774b28",
+      "source_id": "explicit_1dac26d7027b",
+      "source_url": "https://huggingface.co/datasets/allenai/c4",
+      "artifact_url": "https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-train/0006.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0006_2356a3d19d77.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 41943040,
+      "retrieved_at": "2026-04-20T04:31:57.605118+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.0553,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:failed",
+        "token:robust",
+        "token:structuring"
+      ],
+      "is_reasonable": false,
+      "reasonableness_reason": "parquet_read_error",
+      "reasonableness_details": [
+        "Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0006_2356a3d19d77.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0006_2356a3d19d77.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file."
+      ],
+      "notes": [
+        "Download was truncated due to max_download_bytes limit.",
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec.",
+        "Artifact was collected and kept, but failed reasonableness check: parquet_read_error."
+      ]
+    },
+    {
+      "artifact_id": "5f78f8cfd63bccb7",
+      "source_id": "explicit_1dac26d7027b",
+      "source_url": "https://huggingface.co/datasets/allenai/c4",
+      "artifact_url": "https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-train/0007.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0007_5f78f8cfd63b.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 41943040,
+      "retrieved_at": "2026-04-20T04:32:00.483842+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.0553,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:failed",
+        "token:robust",
+        "token:structuring"
+      ],
+      "is_reasonable": false,
+      "reasonableness_reason": "parquet_read_error",
+      "reasonableness_details": [
+        "Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0007_5f78f8cfd63b.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0007_5f78f8cfd63b.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file."
+      ],
+      "notes": [
+        "Download was truncated due to max_download_bytes limit.",
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec.",
+        "Artifact was collected and kept, but failed reasonableness check: parquet_read_error."
+      ]
+    },
+    {
+      "artifact_id": "a7e257551e0a1461",
+      "source_id": "explicit_1dac26d7027b",
+      "source_url": "https://huggingface.co/datasets/allenai/c4",
+      "artifact_url": "https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-train/0008.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0008_a7e257551e0a.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 41943040,
+      "retrieved_at": "2026-04-20T04:32:03.215286+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.0553,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:failed",
+        "token:robust",
+        "token:structuring"
+      ],
+      "is_reasonable": false,
+      "reasonableness_reason": "parquet_read_error",
+      "reasonableness_details": [
+        "Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0008_a7e257551e0a.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0008_a7e257551e0a.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file."
+      ],
+      "notes": [
+        "Download was truncated due to max_download_bytes limit.",
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec.",
+        "Artifact was collected and kept, but failed reasonableness check: parquet_read_error."
+      ]
+    },
+    {
+      "artifact_id": "7807158a43d9d370",
+      "source_id": "explicit_1dac26d7027b",
+      "source_url": "https://huggingface.co/datasets/allenai/c4",
+      "artifact_url": "https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-train/0009.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0009_7807158a43d9.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 41943040,
+      "retrieved_at": "2026-04-20T04:32:05.974228+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.0553,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:failed",
+        "token:robust",
+        "token:structuring"
+      ],
+      "is_reasonable": false,
+      "reasonableness_reason": "parquet_read_error",
+      "reasonableness_details": [
+        "Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0009_7807158a43d9.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0009_7807158a43d9.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file."
+      ],
+      "notes": [
+        "Download was truncated due to max_download_bytes limit.",
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec.",
+        "Artifact was collected and kept, but failed reasonableness check: parquet_read_error."
+      ]
+    },
+    {
+      "artifact_id": "974492d12e05a025",
+      "source_id": "explicit_1dac26d7027b",
+      "source_url": "https://huggingface.co/datasets/allenai/c4",
+      "artifact_url": "https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/af/partial-validation/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_974492d12e05.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 3415195,
+      "retrieved_at": "2026-04-20T04:32:08.791728+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.0184,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:test"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=2118, cols=3."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "09f860039cfc5dc7",
+      "source_id": "explicit_1dac26d7027b",
+      "source_url": "https://huggingface.co/datasets/allenai/c4",
+      "artifact_url": "https://huggingface.co/datasets/allenai/c4/resolve/refs%2Fconvert%2Fparquet/am/train/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_09f860039cfc.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 41943040,
+      "retrieved_at": "2026-04-20T04:32:09.769446+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.0553,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:failed",
+        "token:robust",
+        "token:structuring"
+      ],
+      "is_reasonable": false,
+      "reasonableness_reason": "parquet_read_error",
+      "reasonableness_details": [
+        "Parquet read failed: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0000_09f860039cfc.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0000_09f860039cfc.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file."
+      ],
+      "notes": [
+        "Download was truncated due to max_download_bytes limit.",
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec.",
+        "Artifact was collected and kept, but failed reasonableness check: parquet_read_error."
+      ]
+    },
+    {
+      "artifact_id": "2ff5b367f9a58fe6",
+      "source_id": "explicit_2ff5b367f9a5",
+      "source_url": "https://huggingface.co/datasets/imdb",
+      "artifact_url": "https://huggingface.co/datasets/imdb",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/imdb_2ff5b367f9a5.html",
+      "content_type": "text/html",
+      "size_bytes": 42075,
+      "retrieved_at": "2026-04-20T04:32:12.846166+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.0184,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:card"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Text preview chars=4000, lines=68."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "24d9fa756e1b9383",
+      "source_id": "explicit_04e086163e00",
+      "source_url": "https://huggingface.co/datasets/stanfordnlp/snli",
+      "artifact_url": "https://huggingface.co/datasets/stanfordnlp/snli/resolve/refs%2Fconvert%2Fparquet/plain_text/test/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_24d9fa756e1b.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 411531,
+      "retrieved_at": "2026-04-20T04:32:14.666217+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.1833,
+      "is_relevant": false,
+      "matched_terms": [
+        "other"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=10000, cols=3."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "611a11a72d59058c",
+      "source_id": "explicit_04e086163e00",
+      "source_url": "https://huggingface.co/datasets/stanfordnlp/snli",
+      "artifact_url": "https://huggingface.co/datasets/stanfordnlp/snli/resolve/refs%2Fconvert%2Fparquet/plain_text/train/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_611a11a72d59.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 19614612,
+      "retrieved_at": "2026-04-20T04:32:15.453150+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.1833,
+      "is_relevant": false,
+      "matched_terms": [
+        "other"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=550152, cols=3."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "f28d204430ee355c",
+      "source_id": "explicit_04e086163e00",
+      "source_url": "https://huggingface.co/datasets/stanfordnlp/snli",
+      "artifact_url": "https://huggingface.co/datasets/stanfordnlp/snli/resolve/refs%2Fconvert%2Fparquet/plain_text/validation/0000.parquet",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/0000_f28d204430ee.parquet",
+      "content_type": "application/octet-stream",
+      "size_bytes": 413157,
+      "retrieved_at": "2026-04-20T04:32:17.145260+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.1,
+      "is_relevant": false,
+      "matched_terms": [],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Parquet rows=10000, cols=3."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    },
+    {
+      "artifact_id": "5246a0470fb4638f",
+      "source_id": "explicit_5246a0470fb4",
+      "source_url": "https://huggingface.co/datasets/trec",
+      "artifact_url": "https://huggingface.co/datasets/trec",
+      "local_path": "tests/results/hf_robust_structuring_run_v1/raw/trec_5246a0470fb4.html",
+      "content_type": "text/html",
+      "size_bytes": 40620,
+      "retrieved_at": "2026-04-20T04:32:19.575363+00:00",
+      "status": "downloaded",
+      "relevance_score": 0.0184,
+      "is_relevant": false,
+      "matched_terms": [
+        "token:card"
+      ],
+      "is_reasonable": true,
+      "reasonableness_reason": "ok",
+      "reasonableness_details": [
+        "Text preview chars=4000, lines=68."
+      ],
+      "notes": [
+        "Artifact was collected and kept, but marked not relevant to the acquisition spec."
+      ]
+    }
+  ],
+  "failed_artifacts": [
+    {
+      "artifact_id": "1193ea615cf4dd96",
+      "source_url": "https://huggingface.co/datasets/ag_news",
+      "artifact_url": "https://huggingface.co/datasets/ag_news",
+      "status": "failed",
+      "notes": [
+        "Download failed: HTTP Error 404: Not Found"
+      ],
+      "reasonableness_reason": "download_failed"
+    },
+    {
+      "artifact_id": "d35c45afe8288f02",
+      "source_url": "https://huggingface.co/datasets/yelp_review_full",
+      "artifact_url": "https://huggingface.co/datasets/yelp_review_full",
+      "status": "failed",
+      "notes": [
+        "Download failed: HTTP Error 404: Not Found"
+      ],
+      "reasonableness_reason": "download_failed"
+    },
+    {
+      "artifact_id": "ae32cf8eaa9b7e9f",
+      "source_url": "https://huggingface.co/datasets/super_glue",
+      "artifact_url": "https://huggingface.co/datasets/super_glue",
+      "status": "failed",
+      "notes": [
+        "Download failed: HTTP Error 404: Not Found"
+      ],
+      "reasonableness_reason": "download_failed"
+    },
+    {
+      "artifact_id": "158b6473bd29b05d",
+      "source_url": "https://huggingface.co/datasets/wiki_qa",
+      "artifact_url": "https://huggingface.co/datasets/wiki_qa",
+      "status": "failed",
+      "notes": [
+        "Download failed: HTTP Error 404: Not Found"
+      ],
+      "reasonableness_reason": "download_failed"
+    },
+    {
+      "artifact_id": "2bd5c6cb261bac0c",
+      "source_url": "https://huggingface.co/datasets/hellaswag",
+      "artifact_url": "https://huggingface.co/datasets/hellaswag",
+      "status": "failed",
+      "notes": [
+        "Download failed: HTTP Error 404: Not Found"
+      ],
+      "reasonableness_reason": "download_failed"
+    },
+    {
+      "artifact_id": "51afe51164c094c9",
+      "source_url": "https://huggingface.co/datasets/amazon_polarity",
+      "artifact_url": "https://huggingface.co/datasets/amazon_polarity",
+      "status": "failed",
+      "notes": [
+        "Download failed: HTTP Error 404: Not Found"
+      ],
+      "reasonableness_reason": "download_failed"
+    },
+    {
+      "artifact_id": "07fdfa7bc434bc16",
+      "source_url": "https://huggingface.co/collections/bitext/customer-support",
+      "artifact_url": "https://huggingface.co/collections/bitext/customer-support",
+      "status": "failed",
+      "notes": [
+        "Artifact URL resolution failed for source."
+      ],
+      "reasonableness_reason": "resolution_failed"
+    },
+    {
+      "artifact_id": "170ad2ff1bdd8834",
+      "source_url": "https://huggingface.co/datasets",
+      "artifact_url": "https://huggingface.co/datasets",
+      "status": "failed",
+      "notes": [
+        "Artifact URL resolution failed for source."
+      ],
+      "reasonableness_reason": "resolution_failed"
+    },
+    {
+      "artifact_id": "ece9fcb3a5ccfaa7",
+      "source_url": "https://huggingface.co/datasets/nonexistent-owner/nonexistent-dataset-xyz",
+      "artifact_url": "https://huggingface.co/datasets/nonexistent-owner/nonexistent-dataset-xyz",
+      "status": "failed",
+      "notes": [
+        "Artifact URL resolution failed for source."
+      ],
+      "reasonableness_reason": "resolution_failed"
+    }
+  ]
+}

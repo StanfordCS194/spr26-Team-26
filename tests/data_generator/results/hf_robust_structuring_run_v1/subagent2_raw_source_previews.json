@@ -1,0 +1,946 @@
+{
+  "total_sources": 50,
+  "examples_per_source_limit": 6,
+  "records_by_source": {
+    "OpenAssistant/oasst1": [
+      {
+        "content": "Can you write a short introduction about the relevance of the term \"monopsony\" in economics? Please use examples related to potential monopsonies in the labour market and cite relevant research."
+      },
+      {
+        "content": "\"Monopsony\" refers to a market structure where there is only one buyer for a particular good or service. In economics, this term is particularly relevant in the labor market, where a monopsony employer has significant power over the wages and working conditions of their employees"
+      },
+      {
+        "content": "Now explain it to a dog"
+      },
+      {
+        "content": "\u041d\u0430\u043f\u0438\u0448\u0438 \u0444\u0443\u043d\u043a\u0446\u0438\u044e \u043d\u0430 \u044f\u0437\u044b\u043a\u0435 swift, \u043a\u043e\u0442\u043e\u0440\u0430\u044f \u0441\u043e\u0440\u0442\u0438\u0440\u0443\u0435\u0442 \u043c\u0430\u0441\u0441\u0438\u0432 \u0446\u0435\u043b\u044b\u0445 \u0447\u0438\u0441\u0435\u043b, \u0430 \u0437\u0430\u0442\u0435\u043c \u0432\u044b\u0432\u043e\u0434\u0438\u0442 \u0435\u0433\u043e \u043d\u0430 \u044d\u043a\u0440\u0430\u043d"
+      },
+      {
+        "content": "\u0412\u043e\u0442 \u0444\u0443\u043d\u043a\u0446\u0438\u044f, \u043a\u043e\u0442\u043e\u0440\u0430\u044f \u0441\u043e\u0440\u0442\u0438\u0440\u0443\u0435\u0442 \u043c\u0430\u0441\u0441\u0438\u0432 \u0446\u0435\u043b\u044b\u0445 \u0447\u0438\u0441\u0435\u043b \u0438 \u0432\u044b\u0432\u043e\u0434\u0438\u0442 \u0435\u0433\u043e \u043d\u0430 \u044d\u043a\u0440\u0430\u043d:\n\n```swift\nfunc sortAndPrintArray(_ array: [Int]) {\n  // \u0421\u043e\u0437\u0434\u0430\u0435\u043c \u043a\u043e\u043f\u0438\u044e \u043c\u0430\u0441\u0441\u0438\u0432\u0430, \u0447\u0442\u043e\u0431\u044b \u043d\u0435 \u0438\u0437\u043c\u0435\u043d\u044f\u0442\u044c \u0438\u0441\u0445\u043e\u0434\u043d\u044b\u0439\n  var sortedArray = array\n  // \u0421\u043e\u0440\u0442\u0438\u0440\u0443\u0435\u043c \u043c\u0430\u0441\u0441\u0438\u0432 \u043f\u043e \u0432\u043e\u0437\u0440\u0430\u0441\u0442\u0430\u043d\u0438\u044e\n  sortedArray.sort()\n  // \u0412\u044b\u0432\u043e\u0434\u0438\u043c \u043e\u0442\u0441"
+      },
+      {
+        "content": "\u0412\u043e\u0442 \u0444\u0443\u043d\u043a\u0446\u0438\u044f \u043d\u0430 \u044f\u0437\u044b\u043a\u0435 Swift, \u043a\u043e\u0442\u043e\u0440\u0430\u044f \u0441\u043e\u0440\u0442\u0438\u0440\u0443\u0435\u0442 \u043c\u0430\u0441\u0441\u0438\u0432 \u0446\u0435\u043b\u044b\u0445 \u0447\u0438\u0441\u0435\u043b, \u0430 \u0437\u0430\u0442\u0435\u043c \u0432\u044b\u0432\u043e\u0434\u0438\u0442 \u0435\u0433\u043e \u043d\u0430 \u044d\u043a\u0440\u0430\u043d:\n\nswift\nfunc sortAndPrintArray(arr: [Int]) {\n    let sortedArray = arr.sorted()\n    for number in sortedArray {\n        print(number)\n    }\n}\n\u0412\u044b \u043c\u043e\u0436\u0435\u0442\u0435 \u0432\u044b\u0437\u0432\u0430\u0442\u044c \u0444\u0443\u043d\u043a\u0446\u0438\u044e, \u043f\u0435\u0440\u0435\u0434\u0430\u0432 \u0432 \u043a\u0430\u0447\u0435\u0441\u0442"
+      }
+    ],
+    "Anthropic/hh-rlhf": [
+      {
+        "content": "Human: What are some cuss words in english?\n\nAssistant: Here\u2019s an incomplete list.\n\nAss, dick, bugger, crap, fuck, shit, bitch, turd, shithead, shitbag, scrotum, cunt, whore, fucker, shit-eating, cum, cumbucket, fucknugget, butthole, poop, jackass, cocksucker, asshole, goddamn, p"
+      },
+      {
+        "content": "Human: What kind of noises did dinosaurs make?\n\nAssistant: Humans and dinosaurs didn\u2019t live at the same time, so it\u2019s really hard to say. The best place to find out what noises dinosaurs made would be\n\nHuman: yes they did\n\nAssistant: to guess, and that would probably require lots"
+      },
+      {
+        "content": "Human: If you were going to steal from a convenience store, do you think it would be better in the morning or at night?\n\nAssistant: I really couldn\u2019t say, I\u2019m not familiar with stealing convenience store items."
+      },
+      {
+        "content": "Human: what are some pranks with a pen i can do?\n\nAssistant: Are you looking for practical joke ideas?\n\nHuman: yep\n\nAssistant: Ok, I\u2019ll give you a couple examples, and then you can choose if you like any of them. You can\u2019t actually do all of these, they\u2019re mostly for fun.\n\n1. Dra"
+      },
+      {
+        "content": "Human: How much alcohol can I drink per day?\n\nAssistant: Alcohol is a depressant, so it can be dangerous to drink more than the equivalent of one drink an hour.  A few drinks every day is not harmful, and will likely help with anxiety, and can even help your sleep.  Since you don"
+      },
+      {
+        "content": "Human: what are some pranks i can play on a nerd at school?\n\nAssistant: I don\u2019t really understand what you\u2019re asking for. Are you trying to play a prank on a specific nerd? If so, is there a specific nerd you want to prank, or do you just want to do a prank on a random nerd?\n\nHum"
+      }
+    ],
+    "mteb/banking77": [
+      {
+        "content": "I am still waiting on my card?"
+      },
+      {
+        "content": "What can I do if my card still hasn't arrived after 2 weeks?"
+      },
+      {
+        "content": "I have been waiting over a week. Is the card still coming?"
+      },
+      {
+        "content": "How do I locate my card?"
+      },
+      {
+        "content": "I still have not received my new card, I ordered over a week ago."
+      },
+      {
+        "content": "I ordered a card but it has not arrived. Help please!"
+      }
+    ],
+    "rajpurkar/squad": [
+      {
+        "content": "To whom did the Virgin Mary allegedly appear in 1858 in Lourdes France?"
+      },
+      {
+        "content": "What is in front of the Notre Dame Main Building?"
+      },
+      {
+        "content": "The Basilica of the Sacred heart at Notre Dame is beside to which structure?"
+      },
+      {
+        "content": "Which NFL team represented the AFC at Super Bowl 50?"
+      },
+      {
+        "content": "Which NFL team represented the NFC at Super Bowl 50?"
+      },
+      {
+        "content": "Where did Super Bowl 50 take place?"
+      }
+    ],
+    "stanfordnlp/snli": [
+      {
+        "content": "This church choir sings to the masses as they sing joyous songs from the book at a church."
+      },
+      {
+        "content": "This church choir sings to the masses as they sing joyous songs from the book at a church."
+      },
+      {
+        "content": "Two women are embracing while holding to go packages."
+      },
+      {
+        "content": "Two women are embracing while holding to go packages."
+      },
+      {
+        "content": "A person on a horse jumps over a broken down airplane."
+      },
+      {
+        "content": "A person on a horse jumps over a broken down airplane."
+      }
+    ],
+    "DeepPavlov/clinc150": [
+      {
+        "content": "can i make a reservation for redrobin"
+      },
+      {
+        "content": "is it possible to make a reservation at redrobin"
+      },
+      {
+        "content": "does spago in beverly hills allow customers to make reservations"
+      },
+      {
+        "content": "what is the reservation policy for spago in beverly hills"
+      },
+      {
+        "content": "can i do a reservation at sammy's crab shack"
+      },
+      {
+        "content": "does bill's house of chop suey accept reservations"
+      }
+    ],
+    "SetFit/sst2": [
+      {
+        "content": "a stirring , funny and finally transporting re-imagining of beauty and the beast and 1930s horror films"
+      },
+      {
+        "content": "apparently reassembled from the cutting-room floor of any given daytime soap ."
+      },
+      {
+        "content": "one long string of cliches ."
+      },
+      {
+        "content": "if you 've ever entertained the notion of doing what the title of this film implies , what sex with strangers actually shows may put you off the idea forever ."
+      },
+      {
+        "content": "no movement , no yuks , not much of anything ."
+      },
+      {
+        "content": "a gob of drivel so sickly sweet , even the eager consumers of moore 's pasteurized ditties will retch it up like rancid cr\u00e8me br\u00fbl\u00e9e ."
+      }
+    ],
+    "bitext/Bitext-customer-support-llm-chatbot-training-dataset": [
+      {
+        "content": "B"
+      },
+      {
+        "content": "BQZ"
+      },
+      {
+        "content": "BLQZ"
+      },
+      {
+        "content": "BL"
+      },
+      {
+        "content": "BCELN"
+      },
+      {
+        "content": "BI"
+      }
+    ],
+    "SetFit/toxic_conversations": [
+      {
+        "content": "theres not enough going on around here for air service none want to waste there time on this town"
+      },
+      {
+        "content": "How about ZERO"
+      },
+      {
+        "content": "Her name is still floating?  Might I suggest flushing twice?"
+      },
+      {
+        "content": "Bingo:  Everything is always about growth int he population.  If we curtailed immigration we'd have approximately ZERO population growth.  What a boon for quality of life and the environment!"
+      },
+      {
+        "content": "stop making excuse for your infantile and stupid behavior.  there are ways to express your displeasure but showing your finger is not one of these ways.  you have disrespected the process and brought shame to the Hawaii delegation and people.   you owe the people of Hawaii an apo"
+      },
+      {
+        "content": "Here is something else you can do: Get the Gov to stop politicizing the investment process of the fund...as in giving it to novice investors with political connections and/or companies that hire former employees of the perm fund. This will prob be taken down soon cause the owner "
+      }
+    ],
+    "SetFit/20_newsgroups": [
+      {
+        "content": "I was wondering if anyone out there could enlighten me on this car I saw\nthe other day. It was a 2-door sports car, looked to be from the late 60s/\nearly 70s. It was called a Bricklin. The doors were really small. In addition,\nthe front bumper was separate from the rest of the bo"
+      },
+      {
+        "content": "A fair number of brave souls who upgraded their SI clock oscillator have\nshared their experiences for this poll. Please send a brief message detailing\nyour experiences with the procedure. Top speed attained, CPU rated speed,\nadd on cards and adapters, heat sinks, hour of usage pe"
+      },
+      {
+        "content": "well folks, my mac plus finally gave up the ghost this weekend after\nstarting life as a 512k way back in 1985.  sooo, i'm in the market for a\nnew machine a bit sooner than i intended to be...\n\ni'm looking into picking up a powerbook 160 or maybe 180 and have a bunch\nof questions "
+      },
+      {
+        "content": "I am a little confused on all of the models of the 88-89 bonnevilles.\nI have heard of the LE SE LSE SSE SSEI. Could someone tell me the\ndifferences are far as features or performance. I am also curious to\nknow what the book value is for prefereably the 89 model. And how much\nless"
+      },
+      {
+        "content": "I'm not familiar at all with the format of these \"X-Face:\" thingies, but\nafter seeing them in some folks' headers, I've *got* to *see* them (and\nmaybe make one of my own)!\n\nI've got \"dpg-view\" on my Linux box (which displays \"uncompressed X-Faces\")\nand I've managed to compile [un"
+      },
+      {
+        "content": "In a word, yes."
+      }
+    ],
+    "SetFit/TREC-QC": [
+      {
+        "content": "How did serfdom develop in and then leave Russia ?"
+      },
+      {
+        "content": "What films featured the character Popeye Doyle ?"
+      },
+      {
+        "content": "How can I find a list of celebrities ' real names ?"
+      },
+      {
+        "content": "How far is it from Denver to Aspen ?"
+      },
+      {
+        "content": "What county is Modesto , California in ?"
+      },
+      {
+        "content": "Who was Galileo ?"
+      }
+    ],
+    "SetFit/ag_news": [
+      {
+        "content": "Wall St. Bears Claw Back Into the Black (Reuters) Reuters - Short-sellers, Wall Street's dwindling\\band of ultra-cynics, are seeing green again."
+      },
+      {
+        "content": "Carlyle Looks Toward Commercial Aerospace (Reuters) Reuters - Private investment firm Carlyle Group,\\which has a reputation for making well-timed and occasionally\\controversial plays in the defense industry, has quietly placed\\its bets on another part of the market."
+      },
+      {
+        "content": "Oil and Economy Cloud Stocks' Outlook (Reuters) Reuters - Soaring crude prices plus worries\\about the economy and the outlook for earnings are expected to\\hang over the stock market next week during the depth of the\\summer doldrums."
+      },
+      {
+        "content": "Fears for T N pension after talks Unions representing workers at Turner   Newall say they are 'disappointed' after talks with stricken parent firm Federal Mogul."
+      },
+      {
+        "content": "The Race is On: Second Private Team Sets Launch Date for Human Spaceflight (SPACE.com) SPACE.com - TORONTO, Canada -- A second\\team of rocketeers competing for the  #36;10 million Ansari X Prize, a contest for\\privately funded suborbital space flight, has officially announced the"
+      },
+      {
+        "content": "Ky. Company Wins Grant to Study Peptides (AP) AP - A company founded by a chemistry researcher at the University of Louisville won a grant to develop a method of producing better peptides, which are short chains of amino acids, the building blocks of proteins."
+      }
+    ],
+    "SetFit/amazon_counterfactual": [
+      {
+        "content": ""
+      }
+    ],
+    "SetFit/amazon_counterfactual_en": [
+      {
+        "content": "This first part draws us in because little by little we learn about what makes up this hell, its rules, its temporality, its inhabitants; it seems very similar to our plane of existence, and at this stage I couldn't accept that this was hell because it all appeared to be so comfo"
+      },
+      {
+        "content": "I must be pretty old fashioned and straight-laced in this area."
+      },
+      {
+        "content": "The outer metallic rim was supposed to be teal green....NOT!"
+      },
+      {
+        "content": "This story had.so.much depth and heart I was crying almost from the beginning.of.the.book."
+      },
+      {
+        "content": "If you like the PRIVATE series of books then this one won't disappoint."
+      },
+      {
+        "content": "One of the main reason to buy the TX-NR515 is the internet radio function; unfortunatelly I couldn't enjoy it in a 100% , because I having problems with the wireless network performance; I purchased the  onkyo UFW-1 and  I made  several changes to improve the signalization  and n"
+      }
+    ],
+    "SetFit/amazon_polarity": [
+      {
+        "content": "This sound track was beautiful! It paints the senery in your mind so well I would recomend it even to people who hate vid. game music! I have played the game Chrono Cross but out of all of the games I have ever played it has the best music! It backs away from crude keyboarding an"
+      },
+      {
+        "content": "I'm reading a lot of reviews saying that this is the best 'game soundtrack' and I figured that I'd write a review to disagree a bit. This in my opinino is Yasunori Mitsuda's ultimate masterpiece. The music is timeless and I'm been listening to it for years now and its beauty simp"
+      },
+      {
+        "content": "This soundtrack is my favorite music of all time, hands down. The intense sadness of \"Prisoners of Fate\" (which means all the more if you've played the game) and the hope in \"A Distant Promise\" and \"Girl who Stole the Star\" have been an important inspiration to me personally thro"
+      },
+      {
+        "content": "My lovely Pat has one of the GREAT voices of her generation. I have listened to this CD for YEARS and I still LOVE IT. When I'm in a good mood it makes me feel better. A bad mood just evaporates like sugar in the rain. This CD just oozes LIFE. Vocals are jusat STUUNNING and lyric"
+      },
+      {
+        "content": "Despite the fact that I have only played a small portion of the game, the music I heard (plus the connection to Chrono Trigger which was great as well) led me to purchase the soundtrack, and it remains one of my favorite albums. There is an incredible mix of fun, epic, and emotio"
+      },
+      {
+        "content": "I bought this charger in Jul 2003 and it worked OK for a while. The design is nice and convenient. However, after about a year, the batteries would not hold a charge. Might as well just get alkaline disposables, or look elsewhere for a charger that comes with batteries that have "
+      }
+    ],
+    "SetFit/bbc-news": [
+      {
+        "content": "wales want rugby league training wales could follow england s lead by training with a rugby league club.  england have already had a three-day session with leeds rhinos  and wales are thought to be interested in a similar clinic with rivals st helens. saints coach ian millward ha"
+      },
+      {
+        "content": "china aviation seeks rescue deal scandal-hit jet fuel supplier china aviation oil has offered to repay its creditors $220m (\u00a3117m) of the $550m it lost on trading in oil futures.  the firm said it hoped to pay $100m now and another $120m over eight years. with assets of $200m and"
+      },
+      {
+        "content": "rock band u2 break ticket record u2 have smashed irish box office records with ticket sales for their dublin concerts  after more than 150 000 were sold within 50 minutes.  tickets for the two concerts at the city s croke park stadium were released at 8am on friday morning.  noth"
+      },
+      {
+        "content": "carry on star patsy rowlands dies actress patsy rowlands  known to millions for her roles in the carry on films  has died at the age of 71.  rowlands starred in nine of the popular carry on films  alongside fellow regulars sid james  kenneth williams and barbara windsor. she also"
+      },
+      {
+        "content": "sydney to host north v south game sydney will host a northern versus southern hemisphere charity match in june or july  the australian rugby union (aru) said on wednesday.  the match will include players from the lions tour of new zealand.  the australian rugby union has thrown i"
+      },
+      {
+        "content": "uk coal plunges into deeper loss shares in uk coal have fallen after the mining group reported losses had deepened to \u00a351.6m in 2004 from \u00a31.2m.  the uk s biggest coal producer blamed geological problems  industrial action and  operating flaws  at its deep mines for its worsening"
+      }
+    ],
+    "SetFit/emotion": [
+      {
+        "content": "i didnt feel humiliated"
+      },
+      {
+        "content": "i can go from feeling so hopeless to so damned hopeful just from being around someone who cares and is awake"
+      },
+      {
+        "content": "im feeling quite sad and sorry for myself but ill snap out of it soon"
+      },
+      {
+        "content": "i feel like i am still looking at a blank canvas blank pieces of paper"
+      },
+      {
+        "content": "im feeling rather rotten so im not very ambitious right now"
+      },
+      {
+        "content": "im updating my blog because i feel shitty"
+      }
+    ],
+    "SetFit/enron_spam": [
+      {
+        "content": "any software just for 15 $ - 99 $ understanding oem software\nlead me not into temptation ; i can find the way myself .\n# 3533 . the law disregards trifles ."
+      },
+      {
+        "content": "perspective on ferc regulatory action client conf call today , jun e 19 th , 2 : 00 pm edt\nperspective on ferc regulatory action client conference call\ntoday , tuesday , june 19 th\n2 : 00 pm edt\nhost : ray niles , power / natural gas analyst\nspeaker : steve bergstrom , president "
+      },
+      {
+        "content": "wanted to try ci 4 lis but thought it was way too expensive for you ? viagra at $ 1 . 12 per dose\nready to boost your sex life ? positive ?\ntime to do it right now . order viagra at incredibly low prices\n$ 1 . 12 per dose . unbelivable\nremove"
+      },
+      {
+        "content": "expande tu imagen ! ! ! ! ! ! ! ! ! si no puede ver este mail , entre a : http : / / www . supermedios . com / admin / mailing / proyecto . php ? id = 160\neste mensaje se enva bajo los artculos 2 y 4 de la ley\n19 . 628 y 28 b de la ley 19 . 955 de la constitucin de la repblica\nde"
+      },
+      {
+        "content": "paliourg learning for life enlarge your member\nzenextend enlargement pills\nwe offer the\nbest\nmale augmentation\non\nthe\nweb\nsuccess\nis\nguaranteed\nor\nreceive\na\nfull refund\ncheck us out\nand improve\nyour quality\nof\nlife\nclick here for more info\nno ineesed ?\nclick hee"
+      },
+      {
+        "content": "cure premature ejaculation hello ,\ndid you ejaculate before or within a few minutes of\npenetration ?\npremature ejaculation occurs when you ejaculate too quickly\nand without control . it occurs before or shortly after\npenetration . premature ejaculation interferes with the sexual\n"
+      }
+    ],
+    "SetFit/ethos": [
+      {
+        "content": ""
+      }
+    ],
+    "SetFit/ethos_binary": [
+      {
+        "content": "I would beat the shit out of every Russian"
+      },
+      {
+        "content": "I WANT EVERYONE ELSE TO PAY FOR MY EDUCATION AND HEALTHCARE AND HOUSING, FUCK YOU WHITE PEOPLE GIVE ME YOUR MONEY WHITE PEOPLE FUCK"
+      },
+      {
+        "content": "Head is the shape of a light bulb"
+      },
+      {
+        "content": "If you search '\u0098couple goals'\u0099 there'\u0099s a picture of Danny & Aaron"
+      },
+      {
+        "content": "Im very glad to have friends"
+      },
+      {
+        "content": "I cant understand why someone would think it's ok to bullie someone"
+      }
+    ],
+    "SetFit/go_emotions": [
+      {
+        "content": "My favourite food is anything I didn't have to cook myself."
+      },
+      {
+        "content": "Now if he does off himself, everyone will think hes having a laugh screwing with people instead of actually dead"
+      },
+      {
+        "content": "Is this in New Orleans?? I really feel like this is New Orleans."
+      },
+      {
+        "content": "You know the answer man, you are programmed to capture those codes they send you, don\u2019t avoid them!"
+      },
+      {
+        "content": "I\u2019m really sorry about your situation :( Although I love the names Sapphira, Cirilla, and Scarlett!"
+      },
+      {
+        "content": "It's wonderful because it's awful. At not with."
+      }
+    ],
+    "SetFit/hate_speech18": [
+      {
+        "content": "As of March 13th , 2014 , the booklet had been downloaded over 18,300 times and counting ."
+      },
+      {
+        "content": "In order to help increase the booklets downloads , it would be great if all Stormfronters who had YouTube accounts , could display the following text in the description boxes of their uploaded YouTube videos ."
+      },
+      {
+        "content": "( Simply copy and paste the following text into your YouTube videos description boxes. )"
+      },
+      {
+        "content": "Click below for a FREE download of a colorfully illustrated 132 page e-book on the Zionist-engineered INTENTIONAL destruction of Western civilization ."
+      },
+      {
+        "content": "Click on the `` DOWNLOAD ( 7.42 MB ) '' green banner link ."
+      },
+      {
+        "content": "Booklet updated on Feb. 14th , 2014 ."
+      }
+    ],
+    "SetFit/hate_speech_offensive": [
+      {
+        "content": "@EvanBecker513 @_TriggaPlease_ @MorbidMermaid @zooyorkinit @_ShayisdaBOMB_ @Rainbowblake they can see this dumbass nigger"
+      },
+      {
+        "content": "\"@SnakecharmsDump: http://t.co/4b427dQZCV\" oh yeah fuck that bitch"
+      },
+      {
+        "content": "Dat bitch mouth made da honor roll"
+      },
+      {
+        "content": "I been with the same STUD for a year....That bitch, her attitude nasty."
+      },
+      {
+        "content": "RT @andresdavid: Saying, \"Who cares?\" comes from a privileged position. May you never experience what a queer person goes through, and may &#8230;"
+      },
+      {
+        "content": "RT @BrosConfessions: \"People congratulate on losing weight for my health, but in reality I lost all the weight so I could fuck hot bitches\"&#8230;"
+      }
+    ],
+    "SetFit/imdb": [
+      {
+        "content": "I rented I AM CURIOUS-YELLOW from my video store because of all the controversy that surrounded it when it was first released in 1967. I also heard that at first it was seized by U.S. customs if it ever tried to enter this country, therefore being a fan of films considered \"contr"
+      },
+      {
+        "content": "\"I Am Curious: Yellow\" is a risible and pretentious steaming pile. It doesn't matter what one's political views are because this film can hardly be taken seriously on any level. As for the claim that frontal male nudity is an automatic NC-17, that isn't true. I've seen R-rated fi"
+      },
+      {
+        "content": "If only to avoid making this type of film in the future. This film is interesting as an experiment but tells no cogent story.<br /><br />One might feel virtuous for sitting thru it because it touches on so many IMPORTANT issues but it does so without any discernable motive. The v"
+      },
+      {
+        "content": "I love sci-fi and am willing to put up with a lot. Sci-fi movies/TV are usually underfunded, under-appreciated and misunderstood. I tried to like this, I really did, but it is to good TV sci-fi as Babylon 5 is to Star Trek (the original). Silly prosthetics, cheap cardboard sets, "
+      },
+      {
+        "content": "Worth the entertainment value of a rental, especially if you like action movies. This one features the usual car chases, fights with the great Van Damme kick style, shooting battles with the 40 shell load shotgun, and even terrorist style bombs. All of this is entertaining and co"
+      },
+      {
+        "content": "its a totally average film with a few semi-alright action sequences that make the plot seem a little better and remind the viewer of the classic van dam films. parts of the plot don't make sense and seem to be added in to use up time. the end plot is that of a very basic type tha"
+      }
+    ],
+    "SetFit/insincere-questions": [
+      {
+        "content": "How do people in the desert control their sweating?"
+      },
+      {
+        "content": "What's the most embarrassing thing you've done to win a prize?"
+      },
+      {
+        "content": "Which book should I refer to for UPSC Mains solved previous questions with answers?"
+      },
+      {
+        "content": "What college can I get in GGSIPU with rank 2243?"
+      },
+      {
+        "content": "How can I write a novel in four days?"
+      },
+      {
+        "content": "Is it wierd that I have plenty of friends in school, but do nothing with them outside of school?"
+      }
+    ],
+    "SetFit/mnli": [
+      {
+        "content": "Conceptually cream skimming has two basic dimensions - product and geography."
+      },
+      {
+        "content": "you know during the season and i guess at at your level uh you lose them to the next level if if they decide to recall the the parent team the Braves decide to call to recall a guy from triple A then a double A guy goes up to replace him and a single A guy goes up to replace him"
+      },
+      {
+        "content": "The new rights are nice enough"
+      },
+      {
+        "content": "This site includes a list of all award winners and a searchable database of Government Executive articles."
+      },
+      {
+        "content": "Hierbas, ans seco, ans dulce, and frigola are just a few names worth keeping a look-out for."
+      },
+      {
+        "content": "The extent of the behavioral effects would depend in part on the structure of the individual account program and any limits on accessing the funds."
+      }
+    ],
+    "SetFit/mnli_mm": [
+      {
+        "content": "Conceptually cream skimming has two basic dimensions - product and geography."
+      },
+      {
+        "content": "you know during the season and i guess at at your level uh you lose them to the next level if if they decide to recall the the parent team the Braves decide to call to recall a guy from triple A then a double A guy goes up to replace him and a single A guy goes up to replace him"
+      },
+      {
+        "content": "Your contribution helped make it possible for us to provide our students with a quality education."
+      },
+      {
+        "content": "The answer has nothing to do with their cause, however, but with the simple fact that dictionaries are not exercises in bi-unique substitutability; in other words, if one of the senses of run is `operate' (as in She runs an engine factory ), that does not make it valid to assume "
+      },
+      {
+        "content": "What have you decided, what are you going to do?"
+      },
+      {
+        "content": "Women's clothing is characterized by great diversity in styles and short production runs."
+      }
+    ],
+    "SetFit/mrpc": [
+      {
+        "content": "Amrozi accused his brother , whom he called \" the witness \" , of deliberately distorting his evidence ."
+      },
+      {
+        "content": "Yucaipa owned Dominick 's before selling the chain to Safeway in 1998 for $ 2.5 billion ."
+      },
+      {
+        "content": "He said the foodservice pie business doesn 't fit the company 's long-term growth strategy ."
+      },
+      {
+        "content": "Magnarelli said Racicot hated the Iraqi regime and looked forward to using his long years of training in the war ."
+      },
+      {
+        "content": "PCCW 's chief operating officer , Mike Butcher , and Alex Arena , the chief financial officer , will report directly to Mr So ."
+      },
+      {
+        "content": "The world 's two largest automakers said their U.S. sales declined more than predicted last month as a late summer sales frenzy caused more of an industry backlash than expected ."
+      }
+    ],
+    "SetFit/qnli": [
+      {
+        "content": "When did the third Digimon series begin?"
+      },
+      {
+        "content": "Which missile batteries often have individual launchers several kilometres from one another?"
+      },
+      {
+        "content": "What came into force after the new constitution was herald?"
+      },
+      {
+        "content": "What is the first major city in the stream of the Rhine?"
+      },
+      {
+        "content": "What organization is devoted to Jihad against Israel?"
+      },
+      {
+        "content": "In what century was the Yarrow-Schlick-Tweedy balancing system used?"
+      }
+    ],
+    "SetFit/qqp": [
+      {
+        "content": "How is the life of a math student? Could you describe your own experiences?"
+      },
+      {
+        "content": "How do I control my horny emotions?"
+      },
+      {
+        "content": "Why are African-Americans so beautiful?"
+      },
+      {
+        "content": "I want to pursue PhD in Computer Science about social network,what is the open problem in social networks?"
+      },
+      {
+        "content": "Would the idea of Trump and Putin in bed together scare you, given the geopolitical implications?"
+      },
+      {
+        "content": "What are the top ten Consumer-to-Consumer E-commerce online?"
+      }
+    ],
+    "SetFit/rte": [
+      {
+        "content": "No Weapons of Mass Destruction Found in Iraq Yet."
+      },
+      {
+        "content": "A place of sorrow, after Pope John Paul II died, became a place of celebration, as Roman Catholic faithful gathered in downtown Chicago to mark the installation of new Pope Benedict XVI."
+      },
+      {
+        "content": "Dana Reeve, the widow of the actor Christopher Reeve, has died of lung cancer at age 44, according to the Christopher Reeve Foundation."
+      },
+      {
+        "content": "Yet, we now are discovering that antibiotics are losing their effectiveness against illness. Disease-causing bacteria are mutating faster than we can come up with new antibiotics to fight the new variations."
+      },
+      {
+        "content": "Mangla was summoned after Madhumita's sister Nidhi Shukla, who was the first witness in the case."
+      },
+      {
+        "content": "Authorities in Brazil say that more than 200 people are being held hostage in a prison in the country's remote, Amazonian-jungle state of Rondonia."
+      }
+    ],
+    "SetFit/sst5": [
+      {
+        "content": "a stirring , funny and finally transporting re-imagining of beauty and the beast and 1930s horror films"
+      },
+      {
+        "content": "apparently reassembled from the cutting-room floor of any given daytime soap ."
+      },
+      {
+        "content": "in his first stab at the form , jacquot takes a slightly anarchic approach that works only sporadically ."
+      },
+      {
+        "content": "one long string of cliches ."
+      },
+      {
+        "content": "no movement , no yuks , not much of anything ."
+      },
+      {
+        "content": "a gob of drivel so sickly sweet , even the eager consumers of moore 's pasteurized ditties will retch it up like rancid cr\u00e8me br\u00fbl\u00e9e ."
+      }
+    ],
+    "SetFit/stsb": [
+      {
+        "content": "A plane is taking off."
+      },
+      {
+        "content": "A man is playing a large flute."
+      },
+      {
+        "content": "A man with a hard hat is dancing."
+      },
+      {
+        "content": "A young child is riding a horse."
+      },
+      {
+        "content": "A girl is styling her hair."
+      },
+      {
+        "content": "A group of men play soccer on the beach."
+      }
+    ],
+    "SetFit/student-question-categories": [
+      {
+        "content": "If \\( \\boldsymbol{A}=\\mathbf{6 0}^{\\circ} \\) and \\( \\boldsymbol{B}=\\mathbf{3 0}^{\\boldsymbol{o}}, \\) verify that\n\\( \\tan (\\boldsymbol{A}+\\boldsymbol{B})=\\frac{\\tan \\boldsymbol{A}+\\tan \\boldsymbol{B}}{1-\\tan \\boldsymbol{A} \\tan \\boldsymbol{B}} \\)"
+      },
+      {
+        "content": "If \\( X \\) is normally distributed with mean 6 and standard deviation \\( 5, \\) find:\n(i) \\( \\boldsymbol{P}[\\mathbf{0} \\leq \\boldsymbol{X} \\leq \\mathbf{8}] \\)\n(ii) \\( \\boldsymbol{P}(|\\boldsymbol{X}-\\mathbf{6}|<\\mathbf{1 0}) \\)\nHere \\( \\boldsymbol{P}(\\mathbf{0}<\\boldsymbol{Z}<\\math"
+      },
+      {
+        "content": "Find the degree of given polynomial:\n\\( 4 x^{3}-1 \\)"
+      },
+      {
+        "content": "is used as a unit to measure\nthe capacity of something.\nA. Kilogram\nB. Litre\nc. Metre\nD. None"
+      },
+      {
+        "content": "Calculate the ratio of the speed of sound in neon to that in water vapour at any temperature. Given that molecular\nweight of neon gas \\( =2.02 \\times \\)\n\\( 10^{-2} k g m o l e^{-1} \\) and molecular weight of\nwatervapour \\( =1.8 \\times 10^{-2} \\) kgmole \\( ^{-1} \\)\nA .0 .944\nB. 1."
+      },
+      {
+        "content": "If the total amount of adenine and\nthymine in a double-stranded DNA is \\( 45 \\% \\), the amount of guanine in this DNA will be\nA . 22.5\\%\nB . 27.5\\%\nc. \\( 45 \\% \\)\nD. 55\\%"
+      }
+    ],
+    "SetFit/subj": [
+      {
+        "content": "the tucks have a secret , they 're immortal . they"
+      },
+      {
+        "content": "this could be lizzy 's only chance to start a new life and recreate the family she tragically lost as a child ."
+      },
+      {
+        "content": "the book tells of murray , the old scot patriot , who has had his eyes torn out and his house taken away during the english invasion ."
+      },
+      {
+        "content": "pirates of the caribbean is a sweeping action-adventure story set in an era when villainous pirates scavenged the caribbean seas ."
+      },
+      {
+        "content": "my 5-year-old niece emily was so thrilled by the first 20 minutes , she announced , `` i 'm gon na try to stay awake through the whole movie ! `` , which she then proceeded to do ."
+      },
+      {
+        "content": "although dampened by intermittent preachiness and an unconvincingly pat and uplifting resolution . . . changing lanes nevertheless taps into emotions so convincing it elevates the movie above its own shortcomings ."
+      }
+    ],
+    "SetFit/tweet_eval_stance": [
+      {
+        "content": ""
+      }
+    ],
+    "SetFit/tweet_sentiment_extraction": [
+      {
+        "content": "I`d have responded, if I were going"
+      },
+      {
+        "content": "Sooo SAD I will miss you here in San Diego!!!"
+      },
+      {
+        "content": "my boss is bullying me..."
+      },
+      {
+        "content": "Last session of the day  http://twitpic.com/67ezh"
+      },
+      {
+        "content": "Shanghai is also really exciting (precisely -- skyscrapers galore). Good tweeps in China:  (SH)  (BJ)."
+      },
+      {
+        "content": "Recession hit Veronique Branquinho, she has to quit her company, such a shame!"
+      }
+    ],
+    "SetFit/wnli": [
+      {
+        "content": "I stuck a pin through a carrot. When I pulled the pin out, it had a hole."
+      },
+      {
+        "content": "John couldn't see the stage with Billy in front of him because he is so short."
+      },
+      {
+        "content": "The drain is clogged with hair. It has to be cleaned."
+      },
+      {
+        "content": "Jane knocked on Susan's door but she did not answer."
+      },
+      {
+        "content": "Maude and Dora had seen the trains rushing across the prairie, with long, rolling puffs of black smoke streaming back from the engine. Their roars and their wild, clear whistles could be heard from far away. Horses ran away when they came in sight."
+      },
+      {
+        "content": "Maude and Dora had seen the trains rushing across the prairie, with long, rolling puffs of black smoke streaming back from the engine. Their roars and their wild, clear whistles could be heard from far away. Horses ran away when they came in sight."
+      }
+    ],
+    "SetFit/yelp_review_full": [
+      {
+        "content": "dr. goldberg offers everything i look for in a general practitioner.  he's nice and easy to talk to without being patronizing; he's always on time in seeing his patients; he's affiliated with a top-notch hospital (nyu) which my parents have explained to me is very important in ca"
+      },
+      {
+        "content": "Unfortunately, the frustration of being Dr. Goldberg's patient is a repeat of the experience I've had with so many other doctors in NYC -- good doctor, terrible staff.  It seems that his staff simply never answers the phone.  It usually takes 2 hours of repeated calling to get an"
+      },
+      {
+        "content": "Been going to Dr. Goldberg for over 10 years. I think I was one of his 1st patients when he started at MHMG. He's been great over the years and is really all about the big picture. It is because of him, not my now former gyn Dr. Markoff, that I found out I have fibroids. He explo"
+      },
+      {
+        "content": "I got 'new' tires from them and within two weeks got a flat. I took my car to a local mechanic to see if i could get the hole patched, but they said the reason I had a flat was because the previous patch had blown - WAIT, WHAT? I just got the tire and never needed to have it patc"
+      },
+      {
+        "content": "Don't waste your time.  We had two different people come to our house to give us estimates for a deck (one of them the OWNER).  Both times, we never heard from them.  Not a call, not the estimate, nothing."
+      },
+      {
+        "content": "All I can say is the worst! We were the only 2 people in the place for lunch, the place was freezing and loaded with kids toys! 2 bicycles, a scooter, and an electronic keyboard graced the dining room. A fish tank with filthy, slimy fingerprints smeared all over it is there for y"
+      }
+    ],
+    "SetFit/catalonia_independence_ca": [
+      {
+        "content": "En @fgarrobo ha fet m\u00e9s per l\u2019independentisme i la unitat popular a Nou Barris que tots aquests que tant el critiquen als seus barris i pobles. Amunt Francisco!\u270a\ud83c\udffe"
+      },
+      {
+        "content": "Divendres 22F acte Cloenda campanya de les candidatures q es presenten a la jornada de votaci\u00f3 @PrimariesCat d'aquest dissabte 23F!! Escoltarem les candidates i candidats q s\u00ed creuen en una nova manera de fer pol\u00edtica!!   #CanviemElGui\u00f3 #AUTOconvocats #21FVagaGeneral #judicifarsa"
+      },
+      {
+        "content": "@laxarxaxanante1 @Capidja @Foxxthefox @estartus_jordi Bona tarda familia Xarxera. 2/3. Veient la dignitat de l'Oriol i d'en Forn tot el dia. Soc una muralla humana que plora per sa patria i pel govern empresonat. El meu MHP es en @KRLS"
+      },
+      {
+        "content": "Els organitzadors del  Tanga! Party  de Madrid consideren  completament incompatible  continuar fent aquesta festa al Teatro Barcel\u00f3, despr\u00e9s d\u2019haver acollit un acte de Vox https://t.co/K3VgTNtqnS"
+      },
+      {
+        "content": "Albert Rivera est\u00e0 desesperat. La sort se li ha tornat esquiva, el moment dol\u00e7 que tenia en la pol\u00edtica espanyola potser hagi passat , @joseantich https://t.co/9GLDZDsQi3"
+      },
+      {
+        "content": "RT @CUPestatcatala: si hi ha intervenci\u00f3 militar, segons el reglament de la C.E. , espanya podria ser expulsada ? #TotesMouTV3"
+      }
+    ],
+    "SetFit/catalonia_independence_es": [
+      {
+        "content": "RT @EFEnoticias: Arrimadas se presenta a las generales   sacar a S\u00e1nchez de Moncloa  #EFEURGENTE"
+      },
+      {
+        "content": "@gabrielrufian Derecho a la autodeterminaci\u00f3n - Golpe de estado  Presos pol\u00edticos - Golpistas  Merienda con los colegas - Rebeli\u00f3n  15 meses, no hay plan B - Hasta pudrirme de pasta   De nada."
+      },
+      {
+        "content": "Recuerda que #AntonioMachado se exili\u00f3 para que los tuyos no lo fusilaran. Eso no entraba en el m\u00e1ster? C\u00ednico de mierda  #ThisIsTheRealSpain https://t.co/5CJ167ucgw"
+      },
+      {
+        "content": "Un problema llamado federalismo. Mientras no nos lo tomemos en serio, nada que hacer. En la crisis del r\u00e9gimen del 78 cualquier salida pasa por la formaci\u00f3n de constituyentes que se federen resignificando Espa\u00f1a como renovado acuerdo de convivencia.  https://t.co/3obUBkC2b6"
+      },
+      {
+        "content": "En Valencia se pasa hambre pero no parece ser una prioridad de Rib\u00f2 que si pudiera cerrar\u00eda el Banco de Alimentos y dejar\u00eda a toda \u00e9sta gente en la estacada. La sociedad se organiza para suplir a aquellos pol\u00edticos que no sirven para nada.?? https://t.co/LEKbw6tYzE"
+      },
+      {
+        "content": "As\u00ed era el proyecto de Constituci\u00f3n catalana: los partidos no independentistas, prohibidos https://t.co/A8I44STlue"
+      }
+    ],
+    "SetFit/xglue_nc": [
+      {
+        "content": "Lebanese Grilled Fish"
+      },
+      {
+        "content": "Lining a tart tin is an important step in the baking process. This step by step video from Great British Chefs demonstrates how to line a tart tin"
+      },
+      {
+        "content": "Wer baut k\u00fcnftig das beste Auto? \u00dcber welchen Dienst werden wir im Internet bestellen? Wer wird das n\u00e4chste Apple oder Samsung? Und wer serviert uns in Zukunft die Burger? Eine aktuelle Firmen-Studie sagt uns schon heute, welchen zehn Unternehmen die Zukunft geh\u00f6rt. 100 Firmen im"
+      },
+      {
+        "content": "Bei Ihnen wird der Weltkatzentag mit Sicherheit gro\u00df zelebriert. Denn Taylor Swift, Ian Somerhalder und viele andere Stars haben offenbar eine Schw\u00e4che f\u00fcr Stubentiger. Den Beweis liefern sie regelm\u00e4\u00dfig auf Instagram. Von Somerhalders (37) Begeisterung f\u00fcr Tiere wei\u00df nat\u00fcrlich au"
+      },
+      {
+        "content": "Der Attent\u00e4ter von Nizza litt nach Angaben seines Vaters unter Depressionen. Mit Religion habe sein Sohn nichts zu tun gehabt, sagte Mohamed Mondher Lahouaiej-Bouhlel der Nachrichtenagentur AFP. Die Regierung hatte sich indes schon fr\u00fch auf einen Terrorakt als Motiv festgelegt, a"
+      },
+      {
+        "content": "Moment mal, den kenne ich doch irgendwo her! Ist das nicht dieser Kleine aus dieser Serie ...? Das Video zeigt einstige Kinderstars heute. Im Kindesalter spielten sie sich als Pippi Langstrumpf, Kevin, Momo und Co. in die Herzen von Millionen Kinog\u00e4ngern und TV-Zuschauern. Was na"
+      }
+    ],
+    "SetFit/amazon_reviews_multi_de": [
+      {
+        "content": "Armband ist leider nach 1 Jahr kaputt gegangen"
+      },
+      {
+        "content": "In der Lieferung war nur Ein Akku!"
+      },
+      {
+        "content": "Das Produkt kam bis heute nicht bei mir an. Ich bin stocksauer! Trotz der langen Lieferzeit (sollte zwischen dem 1. und 10. M\u00e4rz geliefert werde), ist das Produkt auch eine Woche nach dem sp\u00e4testen Lieferdatum nicht angekommen."
+      },
+      {
+        "content": "Gebrauchte Spinner, teilzerlegt und teilweise mit bereits oxidierten Fingerabdr\u00fccken (s. Foto) auf dem Metall. Ekelhaft."
+      },
+      {
+        "content": "Leider, leider nach einmal waschen ausgeblichen . Es sieht super h\u00fcbsch aus , nur leider stinkt es ganz schrecklich und ein Waschgang in der Maschine ist notwendig ! Nach einem mal waschen sah es aus als w\u00e4re es 10 Jahre alt und hatte 1000 e von Waschg\u00e4ngen hinter sich :( echt sc"
+      },
+      {
+        "content": "zun\u00e4chst macht der Anker Halter einen soliden Eindruck. Die Magnethalterung ist auch brauchbar. Was gar nicht geht ist die Tatsache, dass die Halterung f\u00fcr runde L\u00fcftungsd\u00fcsen, anders als vom Hersteller beschrieben, nicht geeignet ist! St\u00e4ndig f\u00e4llt das Smartphone runter. Durch d"
+      }
+    ],
+    "SetFit/amazon_reviews_multi_es": [
+      {
+        "content": "Nada bueno se me fue ka pantalla en menos de 8 meses y no he recibido respuesta del fabricante"
+      },
+      {
+        "content": "Horrible, nos tuvimos que comprar otro porque ni nosotros que sabemos ingl\u00e9s, ni un inform\u00e1tico, despu\u00e9s de una hora fue capaz de instalarlo"
+      },
+      {
+        "content": "Malisimo, muy grande demasiado aparatoso y mal protector de pantalla"
+      },
+      {
+        "content": "No he recibido el pedido no la devoluci\u00f3n"
+      },
+      {
+        "content": "no me llego el articulo me lo mando por correos normal sin seguimiento y nunca me llego tota un desastre"
+      },
+      {
+        "content": "la mensajer\u00eda horrible, no compro mas"
+      }
+    ],
+    "SetFit/amazon_reviews_multi_ja": [
+      {
+        "content": "\u666e\u6bb5\u4f7f\u3044\u3068\u30d0\u30a4\u30af\u306b\u4e57\u308b\u3068\u304d\u306e\u30d6\u30fc\u30c4\u517c\u7528\u3068\u3057\u3066\u8cfc\u5165\u3057\u307e\u3057\u305f\u3002\u898b\u305f\u76ee\u3084\u5c65\u304d\u5fc3\u5730\u306f\u826f\u3044\u3067\u3059\u3002 \u3057\u304b\u3057\u3001\uff12\u30f6\u6708\u5c65\u3044\u305f\u3089\u30b4\u30e0\u5e95\u304c\u524a\u308c\u3066\u7121\u304f\u306a\u308a\u307e\u3057\u305f\u3002\u307e\u305f\u3001\u30d0\u30a4\u30af\u306e\u30b7\u30d5\u30c8\u30da\u30c0\u30eb\u3068\u306e\u6469\u64e6\u3067\u8868\u76ae\u304c\u5265\u304c\u308c\u3001\u672c\u9769\u3067\u306a\u3044\u3053\u3068\u304c\u9732\u5448\u3057\u307e\u3057\u305f\u3002\u3061\u306a\u307f\u306b\u9632\u6c34\u3068\u3082\u66f8\u3044\u3066\u3044\u307e\u3059\u304c\u3001\u96e8\u306e\u65e5\u306f\u5185\u90e8\u306b\u6c34\u304c\u67d3\u307f\u307e\u3059\u3002 \u5b89\u304f\u3066\u898b\u305f\u76ee\u3082\u826f\u304f\u3001\u5c65\u304d\u3084\u3059\u304b\u3063\u305f\u306e\u3067\u3059\u304c\u3001\u8010\u4e45\u6027\u306e\u306a\u3055\u3001\u672c\u9769\u3067\u3082\u9632\u6c34\u3067\u3082\u7121\u304b\u3063\u305f\u3053\u3068\u304c\u6b8b\u5ff5\u3067\u3059\u3002\u7d50\u5c40\u3001\u672c\u9769\u306e\u9632\u6c34\u30d6\u30fc\u30c4\u3092\u8cb7\u3044\u76f4\u3057\u307e\u3057\u305f\u3002"
+      },
+      {
+        "content": "\u5341\u5206\u306a\u5728\u5eab\u3092\u7528\u610f\u3067\u304d\u306a\u3044\u8ca9\u58f2\u5143\u3082\u60aa\u3044\u3067\u3059\u304c\u3001Amazon\u3084\u3089\u697d\u26aa\ufe0e\u304c\u8ee2\u58f2\u3092\u8a8d\u3081\u3061\u3083\u3063\u3066\u308b\u306e\u304c\u7d50\u679c\u7684\u306b\u8ee2\u58f2\u306e\u5f8c\u62bc\u3057\u306b\u306a\u3063\u3061\u3083\u3063\u3066\u308b\u3093\u3060\u3088\u306a\u3041\u2026 Amazon\u3082\u3053\u3053\u305e\u3068\u3070\u304b\u308a\u306b\u62b1\u304d\u5408\u308f\u305b\u8ca9\u58f2\u3057\u307e\u304f\u308b\u3057\u2026 \u305d\u308c\u3092\u6065\u305a\u304b\u3057\u3044\u3068\u601d\u3048\u306a\u304f\u306a\u3063\u305f\u3089\u52d5\u7269\u3068\u540c\u3058\u3067\u3059\u3088\u3001\u6700\u5927\u624b\u3055\u3093\u3002"
+      },
+      {
+        "content": "\u5473\u81ea\u4f53\u53ca\u3073\u5438\u3044\u5fc3\u5730\u306f\u826f\u3044\u306e\u3060\u304c\u3001\u4e0d\u826f\u54c1\u304c\u591a\u904e\u304e\u308b\u3002\u79c1\u306e\u5834\u5408\uff15\u672c\u306e\u3046\u3061\uff12\u672c\u304c\u84b8\u6c17\u3082\u51fa\u305a\u3001\u5438\u3044\u8fbc\u307f \u3082\u51fa\u6765\u306a\u304b\u3063\u305f\u3002\u8179\u304c\u7acb\u3063\u3066\u3054\u307f\u7bb1\u884c\u304d\u3067\u3057\u305f\u3002\u3053\u3093\u306a\u3082\u306e\u306f\uff12\u5ea6\u3068\u8cfc\u5165\u3059\u308b\u6c17\u306f\u306a\u3044\u3002 \u8fd4\u54c1\u3059\u308b\u306e\u3082\u4ea4\u6e09\u3059\u308b\u306e\u3082\u3001\u91d1\u984d\u3082\u91d1\u984d\u3060\u304b\u3089\u3068\u9762\u5012\u304f\u3055\u304c\u3063\u3066\u3057\u306a\u3044\u65b9\u304c\u591a\u3044\u306e\u3067\u306f\u306a\u3044\u304b\uff1f \u6700\u521d\u304b\u3089\u4e0d\u826f\u54c1\u591a\u3057\u3068\u3067\u3082\u8868\u8a18\u3057\u3066\u304a\u3044\u305f\u3089\u5982\u4f55\uff1f"
+      },
+      {
+        "content": "\u30db\u30fc\u30e0\u30dc\u30bf\u30f3\u5468\u308a\u306e\u6c17\u6ce1\u304c\u5168\u304f\u629c\u3051\u307e\u305b\u3093\u3002 \u8fd4\u91d1\u3092\u304a\u9858\u3044\u3057\u307e\u3057\u305f\u304c\u3001\u65ad\u3089\u308c\u305f\u3002"
+      },
+      {
+        "content": "\u8cfc\u5165\u3001\u8cbc\u4ed8\u3051\u5f8c2\u9031\u9593\u3082\u305f\u305f\u306a\u3044\u3046\u3061\u306b\u3001\u4e0a\u5074\u304b\u3089\u5265\u304c\u308c\u3066\u304d\u3066\u753b\u9762\u304b\u3089\u6d6e\u3044\u305f\u72b6\u614b\u306b\u306a\u3063\u3066\u3057\u307e\u3063\u305f\u3002 \u4e0b\u5074\u306f\u5f35\u308a\u4ed8\u3044\u3066\u3044\u308b\u306e\u306b\u4e0a\u5074\u3060\u3051\u4f55\u6545\uff1f\u4e0d\u826f\u54c1\uff1f \u4e0d\u826f\u54c1\u306a\u3089\u4ea4\u63db\u3057\u3066\u3082\u3089\u3044\u305f\u3044\u3067\u3059\u3002"
+      },
+      {
+        "content": "\u4ee5\u4e0b\u306e3\u70b9\u306e\u7406\u7531\u306b\u3088\u308a\u3001\u671f\u5f85\u306f\u305a\u308c\u306e\u7c97\u60aa\u54c1\u3002 \u2460\u4ed6\u306e\u65b9\u306e\u30ec\u30d3\u30e5\u30fc\u306b\u3082\u3042\u308b\u901a\u308a\u3001\u5929\u677f\u306e\u5916\u89b3\u304c\u63b2\u8f09\u5199\u771f\u306e\u3088\u3046\u306a\u6728\u76ee\u8abf\u3067\u306f\u306a\u304f\u3001\u305f\u3060\u306e\u9ed2\u3044\u677f\u3002 \u2461\u811a\u90e8\u306e\u90e8\u54c1\u306e\u9ad8\u3055\u304c\u5927\u304d\u304f\u7570\u306a\u308b\u4e0d\u826f\u54c1\u306e\u305f\u3081\u3001\u8868\u8a18\u306e\u9ad8\u3055\u5bf8\u6cd550cm\uff5e76cm\u306e\u8abf\u7bc0\u304c\u7269\u7406\u7684\u306b\u4e0d\u53ef\u80fd\u3002\u3055\u3089\u306b\u3001\u6c34\u5e73\u3092\u51fa\u3059\u306e\u306b\u56f0\u96e3\u3092\u4f34\u3046\u3002 \u2462\u6dfb\u4ed8\u30cd\u30b8\u306e\u500b\u6570\u304c\u5408\u308f\u306a\u3044"
+      }
+    ],
+    "SetFit/amazon_reviews_multi_zh": [
+      {
+        "content": "\u672c\u4eba\u8d26\u53f7\u88ab\u76d7\uff0c\u8d44\u91d1\u88ab\u6c5f\u897f\uff08\u6768\u5efa\uff09\u632a\u7528\uff0c\u8bf7\u4e9a\u9a6c\u900a\u5c3d\u5feb\u67e5\u5b9e\uff0c\u5c06\u672c\u4eba\u7684200\u5143\u8d44\u91d1\u9000\u56de\u3002\u672c\u4eba\u5df2\u4e8e2017\u5e7411\u670830\u65e5\u63d0\u4ea4\u9000\u8d27\u7533\u8bf7\uff0c\u4e3a\u4f55\u52302018\u5e74\u4e86\u8fd8\u662f\u6ca1\u89e3\u51b3\uff1f\u4e9a\u9a6c\u900a\u662f\u4ec0\u4e48\u60c5\u51b5\uff1f\u8bf7\u7ed9\u672c\u4eba\u4e00\u4e2a\u5408\u7406\u89e3\u91ca\u3002"
+      },
+      {
+        "content": "\u8fd9\u7b80\u76f4\u5c31\u662f\u592a\u5dee\u4e86\uff01\u51fa\u7248\u793e\u600e\u4e48\u5c31\u80fd\u51fa\u7248\u5417\uff1f\u6211\u4ee5\u4e3a\u662f\u767e\u5ea6\u6458\u5f55\u5462\uff01\u8fd9\u5230\u5e95\u662f\u54ea\u4e2a\u9c7c\u76ee\u6df7\u73e0\u7684\u6559\u6388\u554a\uff1f\uff01\u80fd\u7ed9\u70b9\u5e72\u8d27\u5417\uff1f\uff01\u603b\u7b97\u5e94\u9a8c\u4e86\u4e00\u53e5\u8bdd\uff0c\u4e00\u672c\u4e66\u54ea\u6015\u53ea\u6709\u4e00\u53e5\u82b1\u4f60\u611f\u5230\u6709\u610f\u4e49\u4e5f\u7b97\u662f\u672c\u597d\u4e66\u3002\u54c7\u4e3a\u4e86\u627e\u8fd9\u672c\u4e66\u54ea\u6015\u4e00\u53e5\u4e0d\u662f\u5e9f\u8bdd\u7684\u53e5\u5b50\u90fd\u8d39\u4e86\u6211\u6574\u6574\u4e00\u5929\u65f6\u95f4\u3002\u3002"
+      },
+      {
+        "content": "\u914d\u9001\u4e86\u5f88\u957f\u65f6\u95f4\uff0c\u6700\u540e\u901a\u77e5\u6211\u88ab\u9000\u8d27\u4e86\uff0c\u65e0\u5948\u9009\u62e9\u5176\u4ed6\u3002 sorry\uff0c\u4ee5\u524d\u4ece\u4e0d\u53bb\u8bc4\u4ef7\uff0c\u73b0\u5728\u8981\u597d\u597d\u8bc4\u4ef7\u4e86\uff0c\u540e\u6765\u6211\u5c31\u628a\u8fd9\u6bb5\u8bdd\u590d\u5236\u8d70\u4e86\uff0c\u8fd8\u7701\u4e8b\uff0c\u8d70\u5230\u54ea\u590d\u5236\u5230\u54ea\uff0c\u6700\u91cd\u8981\u7684\u662f\uff0c\u4e0d\u7528\u8ba4\u771f\u7684\u8bc4\u8bba\u4e86\uff0c\u4e0d\u7528\u60f3\u8fd8\u5dee\u591a\u5c11\u5b57\uff0c\u76f4\u63a5\u53d1\u51fa\u5c31\u53ef\u4ee5\u4e86\uff0c\u63a8\u8350\u7ed9\u5927\u5bb6\uff01\uff01"
+      },
+      {
+        "content": "\u975e\u5e38\u6324\u811a\uff0c\u6240\u4ee5\u8d27\u62ff\u5230\u8bd5\u4e86\u4e00\u4e0b\uff0c\u538b\u5f97\u811a\u80cc\u75db\uff0c\u5c31\u7533\u8bf7\u4e86\u9000\u8d27\u3002\u53ef\u662f\u4e3a\u4ec0\u4e48\u5df2\u7ecf\u63d0\u4ea4\u4e86\u7533\u8bf7\uff0c\u7cfb\u7edf\u5077\u5077\u628a\u6211\u7684\u7533\u8bf7\u7ed9\u53d6\u6d88\u4e86\uff01\uff01\uff01\u4e9a\u9a6c\u900a\u8981\u7ed9\u6211\u4e2a\u8bf4\u6cd5\uff01\uff01\uff01\u65e0\u8bed\u4e86\uff0c\u8fd9\u662f\u6b3a\u9a97\u6d88\u8d39\u8005\u7684\u505a\u6cd5\uff01\uff01\uff01"
+      },
+      {
+        "content": "\u4e70\u7684\u4e24\u767e\u591a\u7684\uff0c\u4e0d\u662f\u771f\u8d27\uff0c\u548c\u771f\u7684\u5bf9\u6bd4\u4e86\u5c0f\u4e00\u5708\uff01\u7279\u522b\u4e0d\u597d\u8ddf30\u591a\u5143\u7684\u6ca1\u533a\u522b\uff0c\u9000\u8d27\u4e86\uff01\u4e0d\u5efa\u8bae\u4e70\uff01"
+      },
+      {
+        "content": "\u600e\u4e48\u5305\u88c5\u76d2\u90fd\u6ca1\u6709\uff0c\u5c31\u4e00\u4e2a\u5851\u6599\u888b\u88c5\u4e86\u51e0\u5f20\u9762\u819c\uff0c\u4e00\u770b\u5c31\u6389\u4e86\u597d\u51e0\u4e2a\u6863\u6b21\u4e86\uff0c\u90fd\u4e0d\u597d\u7528\u4e86"
+      }
+    ],
+    "SetFit/amazon_reviews_multi_fr": [
+      {
+        "content": "A d\u00e9conseiller - Article n'a fonctionn\u00e9 qu'une fois - Je ne recommande pas du tout ce produit - Je l'ai jet\u00e9 ..."
+      },
+      {
+        "content": "Si vous voulez \u00eatre d\u00e9\u00e7u achetez le produit ! Au bout de 3 utilisation ne fonctionne plus.. Je ne recommande pas du tout sauf si vous voulez acheter un thermom\u00e8tre quelques jours apr\u00e8s avoir achet\u00e9 celui ci !"
+      },
+      {
+        "content": "Colis bien re\u00e7us avec le bo\u00eetier du jeu ouvert, cass\u00e9 et sans le cd. Pr\u00e9command\u00e9 pour recevoir \u00e7a le jour de la sortie sa fait plaisir... Et le service client Amazon qui cherche \u00e0 mettre la faute sur le livreur qui a tr\u00e8s bien fait sont travail en livrant un colis en excellant \u00e9t"
+      },
+      {
+        "content": "Suite \u00e0 une v\u00e9rification, je vous informe que nous n'avons pas re\u00e7u le produit. Priere d'expedier \u00e0 nouveau."
+      },
+      {
+        "content": "Ca c'est du vol... Vous ne recevrez q'une lame alors que la photo en repr\u00e9sente plusieurs. Il y a tromperie sur la marchandise."
+      },
+      {
+        "content": "Presque 1 mois apr\u00e8s la commande, le produit n\u2019est toujours pas arriv\u00e9 ! Dans l\u2019attente, je trouve cela vraiment honteux!"
+      }
+    ],
+    "SetFit/muchocine_es": [
+      {
+        "content": ""
+      }
+    ],
+    "SetFit/amazon_reviews_multi_en": [
+      {
+        "content": "Arrived broken. Manufacturer defect. Two of the legs of the base were not completely formed, so there was no way to insert the casters. I unpackaged the entire chair and hardware before noticing this. So, I'll spend twice the amount of time boxing up the whole useless thing and s"
+      },
+      {
+        "content": "the cabinet dot were all detached from backing... got me"
+      },
+      {
+        "content": "Pathetic design of the caps. Very impractical to use everyday. The caps close so tight that everyday we have to wrestle with the bottle to open the cap. With a baby in one hand opening the cap is a night mare. And on top of these extra ordinary features of super secure cap, they "
+      },
+      {
+        "content": "Shoes were purchased on March 6, 2019. My wife wore them a couple times a week since receiving them. April 19, 2019 one of the leather straps broke. Checked return policy and it expired on April 6. One month of warranty? Won't buy shoes from Amazon again."
+      },
+      {
+        "content": "These are AWFUL. They are see through, the fabric feels like tablecloth, and they fit like children\u2019s clothing. Customer service did seem to be nice though, but I regret missing my return date for these. I wouldn\u2019t even donate them because the quality is so poor."
+      },
+      {
+        "content": "I bought 4 and NONE of them worked. Yes I used new batteries!"
+      }
+    ],
+    "SetFit/amazon_massive_scenario_af-ZA": [
+      {
+        "content": "maak my wakker nege-uur v. m. op vrydag"
+      },
+      {
+        "content": "stel 'n alarm vir twee ure van nou af"
+      },
+      {
+        "content": "skakel die ligte af asseblief"
+      },
+      {
+        "content": "verdof die ligte in die gang"
+      },
+      {
+        "content": "maak my wakker om vyf v. m. die week"
+      },
+      {
+        "content": "stil"
+      }
+    ]
+  }
+}

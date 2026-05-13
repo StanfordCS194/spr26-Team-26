@@ -1,0 +1,12 @@
+artifact_id: 5da0a8f212be2d03
+status: downloaded
+is_relevant: False
+is_reasonable: False
+reasonableness_reason: parquet_read_error
+relevance_score: 0.0553
+source_url: https://huggingface.co/datasets/Anthropic/hh-rlhf
+artifact_url: https://huggingface.co/datasets/Anthropic/hh-rlhf/resolve/refs%2Fconvert%2Fparquet/default/train/0000.parquet
+local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_5da0a8f212be.parquet
+
+--- PREVIEW ---
+<failed to read parquet: Error creating dataset. Could not read schema from 'tests/results/hf_robust_structuring_run_v1/raw/0000_5da0a8f212be.parquet'. Is this a 'parquet' file?: Could not open Parquet input source 'tests/results/hf_robust_structuring_run_v1/raw/0000_5da0a8f212be.parquet': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.>

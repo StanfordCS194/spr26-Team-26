@@ -1,0 +1,42 @@
+artifact_id: f28d204430ee355c
+status: downloaded
+is_relevant: False
+is_reasonable: True
+reasonableness_reason: ok
+relevance_score: 0.1
+source_url: https://huggingface.co/datasets/stanfordnlp/snli
+artifact_url: https://huggingface.co/datasets/stanfordnlp/snli/resolve/refs%2Fconvert%2Fparquet/plain_text/validation/0000.parquet
+local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_f28d204430ee.parquet
+
+--- PREVIEW ---
+columns=['premise', 'hypothesis', 'label']
+premise=Two women are embracing while holding to go packages., hypothesis=The sisters are hugging goodbye while holding to go packages after just eating lunch., label=1
+premise=Two women are embracing while holding to go packages., hypothesis=Two woman are holding packages., label=0
+premise=Two women are embracing while holding to go packages., hypothesis=The men are fighting outside a deli., label=2
+premise=Two young children in blue jerseys, one with the number 9 and one with the number 2 are standing on wooden steps in a bathroom and washing their hands in a sink., hypothesis=Two kids in numbered jerseys wash their hands., label=0
+premise=Two young children in blue jerseys, one with the number 9 and one with the number 2 are standing on wooden steps in a bathroom and washing their hands in a sink., hypothesis=Two kids at a ballgame wash their hands., label=1
+premise=Two young children in blue jerseys, one with the number 9 and one with the number 2 are standing on wooden steps in a bathroom and washing their hands in a sink., hypothesis=Two kids in jackets walk to school., label=2
+premise=A man selling donuts to a customer during a world exhibition event held in the city of Angeles, hypothesis=A woman drinks her coffee in a small cafe., label=2
+premise=A man selling donuts to a customer during a world exhibition event held in the city of Angeles, hypothesis=A man selling donuts to a customer during a world exhibition event while people wait in line behind him., label=1
+premise=A man selling donuts to a customer during a world exhibition event held in the city of Angeles, hypothesis=A man selling donuts to a customer., label=0
+premise=Two young boys of opposing teams play football, while wearing full protection uniforms and helmets., hypothesis=boys play football, label=0
+premise=Two young boys of opposing teams play football, while wearing full protection uniforms and helmets., hypothesis=dog eats out of bowl, label=2
+premise=Two young boys of opposing teams play football, while wearing full protection uniforms and helmets., hypothesis=boys scoring a touchdown, label=1
+premise=A man in a blue shirt standing in front of a garage-like structure painted with geometric designs., hypothesis=A man is repainting a garage, label=1
+premise=A man in a blue shirt standing in front of a garage-like structure painted with geometric designs., hypothesis=A man is wearing a blue shirt, label=0
+premise=A man in a blue shirt standing in front of a garage-like structure painted with geometric designs., hypothesis=A man is wearing a black shirt, label=2
+premise=Under a blue sky with white clouds, a child reaches up to touch the propeller of a plane standing parked on a field of grass., hypothesis=A child is reaching to touch the propeller of a plane., label=0
+premise=Under a blue sky with white clouds, a child reaches up to touch the propeller of a plane standing parked on a field of grass., hypothesis=A child is reaching to touch the propeller out of curiosity., label=1
+premise=Under a blue sky with white clouds, a child reaches up to touch the propeller of a plane standing parked on a field of grass., hypothesis=A child is playing with a ball., label=2
+premise=A woman is doing a cartwheel while wearing a bikini in the sand next to the beach., hypothesis=A woman is doing a cartwheel., label=0
+premise=A woman is doing a cartwheel while wearing a bikini in the sand next to the beach., hypothesis=A woman is fixing her home., label=2
+premise=A woman is doing a cartwheel while wearing a bikini in the sand next to the beach., hypothesis=A woman is doing a cartwheel and falls on her head., label=2
+premise=Two men on bicycles competing in a race., hypothesis=People are riding bikes., label=0
+premise=Two men on bicycles competing in a race., hypothesis=Men are riding bicycles on the street., label=1
+premise=Two men on bicycles competing in a race., hypothesis=A few people are catching fish., label=2
+premise=A young boy in a field of flowers carrying a ball, hypothesis=boy leaving baseball game, label=1
+premise=A young boy in a field of flowers carrying a ball, hypothesis=boy in field, label=0
+premise=A young boy in a field of flowers carrying a ball, hypothesis=dog in pool, label=2
+premise=Families waiting in line at an amusement park for their turn to ride., hypothesis=The restaurant is very bad., label=2
+premise=Families waiting in line at an amusement park for their turn to ride., hypothesis=People are waiting in line at a restaurant., label=2
+premise=Families waiting in line at an amusement park for their turn to ride., hypothesis=People are waiting to see a movie., label=2

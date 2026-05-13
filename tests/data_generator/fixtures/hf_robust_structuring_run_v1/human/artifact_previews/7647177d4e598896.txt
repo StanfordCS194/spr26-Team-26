@@ -1,0 +1,42 @@
+artifact_id: 7647177d4e598896
+status: downloaded
+is_relevant: True
+is_reasonable: True
+reasonableness_reason: ok
+relevance_score: 0.3
+source_url: https://huggingface.co/datasets/nyu-mll/glue
+artifact_url: https://huggingface.co/datasets/nyu-mll/glue/resolve/refs%2Fconvert%2Fparquet/cola/train/0000.parquet
+local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_7647177d4e59.parquet
+
+--- PREVIEW ---
+columns=['sentence', 'label', 'idx']
+sentence=Our friends won't buy this analysis, let alone the next one we propose., label=1, idx=0
+sentence=One more pseudo generalization and I'm giving up., label=1, idx=1
+sentence=One more pseudo generalization or I'm giving up., label=1, idx=2
+sentence=The more we study verbs, the crazier they get., label=1, idx=3
+sentence=Day by day the facts are getting murkier., label=1, idx=4
+sentence=I'll fix you a drink., label=1, idx=5
+sentence=Fred watered the plants flat., label=1, idx=6
+sentence=Bill coughed his way out of the restaurant., label=1, idx=7
+sentence=We're dancing the night away., label=1, idx=8
+sentence=Herman hammered the metal flat., label=1, idx=9
+sentence=The critics laughed the play off the stage., label=1, idx=10
+sentence=The pond froze solid., label=1, idx=11
+sentence=Bill rolled out of the room., label=1, idx=12
+sentence=The gardener watered the flowers flat., label=1, idx=13
+sentence=The gardener watered the flowers., label=1, idx=14
+sentence=Bill broke the bathtub into pieces., label=1, idx=15
+sentence=Bill broke the bathtub., label=1, idx=16
+sentence=They drank the pub dry., label=1, idx=17
+sentence=They drank the pub., label=0, idx=18
+sentence=The professor talked us into a stupor., label=1, idx=19
+sentence=The professor talked us., label=0, idx=20
+sentence=We yelled ourselves hoarse., label=1, idx=21
+sentence=We yelled ourselves., label=0, idx=22
+sentence=We yelled Harry hoarse., label=0, idx=23
+sentence=Harry coughed himself into a fit., label=1, idx=24
+sentence=Harry coughed himself., label=0, idx=25
+sentence=Harry coughed us into a fit., label=0, idx=26
+sentence=Bill followed the road into the forest., label=1, idx=27
+sentence=We drove Highway 5 from SD to SF., label=1, idx=28
+sentence=Fred tracked the leak to its source., label=1, idx=29

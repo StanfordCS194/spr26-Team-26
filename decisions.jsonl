@@ -1,0 +1,1 @@
+{"timestamp": "2026-05-08T05:58:42.075335+00:00", "step": "test", "rationale": "test rationale", "config_snapshot": {"data": false, "prompt": "test", "compute_budget": 50.0, "training_procedure": {"task_type": "classification", "data_format": "jsonl", "training_type": "SFT", "base_model": null, "hyperparameters": {}, "notes": "test"}}}

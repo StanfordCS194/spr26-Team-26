@@ -1,0 +1,42 @@
+artifact_id: f4743f864e2ee198
+status: downloaded
+is_relevant: True
+is_reasonable: True
+reasonableness_reason: ok
+relevance_score: 0.3368
+source_url: https://huggingface.co/datasets/DeepPavlov/clinc150
+artifact_url: https://huggingface.co/datasets/DeepPavlov/clinc150/resolve/refs%2Fconvert%2Fparquet/default/validation/0000.parquet
+local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_f4743f864e2e.parquet
+
+--- PREVIEW ---
+columns=['utterance', 'label']
+utterance=does spago in beverly hills allow customers to make reservations, label=0
+utterance=what is the reservation policy for spago in beverly hills, label=0
+utterance=are reservations taken at spago in beverly hills, label=0
+utterance=am i able to make reservations at spago in beverly hills, label=0
+utterance=can i make reservations at spago in beverly hills, label=0
+utterance=let me know if grub burger takes reservations, label=0
+utterance=give me information on grub burger reservations, label=0
+utterance=is grub burger taking reservations, label=0
+utterance=find out of grub burger takes reservations, label=0
+utterance=can i make reservations at grub burger, label=0
+utterance=is it possible to do a reservation at the bellagio, label=0
+utterance=does the bellagio have any reservations, label=0
+utterance=does bellagio allow you to do reservations, label=0
+utterance=can i make a reservation at chima steakhouse in chicago, label=0
+utterance=will i be able to schedule a reservation at 4 seasons in los angeles, label=0
+utterance=is it possible to make a reservation at sushi king in virginia beach, label=0
+utterance=does ruth chris in charlotte allow you to make a reservation, label=0
+utterance=will maggianos in charlotte allow me to make a reservation, label=0
+utterance=does long horns do reservations, label=0
+utterance=i need to make a reservation to long horn's, can i, label=0
+utterance=my account looks to be blocked and i have no idea why, label=1
+utterance=it seems that my account is blocked and i'm not sure why, label=1
+utterance=my account appears to be blocked and i don't know why, label=1
+utterance=it looks like my account is blocked but i have no clue why, label=1
+utterance=my account appears to be blocked but i have no idea why that could be, label=1
+utterance=why did you freeze my bank account, label=1
+utterance=how did my bank account is frozen, label=1
+utterance=can anyone let me know the reason behind my frozen bank account, label=1
+utterance=what are the possible reasons behind frozen bank account, label=1
+utterance=need help with frozen bank account, label=1

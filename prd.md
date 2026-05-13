@@ -10,7 +10,7 @@ Karpathy’s autoresearch repo (Our main inspiration)
 Overview
 The Autonomous ML Training Agent is an end-to-end script/agent that takes a plain-English prompt (like, "build a model that classifies handwritten digits") and a strict student budget (e.g., $50), and handles the rest. It finds or makes the data, picks the right model architecture, runs the training on Tinker's distributed GPUs and, most importantly, kills the run before it burns through our monthly budget.
 The Problem / Why We're Doing This
-
+n
 What are the user pain points you are trying to solve or new functionalities you are trying to innovate?
 Here are the main headaches we've noticed (and experienced):
 Data wrangling sucks. Even if you know the exact PyTorch architecture you want, finding, cleaning, and formatting the data takes up 80% of the project time. Our agent automates this by scraping, pulling from Hugging Face, or using a Teacher LLM to fake it. 

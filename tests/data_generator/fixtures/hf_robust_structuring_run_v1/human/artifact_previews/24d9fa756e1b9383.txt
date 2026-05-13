@@ -1,0 +1,42 @@
+artifact_id: 24d9fa756e1b9383
+status: downloaded
+is_relevant: False
+is_reasonable: True
+reasonableness_reason: ok
+relevance_score: 0.1833
+source_url: https://huggingface.co/datasets/stanfordnlp/snli
+artifact_url: https://huggingface.co/datasets/stanfordnlp/snli/resolve/refs%2Fconvert%2Fparquet/plain_text/test/0000.parquet
+local_path: tests/results/hf_robust_structuring_run_v1/raw/0000_24d9fa756e1b.parquet
+
+--- PREVIEW ---
+columns=['premise', 'hypothesis', 'label']
+premise=This church choir sings to the masses as they sing joyous songs from the book at a church., hypothesis=The church has cracks in the ceiling., label=1
+premise=This church choir sings to the masses as they sing joyous songs from the book at a church., hypothesis=The church is filled with song., label=0
+premise=This church choir sings to the masses as they sing joyous songs from the book at a church., hypothesis=A choir singing at a baseball game., label=2
+premise=A woman with a green headscarf, blue shirt and a very big grin., hypothesis=The woman is young., label=1
+premise=A woman with a green headscarf, blue shirt and a very big grin., hypothesis=The woman is very happy., label=0
+premise=A woman with a green headscarf, blue shirt and a very big grin., hypothesis=The woman has been shot., label=2
+premise=An old man with a package poses in front of an advertisement., hypothesis=A man poses in front of an ad., label=0
+premise=An old man with a package poses in front of an advertisement., hypothesis=A man poses in front of an ad for beer., label=1
+premise=An old man with a package poses in front of an advertisement., hypothesis=A man walks by an ad., label=2
+premise=A statue at a museum that no seems to be looking at., hypothesis=The statue is offensive and people are mad that it is on display., label=1
+premise=A statue at a museum that no seems to be looking at., hypothesis=There is a statue that not many people seem to be interested in., label=0
+premise=A statue at a museum that no seems to be looking at., hypothesis=Tons of people are gathered around the statue., label=2
+premise=A land rover is being driven across a river., hypothesis=A Land Rover is splashing water as it crosses a river., label=0
+premise=A land rover is being driven across a river., hypothesis=A vehicle is crossing a river., label=0
+premise=A land rover is being driven across a river., hypothesis=A sedan is stuck in the middle of a river., label=2
+premise=A man playing an electric guitar on stage., hypothesis=A man playing banjo on the floor., label=2
+premise=A man playing an electric guitar on stage., hypothesis=A man playing guitar on stage., label=0
+premise=A man playing an electric guitar on stage., hypothesis=A man is performing for cash., label=1
+premise=A blond-haired doctor and her African american assistant looking threw new medical manuals., hypothesis=A doctor is looking at a book, label=0
+premise=A blond-haired doctor and her African american assistant looking threw new medical manuals., hypothesis=A man is eating pb and j, label=2
+premise=A blond-haired doctor and her African american assistant looking threw new medical manuals., hypothesis=A doctor is studying, label=1
+premise=One tan girl with a wool hat is running and leaning over an object, while another person in a wool hat is sitting on the ground., hypothesis=A boy runs into a wall, label=2
+premise=One tan girl with a wool hat is running and leaning over an object, while another person in a wool hat is sitting on the ground., hypothesis=A tan girl runs leans over an object, label=0
+premise=One tan girl with a wool hat is running and leaning over an object, while another person in a wool hat is sitting on the ground., hypothesis=A man watches his daughter leap, label=1
+premise=A young family enjoys feeling ocean waves lap at their feet., hypothesis=A young man and woman take their child to the beach for the first time., label=1
+premise=A young family enjoys feeling ocean waves lap at their feet., hypothesis=A family is out at a restaurant., label=2
+premise=A young family enjoys feeling ocean waves lap at their feet., hypothesis=A family is at the beach., label=0
+premise=A couple walk hand in hand down a street., hypothesis=A couple is walking together., label=0
+premise=A couple walk hand in hand down a street., hypothesis=The couple is married., label=1
+premise=A couple walk hand in hand down a street., hypothesis=A couple is sitting on a bench., label=2
