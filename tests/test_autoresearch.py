@@ -18,7 +18,8 @@ from src.autoresearch.autoresearch import (
     log_iteration,
     revert_patch,
     compute_accuracy,
-    compute_f1_score
+    compute_f1_score,
+    compute_rouge
 )
 from src.autoresearch.config import TrainingConfig
 
@@ -323,5 +324,19 @@ def test_compute_f1_empty():
     assert f1 == 0.0
     assert precision == 0.0
     assert recall == 0.0
+
+#Test compute_rouge
+
+def test_compute_rouge_1():
+    score = compute_rouge(["cat"], ["cat"], "rouge1")
+    assert score == 1.0
+
+def test_compute_rouge_2():
+    score = compute_rouge(["the cat sat"], ["dog runs fast"], "rouge1")
+    assert score == 0.0
+
+def test_compute_rouge3():
+    score = compute_rouge([], [], "rouge1")
+    assert score == 0.0
 
 

@@ -14,6 +14,7 @@ import json
 import math
 from pathlib import Path
 from typing import Literal
+from rouge_score import rouge_scorer
 
 import anthropic
 
@@ -739,13 +740,23 @@ def compute_f1_score(predictions: list[str], references: list[str]) -> tuple[flo
         
         recall = true_positive / (true_positive + false_negative) if (true_positive + false_negative) > 0 else 0.0
         f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
-        
         per_precision.append(precision)
         per_recall.append(recall)
         per_f1.append(f1)
-    
     k = len(per_f1)
+
     return sum(per_f1) / k, sum(per_precision) / k, sum(per_recall) / k
+
+def compute_rouge(predictions: list[str], references: list[str], variant: str) -> float:
+    if not predictions:
+        return 0.0
+    scorer = rouge_scorer.RougeScorer([variant], use_stemmer=True)
+    scores = []
+    for pred, ref in zip(predictions, references):
+        result = scorer.score(ref, pred)
+        scores.append(result[variant].fmeasure)
+    
+    return sum(scores) / len(scores)
 
 
 
