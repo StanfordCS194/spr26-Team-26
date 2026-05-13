@@ -36,6 +36,12 @@ export interface DataSample {
   [field: string]: string | number;
 }
 
+export interface ApprovalGate {
+  title: string;
+  description: string;
+  details: string[];
+}
+
 export interface TrainingState {
   status: 'idle' | 'running' | 'complete';
   stage: number;
@@ -50,4 +56,5 @@ export interface TrainingState {
   stages: PipelineStage[];
   dataSamples: DataSample[];
   datasetName: string;
+  awaitingApproval: ApprovalGate | null;
 }

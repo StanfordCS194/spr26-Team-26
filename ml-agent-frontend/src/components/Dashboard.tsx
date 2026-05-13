@@ -6,9 +6,11 @@ import IterationsList from './IterationsList';
 import ActivityLog from './ActivityLog';
 import FinalResults from './FinalResults';
 import DataSamplePanel from './DataSamplePanel';
+import ApprovalGateCard from './ApprovalGateCard';
 
 interface Props {
   state: TrainingState;
+  onApprove: () => void;
   onReset: () => void;
 }
 
@@ -47,7 +49,7 @@ function StatusDot({ status }: { status: TrainingState['status'] }) {
   );
 }
 
-export default function Dashboard({ state, onReset }: Props) {
+export default function Dashboard({ state, onApprove, onReset }: Props) {
   return (
     <div style={{ minHeight: '100vh' }}>
       <style>{`
@@ -131,6 +133,11 @@ export default function Dashboard({ state, onReset }: Props) {
 
         {/* Pipeline + budget */}
         <PipelineProgress stages={state.stages} costSpent={state.costSpent} budget={state.budget} />
+
+        {/* Approval gate — blocks pipeline until user approves */}
+        {state.awaitingApproval && (
+          <ApprovalGateCard gate={state.awaitingApproval} onApprove={onApprove} />
+        )}
 
         {/* Dataset preview — shown once Data Discovery produces samples */}
         {state.dataSamples.length > 0 && (

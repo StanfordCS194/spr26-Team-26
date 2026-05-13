@@ -4,7 +4,7 @@ import Dashboard from './components/Dashboard';
 import type { TaskType, ExpertLevel } from './types';
 
 export default function App() {
-  const { state, start, reset } = useTrainingSimulation();
+  const { state, start, approve, reset } = useTrainingSimulation();
 
   const handleStart = (prompt: string, budget: number, taskType: TaskType, expertLevel: ExpertLevel) => {
     start(prompt, budget, taskType, expertLevel);
@@ -14,5 +14,5 @@ export default function App() {
     return <InputForm onStart={handleStart} />;
   }
 
-  return <Dashboard state={state} onReset={reset} />;
+  return <Dashboard state={state} onApprove={approve} onReset={reset} />;
 }
