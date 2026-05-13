@@ -3,12 +3,13 @@
 import json
 import os
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 from src.manager.manager import (
     _handoff_to_dataset_result,
     build_manager_graph,
     build_orchestration_config,
     log_decision,
+    merge_dataset_results,
     orchestrate_node,
     reason_about_task,
 )
@@ -27,6 +28,7 @@ MOCK_REASONING: TaskReasoning = {
         "max_seq_len": 128,
     },
     "notes": "Standard text classification — fine-tune BERT with SFT.",
+    "dataset_queries": ["movie review sentiment", "product review sentiment"],
 }
 
 
@@ -77,6 +79,8 @@ def test_reason_about_task_returns_task_reasoning():
     assert result["task_type"] == "text-classification"
     assert result["training_type"] == "SFT"
     assert "learning_rate" in result["hyperparameters"]
+    assert "dataset_queries" in result
+    assert isinstance(result["dataset_queries"], list)
 
 
 def test_invoke_manager_graph_returns_trained_model():
@@ -99,6 +103,16 @@ def test_handoff_to_dataset_result_writes_jsonl(tmp_path, monkeypatch):
     assert result["validation_report"]["passed"] is True
 
 
+def test_handoff_to_dataset_result_index_produces_unique_files(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    handoff = {"mode_used": "B", "raw_data": {"records": [{"input": "x"}] * 5}}
+    r0 = _handoff_to_dataset_result(handoff, index=0)
+    r1 = _handoff_to_dataset_result(handoff, index=1)
+    assert r0["dataset"]["path"] != r1["dataset"]["path"]
+    assert os.path.exists(r0["dataset"]["path"])
+    assert os.path.exists(r1["dataset"]["path"])
+
+
 def test_handoff_to_dataset_result_empty_records(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     handoff = {"mode_used": "C", "raw_data": {"records": []}}
@@ -107,29 +121,66 @@ def test_handoff_to_dataset_result_empty_records(tmp_path, monkeypatch):
     assert result["validation_report"]["issues"] != []
 
 
+# ── merge_dataset_results ─────────────────────────────────────────────────────
+
+def test_merge_dataset_results_combines_records(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    handoff_a = {"mode_used": "B", "raw_data": {"records": [{"input": "a", "output": "1"}] * 10}}
+    handoff_b = {"mode_used": "C", "raw_data": {"records": [{"input": "b", "output": "0"}] * 10}}
+    r_a = _handoff_to_dataset_result(handoff_a, index=0)
+    r_b = _handoff_to_dataset_result(handoff_b, index=1)
+
+    merged = merge_dataset_results([r_a, r_b])
+
+    assert merged["dataset"]["train_size"] == 16  # 80% of 20
+    assert merged["dataset"]["val_size"] == 2     # 10% of 20
+    assert merged["validation_report"]["passed"] is True
+    assert "B" in merged["mode_used"] and "C" in merged["mode_used"]
+    assert "2 dataset(s)" in merged["quality_notes"]
+
+    # verify the merged file actually has all 20 records
+    with open(merged["dataset"]["path"]) as fh:
+        lines = [l for l in fh if l.strip()]
+    assert len(lines) == 20
+
+
+def test_merge_dataset_results_single_passthrough(tmp_path, monkeypatch):
+    """Merging a single result should still work."""
+    monkeypatch.chdir(tmp_path)
+    handoff = {"mode_used": "A", "raw_data": {"records": [{"input": "x"}] * 5}}
+    r = _handoff_to_dataset_result(handoff, index=0)
+    merged = merge_dataset_results([r])
+    assert merged["dataset"]["train_size"] == 4
+
+
+def test_merge_dataset_results_propagates_issues(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    handoff_good = {"mode_used": "B", "raw_data": {"records": [{"input": "x"}] * 5}}
+    handoff_bad  = {"mode_used": "C", "raw_data": {"records": []}}
+    r_good = _handoff_to_dataset_result(handoff_good, index=0)
+    r_bad  = _handoff_to_dataset_result(handoff_bad,  index=1)
+    merged = merge_dataset_results([r_good, r_bad])
+    assert merged["validation_report"]["issues"] != []
+
+
 # ── orchestrate_node (mocked sub-agents) ─────────────────────────────────────
 
-def _make_orchestrate_state():
-    config = build_orchestration_config(MOCK_REASONING, "classify sentiment", 50.0, False)
+def _make_orchestrate_state(queries=None):
+    reasoning = {**MOCK_REASONING, "dataset_queries": queries or ["movie review sentiment"]}
+    config = build_orchestration_config(reasoning, "classify sentiment", 50.0, False)
     return {
         "prompt": "classify sentiment",
         "budget": 50.0,
         "data_path": None,
         "has_data": False,
-        "task_reasoning": MOCK_REASONING,
+        "task_reasoning": reasoning,
         "config": config,
         "result": None,
     }
 
 
-def test_orchestrate_node_returns_trained_model(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-
-    fake_handoff = {
-        "mode_used": "B",
-        "raw_data": {"records": [{"input": "x", "output": "1"}] * 20},
-    }
-    fake_result = {
+def _fake_result():
+    return {
         "weights_path": "outputs/model/final",
         "metrics": {"scalar": 0.85, "metrics": {}, "critique": "good"},
         "cost": {"data_gen_usd": 0.0, "training_usd": 1.0, "llm_calls_usd": 0.0,
@@ -138,30 +189,81 @@ def test_orchestrate_node_returns_trained_model(tmp_path, monkeypatch):
         "research_diary_path": "outputs/logs/diary.jsonl",
     }
 
+
+def _fake_plan(tmp_path):
+    (tmp_path / "train.py").write_text("print('ok')")
+    from src.types import TrainingPlan
+    return TrainingPlan(
+        strategy="fine-tune", base_model="distilbert-base-uncased",
+        lora_config=None, estimated_cost=1.0, estimated_time_min=10,
+        training_script_path=str(tmp_path / "train.py"), eval_metric="accuracy",
+    )
+
+
+def test_orchestrate_node_single_query(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    fake_handoff = {"mode_used": "B", "raw_data": {"records": [{"input": "x", "output": "1"}] * 20}}
+
     with patch("src.data_generator.graph.invoke_data_generator_graph",
-               return_value=fake_handoff), \
-         patch("src.decision_engine.decision_engine.run_decision_engine") as mock_de, \
+               return_value=fake_handoff) as mock_dg, \
+         patch("src.decision_engine.decision_engine.run_decision_engine",
+               return_value=_fake_plan(tmp_path)), \
          patch("src.autoresearch.autoresearch.invoke_autoresearch_graph",
-               return_value=fake_result), \
+               return_value=_fake_result()), \
          patch("src.observability.observability.log_event"):
 
-        from src.types import TrainingPlan
-        mock_plan: TrainingPlan = {
-            "strategy": "fine-tune",
-            "base_model": "distilbert-base-uncased",
-            "lora_config": None,
-            "estimated_cost": 1.0,
-            "estimated_time_min": 10,
-            "training_script_path": str(tmp_path / "train.py"),
-            "eval_metric": "accuracy",
-        }
-        # write a dummy script so autoresearch doesn't choke
-        (tmp_path / "train.py").write_text("print('ok')")
-        mock_de.return_value = mock_plan
-
-        state = _make_orchestrate_state()
+        state = _make_orchestrate_state(queries=["movie review sentiment"])
         out = orchestrate_node(state)
 
-    assert "result" in out
+    # DataGen should have been called exactly once
+    assert mock_dg.call_count == 1
     assert out["result"]["n_iterations"] == 3
-    assert out["result"]["cost"]["total_usd"] == 1.0
+
+
+def test_orchestrate_node_multiple_queries_calls_datagen_per_query(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    fake_handoff = {"mode_used": "B", "raw_data": {"records": [{"input": "x", "output": "1"}] * 10}}
+
+    with patch("src.data_generator.graph.invoke_data_generator_graph",
+               return_value=fake_handoff) as mock_dg, \
+         patch("src.decision_engine.decision_engine.run_decision_engine",
+               return_value=_fake_plan(tmp_path)), \
+         patch("src.autoresearch.autoresearch.invoke_autoresearch_graph",
+               return_value=_fake_result()), \
+         patch("src.observability.observability.log_event"):
+
+        state = _make_orchestrate_state(queries=["movie sentiment", "product sentiment", "tweet sentiment"])
+        out = orchestrate_node(state)
+
+    # DataGen called once per query
+    assert mock_dg.call_count == 3
+    # Each call used a different prompt
+    prompts = [c.args[0]["prompt"] for c in mock_dg.call_args_list]
+    assert prompts == ["movie sentiment", "product sentiment", "tweet sentiment"]
+    assert out["result"]["n_iterations"] == 3
+
+
+def test_orchestrate_node_merged_dataset_passed_to_decision_engine(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    fake_handoff = {"mode_used": "B", "raw_data": {"records": [{"input": "x", "output": "1"}] * 10}}
+
+    captured = {}
+
+    def capture_de(config, dataset):
+        captured["dataset"] = dataset
+        return _fake_plan(tmp_path)
+
+    with patch("src.data_generator.graph.invoke_data_generator_graph",
+               return_value=fake_handoff), \
+         patch("src.decision_engine.decision_engine.run_decision_engine",
+               side_effect=capture_de), \
+         patch("src.autoresearch.autoresearch.invoke_autoresearch_graph",
+               return_value=_fake_result()), \
+         patch("src.observability.observability.log_event"):
+
+        state = _make_orchestrate_state(queries=["q1", "q2"])
+        orchestrate_node(state)
+
+    # The dataset passed to DE should be the merged one (20 records from 2×10)
+    assert captured["dataset"]["dataset"]["train_size"] == 16  # 80% of 20
+    assert "2 dataset(s)" in captured["dataset"]["quality_notes"]
