@@ -10,12 +10,15 @@ from src.autoresearch.autoresearch import (
     apply_patch,
     check_early_stop,
     compare_scores,
+    compute_f1_score,
     continue_edge,
     create_eval_suite,
     decide_keep_or_revert,
     flag_regression,
     log_iteration,
     revert_patch,
+    compute_accuracy,
+    compute_f1_score
 )
 from src.autoresearch.config import TrainingConfig
 
@@ -298,3 +301,27 @@ def test_continue_edge_ends_at_max_iterations():
     from src.autoresearch.autoresearch import _MAX_ITERATIONS
     state = _make_state(iteration=_MAX_ITERATIONS)
     assert continue_edge(state) == "__end__"
+
+# Test computing accuracy, precision, f1, and recall
+def test_compute_accuracy_perfect():
+    assert compute_accuracy(["cat", "dog"], ["cat", "dog"]) == 1.0
+
+def test_compute_accuracy_partial():
+    assert compute_accuracy(["cat", "dog"], ["cat", "cat"]) == 0.5
+
+def test_compute_accuracy_empty():
+    assert compute_accuracy([], []) == 0.0
+
+def test_compute_f1_perfect():
+    f1, precision, recall = compute_f1_score(["cat", "dog"], ["cat", "dog"])
+    assert f1 == 1.0
+    assert precision == 1.0
+    assert recall == 1.0
+
+def test_compute_f1_empty():
+    f1, precision, recall = compute_f1_score([], [])
+    assert f1 == 0.0
+    assert precision == 0.0
+    assert recall == 0.0
+
+
