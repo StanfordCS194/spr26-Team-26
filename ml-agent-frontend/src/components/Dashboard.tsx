@@ -5,6 +5,7 @@ import MetricsChart from './MetricsChart';
 import IterationsList from './IterationsList';
 import ActivityLog from './ActivityLog';
 import FinalResults from './FinalResults';
+import DataSamplePanel from './DataSamplePanel';
 
 interface Props {
   state: TrainingState;
@@ -118,6 +119,11 @@ export default function Dashboard({ state, onReset }: Props) {
 
         {/* Pipeline + budget */}
         <PipelineProgress stages={state.stages} costSpent={state.costSpent} budget={state.budget} />
+
+        {/* Dataset preview — shown once Data Discovery produces samples */}
+        {state.dataSamples.length > 0 && (
+          <DataSamplePanel datasetName={state.datasetName} samples={state.dataSamples} />
+        )}
 
         {/* 4 metric cards */}
         <MetricsGrid metrics={state.metrics} costSpent={state.costSpent} budget={state.budget} />

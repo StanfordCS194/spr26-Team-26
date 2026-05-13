@@ -31,6 +31,10 @@ export interface LogEntry {
   type: LogType;
 }
 
+export interface DataSample {
+  [field: string]: string | number;
+}
+
 export interface TrainingState {
   status: 'idle' | 'running' | 'complete';
   stage: number;
@@ -42,4 +46,6 @@ export interface TrainingState {
   iterations: Iteration[];
   logs: LogEntry[];
   stages: PipelineStage[];
+  dataSamples: DataSample[];
+  datasetName: string;
 }

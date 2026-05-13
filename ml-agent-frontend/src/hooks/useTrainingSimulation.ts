@@ -160,6 +160,8 @@ export function useTrainingSimulation() {
     iterations: [],
     logs: [],
     stages: makeStages(),
+    dataSamples: [],
+    datasetName: '',
   });
 
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -198,6 +200,8 @@ export function useTrainingSimulation() {
       iterations: [],
       logs: [],
       stages: makeStages(),
+      dataSamples: [],
+      datasetName: '',
     });
 
     let cursor = 0;
@@ -221,6 +225,17 @@ export function useTrainingSimulation() {
       logs.forEach((log, li) => {
         schedule(() => appendLog(log), stageStart + ((li + 1) * dur) / (logs.length + 1));
       });
+
+      // ── Data Discovery (1): reveal sample rows after 60% of stage ────────────
+      if (stageIdx === 1) {
+        schedule(() => {
+          setState(prev => ({
+            ...prev,
+            datasetName: cfg.datasets[0].name,
+            dataSamples: cfg.samples ?? [],
+          }));
+        }, stageStart + Math.round(dur * 0.62));
+      }
 
       // ── Baseline Training (3): loss curve from high → baseline ─────────────
       if (stageIdx === 3) {
@@ -374,6 +389,8 @@ export function useTrainingSimulation() {
       iterations: [],
       logs: [],
       stages: makeStages(),
+      dataSamples: [],
+      datasetName: '',
     });
   }, []);
 
