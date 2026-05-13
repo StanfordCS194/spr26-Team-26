@@ -2,6 +2,7 @@ export type StageStatus = 'pending' | 'in-progress' | 'complete';
 export type TaskType = 'classification' | 'regression' | 'fine-tuning';
 export type LogType = 'default' | 'success' | 'warning';
 export type IterationStatus = 'KEPT' | 'REVERTED' | 'PENDING';
+export type ExpertLevel = 'guided' | 'standard' | 'autonomous';
 
 export interface PipelineStage {
   id: number;
@@ -41,6 +42,7 @@ export interface TrainingState {
   prompt: string;
   budget: number;
   taskType: TaskType;
+  expertLevel: ExpertLevel;
   costSpent: number;
   metrics: MetricPoint[];
   iterations: Iteration[];

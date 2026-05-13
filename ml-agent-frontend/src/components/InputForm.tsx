@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { TaskType } from '../types';
+import type { TaskType, ExpertLevel } from '../types';
 
 // ── Hardcoded prompt options ──────────────────────────────────────────────────
 const DEMO_PROMPTS: Array<{ label: string; prompt: string; taskType: TaskType }> = [
@@ -22,8 +22,26 @@ const DEMO_PROMPTS: Array<{ label: string; prompt: string; taskType: TaskType }>
 ];
 
 interface Props {
-  onStart: (prompt: string, budget: number, taskType: TaskType) => void;
+  onStart: (prompt: string, budget: number, taskType: TaskType, expertLevel: ExpertLevel) => void;
 }
+
+const EXPERT_LEVELS: Array<{ value: ExpertLevel; label: string; description: string }> = [
+  {
+    value: 'guided',
+    label: 'Guided',
+    description: 'Agent pauses for your approval at each major decision — dataset selection, model choice, and before each experiment.',
+  },
+  {
+    value: 'standard',
+    label: 'Standard',
+    description: 'Agent checks in at key milestones (data & model selection) then runs experiments autonomously within those constraints.',
+  },
+  {
+    value: 'autonomous',
+    label: 'Autonomous',
+    description: 'Agent runs end-to-end without interruption. You only see results when training is complete.',
+  },
+];
 
 const styles: Record<string, React.CSSProperties> = {
   wrapper: {
@@ -152,6 +170,7 @@ export default function InputForm({ onStart }: Props) {
   const [prompt, setPrompt] = useState('');
   const [budget, setBudget] = useState(50);
   const [taskType, setTaskType] = useState<TaskType>('classification');
+  const [expertLevel, setExpertLevel] = useState<ExpertLevel>('standard');
   const [error, setError] = useState('');
 
   const handlePromptSelect = (idx: string) => {
@@ -174,15 +193,18 @@ export default function InputForm({ onStart }: Props) {
       return;
     }
     setError('');
-    onStart(prompt.trim(), budget, taskType);
+    onStart(prompt.trim(), budget, taskType, expertLevel);
   };
 
   const handleReset = () => {
     setPrompt('');
     setBudget(50);
     setTaskType('classification');
+    setExpertLevel('standard');
     setError('');
   };
+
+  const selectedLevel = EXPERT_LEVELS.find(l => l.value === expertLevel)!;
 
   return (
     <div style={styles.wrapper}>
@@ -215,35 +237,51 @@ export default function InputForm({ onStart }: Props) {
             )}
           </div>
 
-          <div style={styles.row}>
-            <div style={styles.field}>
-              <label style={styles.label} htmlFor="budget">Budget Cap (USD)</label>
-              <input
-                id="budget"
-                type="number"
-                style={styles.input}
-                value={budget}
-                min={10}
-                max={500}
-                step={5}
-                onChange={e => setBudget(Number(e.target.value))}
-                aria-label="Budget cap in dollars"
-              />
+          <div style={styles.field}>
+            <label style={styles.label} htmlFor="budget">Budget Cap (USD)</label>
+            <input
+              id="budget"
+              type="number"
+              style={styles.input}
+              value={budget}
+              min={10}
+              max={500}
+              step={5}
+              onChange={e => setBudget(Number(e.target.value))}
+              aria-label="Budget cap in dollars"
+            />
+          </div>
+
+          {/* Autonomy level selector */}
+          <div style={styles.field}>
+            <label style={styles.label}>Autonomy Level</label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+              {EXPERT_LEVELS.map(level => (
+                <button
+                  key={level.value}
+                  type="button"
+                  onClick={() => setExpertLevel(level.value)}
+                  style={{
+                    padding: '7px 4px',
+                    background: expertLevel === level.value ? 'var(--accent-dim)' : 'var(--bg-elevated)',
+                    border: `0.5px solid ${expertLevel === level.value ? 'var(--accent)' : 'var(--border)'}`,
+                    borderRadius: 6,
+                    color: expertLevel === level.value ? 'var(--accent)' : 'var(--text-secondary)',
+                    fontSize: 13,
+                    fontWeight: expertLevel === level.value ? 600 : 400,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    transition: 'all 0.15s',
+                  }}
+                  aria-pressed={expertLevel === level.value}
+                >
+                  {level.label}
+                </button>
+              ))}
             </div>
-            <div style={styles.field}>
-              <label style={styles.label} htmlFor="taskType">Task Type</label>
-              <select
-                id="taskType"
-                style={styles.select}
-                value={taskType}
-                onChange={e => setTaskType(e.target.value as TaskType)}
-                aria-label="Task type"
-              >
-                <option value="classification">Classification</option>
-                <option value="regression">Regression</option>
-                <option value="fine-tuning">Fine-tuning</option>
-              </select>
-            </div>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.5 }}>
+              {selectedLevel.description}
+            </p>
           </div>
 
           {error && <p style={styles.error} role="alert">{error}</p>}

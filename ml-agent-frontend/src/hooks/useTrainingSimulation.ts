@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import type { TrainingState, PipelineStage, LogEntry } from '../types';
+import type { TrainingState, PipelineStage, LogEntry, ExpertLevel } from '../types';
 import { matchTask } from '../utils/matchTask';
 import type { TaskConfig } from '../data/taskConfigs';
 
@@ -27,7 +27,7 @@ const STAGE_DURATIONS = [
 ];
 
 // ─── Dynamic log builders (driven by TaskConfig) ──────────────────────────────
-function buildStageLogs(cfg: TaskConfig): Array<Array<{ component: string; message: string; type: LogEntry['type'] }>> {
+function buildStageLogs(cfg: TaskConfig, level: ExpertLevel = 'standard'): Array<Array<{ component: string; message: string; type: LogEntry['type'] }>> {
   const ds0 = cfg.datasets[0];
   const ds1 = cfg.datasets[1];
   const dsLine = ds1
@@ -66,6 +66,10 @@ function buildStageLogs(cfg: TaskConfig): Array<Array<{ component: string; messa
       })),
       { component: 'DataGen',      message: `Scoring relevance — selected: ${dsLine}`,                  type: 'success' },
       { component: 'DataGen',      message: `Merging datasets — ${sampleLabel} total, 80/10/10 split`,  type: 'success' },
+      ...(level === 'guided' ? [
+        { component: 'Manager',    message: '⏸  Awaiting user approval to proceed with dataset selection…', type: 'warning' as LogEntry['type'] },
+        { component: 'Manager',    message: '✓  User approved dataset — continuing to model selection',  type: 'success' as LogEntry['type'] },
+      ] : []),
     ],
     // 2 Model Selection
     [
@@ -74,6 +78,14 @@ function buildStageLogs(cfg: TaskConfig): Array<Array<{ component: string; messa
       { component: 'Decision',     message: `Selected model: ${cfg.model}`,                             type: 'default' },
       { component: 'Decision',     message: `LoRA config: rank=${cfg.loraRank}, alpha=${cfg.loraRank * 2}, dropout=0.05, modules=${cfg.targetModules}`, type: 'success' },
       { component: 'Decision',     message: 'Training script written → outputs/scripts/train.py',       type: 'success' },
+      ...(level === 'guided' || level === 'standard' ? [
+        { component: 'Manager',    message: level === 'guided'
+            ? '⏸  Awaiting user approval to proceed with model & config…'
+            : '⏸  Checking in — user approval required before training begins…', type: 'warning' as LogEntry['type'] },
+        { component: 'Manager',    message: `✓  User approved ${cfg.model} config — handing off to training`, type: 'success' as LogEntry['type'] },
+      ] : [
+        { component: 'Manager',    message: `Autonomous mode — proceeding directly to training`,         type: 'default' as LogEntry['type'] },
+      ]),
     ],
     // 3 Code Development
     [
@@ -153,6 +165,7 @@ export function useTrainingSimulation() {
     prompt: '',
     budget: 50,
     taskType: 'classification',
+    expertLevel: 'standard',
     costSpent: 0,
     metrics: [],
     iterations: [],
@@ -180,12 +193,12 @@ export function useTrainingSimulation() {
     }));
   }, []);
 
-  const start = useCallback((prompt: string, budget: number, taskType: TrainingState['taskType']) => {
+  const start = useCallback((prompt: string, budget: number, taskType: TrainingState['taskType'], expertLevel: ExpertLevel = 'standard') => {
     clearTimers();
 
     // ── Match prompt to task config ─────────────────────────────────────────
     const cfg: TaskConfig = matchTask(prompt);
-    const stageLogs = buildStageLogs(cfg);
+    const stageLogs = buildStageLogs(cfg, expertLevel);
 
     setState({
       status: 'running',
@@ -193,6 +206,7 @@ export function useTrainingSimulation() {
       prompt,
       budget,
       taskType,
+      expertLevel,
       costSpent: 0,
       metrics: [],
       iterations: [],
@@ -363,6 +377,7 @@ export function useTrainingSimulation() {
       prompt: '',
       budget: 50,
       taskType: 'classification',
+      expertLevel: 'standard',
       costSpent: 0,
       metrics: [],
       iterations: [],
