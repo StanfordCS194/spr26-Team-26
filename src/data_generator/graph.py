@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.data_generator.artifacts import save_subagent2_artifacts
 from src.data_generator.edges import select_mode_edge
 from src.data_generator.mode_c.nodes import (
     aggregate_web_sources_node,
@@ -98,6 +99,11 @@ def invoke_data_generator_graph(config: OrchestrationConfig, data_path: str | No
     handoff = final_state.get("handoff")
     if not handoff:
         raise RuntimeError("Data generator did not produce a handoff payload.")
+    try:
+        save_subagent2_artifacts(handoff)
+    except Exception:
+        # Artifact persistence is for observability only; do not fail the main flow.
+        pass
     return handoff
 
 

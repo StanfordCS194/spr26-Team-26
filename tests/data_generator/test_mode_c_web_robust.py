@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from src.data_generator.artifacts import save_subagent2_artifacts
 from src.data_generator.graph import invoke_data_generator_graph
 
 
@@ -28,6 +29,8 @@ def test_mode_c_mixed_sources_real_search_crawl_and_artifact(monkeypatch):
       - handoff artifact generation
     """
     monkeypatch.setenv("DATA_GENERATOR_MOCK_SCENARIO", "mixed_sources")
+    out_dir = Path("artifacts/data_generator/test_mode_c_web_robust")
+    monkeypatch.setenv("DATA_GENERATOR_ARTIFACT_DIR", str(out_dir))
 
     config = {
         "prompt": "Build a dataset for classifying food images and food review sentiment",
@@ -96,24 +99,38 @@ def test_mode_c_mixed_sources_real_search_crawl_and_artifact(monkeypatch):
     assert handoff["human_readable"]
     assert "Mode C Web Acquisition Report" in handoff["human_readable"]
 
-    out_dir = Path("artifacts/data_generator")
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    handoff_path = out_dir / "mode_c_mixed_sources_handoff.json"
-    report_path = out_dir / "mode_c_mixed_sources_report.txt"
+    saved = save_subagent2_artifacts(handoff)
+    raw_handoff_path = Path(saved["handoff_payload"])
+    debug_context_path = Path(saved["debug_context"])
+    source_report_path = Path(saved["source_human_readable"])
+    curation_path = out_dir / "curation_human_readable.md"
+    curation_path.write_text(handoff.get("curation_human_readable", "") + "\n", encoding="utf-8")
 
-    handoff_path.write_text(json.dumps(handoff, indent=2), encoding="utf-8")
-    report_path.write_text(handoff["human_readable"], encoding="utf-8")
+    # Keep the rich source-facing report as the main human-readable artifact.
+    human_path = out_dir / "human_readable.md"
+    human_path.write_text(handoff["human_readable"], encoding="utf-8")
 
-    print(f"\nWrote robust Mode C handoff to: {handoff_path}")
-    print(f"Wrote robust human-readable report to: {report_path}")
+    manifest_path = Path(saved["manifest"])
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["files"]["human_readable"] = str(human_path)
+    manifest["files"]["curation_human_readable"] = str(curation_path)
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    print(f"\nWrote robust Mode C raw handoff to: {raw_handoff_path}")
+    print(f"Wrote robust Mode C debug context to: {debug_context_path}")
+    print(f"Wrote robust human-readable report to: {human_path}")
     print(f"Collected {len(records)} sources.")
     print(f"Source types: {sorted(source_types)}")
     print(f"Domains: {sorted(d for d in domains if d)[:20]}")
 
     print("\n=== SAVED ARTIFACTS ===")
-    print(f"Handoff JSON: {handoff_path.resolve()}")
-    print(f"Human report: {report_path.resolve()}")
+    print(f"Raw handoff JSON: {raw_handoff_path.resolve()}")
+    print(f"Debug context: {debug_context_path.resolve()}")
+    print(f"Human report: {human_path.resolve()}")
+    print(f"Source report: {source_report_path.resolve()}")
+    print(f"Curation summary: {curation_path.resolve()}")
     print(f"Collected {len(records)} sources.")
     print(f"Search results: {meta['num_search_results']}")
     print(f"Pages crawled: {meta['num_pages_crawled']}")
