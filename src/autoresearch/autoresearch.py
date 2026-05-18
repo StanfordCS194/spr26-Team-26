@@ -13,11 +13,18 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import anthropic
 
+from src.autoresearch.config import TrainingConfig
 from src.observability.observability import log_event
+from src.tinker_api.sft_runner import (
+    DEFAULT_LIVE_SMOKE_STEPS,
+    DEFAULT_TINKER_MODEL,
+    SUPPORTED_TINKER_TUNABLES,
+    run_tinker_sft_experiment,
+)
 from src.types import (
     AgentName,
     AutoResearchState,
@@ -28,7 +35,6 @@ from src.types import (
     ExperimentResult,
     Hypothesis,
     IterationRecord,
-    JobConfig,
     JobStatus,
     LogLevel,
     OrchestrationConfig,
@@ -44,6 +50,7 @@ _DIARY_PATH = Path("outputs/logs/research_diary.jsonl")
 _CONFIG_PATH = Path("configs/current.json")  # the JSON file apply_patch/revert_patch target
 _MAX_NO_IMPROVE = 3   # halt after this many consecutive non-improving iterations
 _MAX_ITERATIONS = 20  # hard cap on total iterations regardless of improvement
+_EXPERIMENT_CACHE: dict[str, ExperimentResult] = {}
 
 
 def _patch_to_diff(patch_dict: dict, current_config: dict) -> str:
@@ -166,10 +173,13 @@ def init_node(state: AutoResearchState) -> dict:
     }
     # Construct a minimal DatasetResult so create_eval_suite can derive the test path.
     # The real dataset path comes from DataGen (F2); we point at the standard test split location.
-    script_dir = str(Path(state["plan"]["training_script_path"]).parent)
+    dataset_path = state["plan"].get(
+        "dataset_path",
+        str(Path(state["plan"]["training_script_path"]).parent),
+    )
     dataset_result: DatasetResult = {
         "dataset": {
-            "path": script_dir,
+            "path": dataset_path,
             "format": "jsonl",
             "train_size": 0,
             "val_size": 0,
@@ -213,22 +223,24 @@ def baseline_node(state: AutoResearchState) -> dict:
         "BASELINE: submitting unmodified training script",
     )
 
-    job_id = submit_experiment(state["plan"]["training_script_path"], state["plan"])
-    timeout = int(state["config"]["training_procedure"].get("timeout_min", 5))
-    experiment = wait_for_experiment(job_id, timeout)
+    experiment = run_tinker_sft_experiment(
+        _training_config_from_state(state),
+        _dataset_result_from_plan(state["plan"]),
+        max_steps=_max_steps_from_state(state),
+    )
     baseline_score = run_evals(experiment["model_path"], state["eval_suite"])
 
     log_event(
         AgentName.AUTORESEARCH,
         LogLevel.INFO,
         f"BASELINE: scalar={baseline_score['scalar']:.4f}",
-        metadata={"score": baseline_score, "job_id": job_id},
+        metadata={"score": baseline_score, "job_id": experiment["job_id"]},
     )
 
     return {
         "baseline_score": baseline_score,
         "best_score": baseline_score,
-        "best_script": state["plan"]["training_script_path"],
+        "best_script": experiment["model_path"],
         "last_result": experiment,
     }
 
@@ -248,7 +260,17 @@ def propose_node(state: AutoResearchState) -> dict:
         f"PROPOSE: generating hypothesis for iteration {state['iteration'] + 1}",
         metadata={"iteration": state["iteration"] + 1},
     )
-    hypothesis = propose_hypothesis(state["current_config"], state["diary"], task_analysis)
+    allowed_params = (
+        sorted(SUPPORTED_TINKER_TUNABLES)
+        if state["plan"].get("backend") == "tinker_sft"
+        else None
+    )
+    hypothesis = propose_hypothesis(
+        state["current_config"],
+        state["diary"],
+        task_analysis,
+        allowed_params=allowed_params,
+    )
 
     # Bug fix: patch the config JSON, not the training script (.py files are not patchable).
     original_content = apply_patch(str(_CONFIG_PATH), hypothesis["patch"])
@@ -275,7 +297,7 @@ def propose_node(state: AutoResearchState) -> dict:
 
 
 def run_node(state: AutoResearchState) -> dict:
-    """LangGraph node. Calls submit_experiment() and wait_for_experiment(). Returns: { last_result }."""
+    """LangGraph node. Runs a bounded SDK-native Tinker experiment. Returns: { last_result }."""
     log_event(
         AgentName.AUTORESEARCH,
         LogLevel.INFO,
@@ -283,15 +305,17 @@ def run_node(state: AutoResearchState) -> dict:
         metadata={"iteration": state["iteration"] + 1},
     )
 
-    timeout = int(state["config"]["training_procedure"].get("timeout_min", 5))
-    job_id = submit_experiment(state["plan"]["training_script_path"], state["plan"], timeout)
-    result = wait_for_experiment(job_id, timeout)
+    result = run_tinker_sft_experiment(
+        _training_config_from_state(state),
+        _dataset_result_from_plan(state["plan"]),
+        max_steps=_max_steps_from_state(state),
+    )
 
     log_event(
         AgentName.AUTORESEARCH,
         LogLevel.INFO,
-        f"RUN: job {job_id} finished — status={result['status']}",
-        metadata={"job_id": job_id, "cost_usd": result["cost_usd"]},
+        f"RUN: job {result['job_id']} finished — status={result['status']}",
+        metadata={"job_id": result["job_id"], "cost_usd": result["cost_usd"]},
     )
 
     return {"last_result": result}
@@ -299,7 +323,7 @@ def run_node(state: AutoResearchState) -> dict:
 
 def revert_and_continue_node(state: AutoResearchState) -> dict:
     """LangGraph node (early stop path). Calls revert_patch(), logs REVERTED, increments iteration. Returns: { current_script, diary, iteration }."""
-    revert_patch(state["plan"]["training_script_path"], state["original_content"])
+    revert_patch(str(_CONFIG_PATH), state["original_content"])
 
     log_event(
         AgentName.AUTORESEARCH,
@@ -382,7 +406,7 @@ def keep_node(state: AutoResearchState) -> dict:
 
     return {
         "best_score": state["last_score"],
-        "best_script": state["plan"]["training_script_path"],
+        "best_script": state["last_result"]["model_path"],
         "current_config": updated_config,
         "no_improve_streak": 0,
     }
@@ -400,7 +424,7 @@ def revert_node(state: AutoResearchState) -> dict:
         metadata={"iteration": state["iteration"] + 1, "streak": new_streak},
     )
     return {
-        "current_script": state["best_script"],
+        "current_script": state["plan"]["training_script_path"],
         "original_content": None,
         "no_improve_streak": new_streak,
     }
@@ -474,7 +498,7 @@ def early_stop_edge(state: AutoResearchState) -> Literal["evaluate", "revert_and
     """After run_node. Returns 'revert_and_continue' on catastrophic failure, 'evaluate' otherwise."""
     if state["last_result"] is None:
         return "revert_and_continue"
-    if state["last_result"]["status"] == JobStatus.FAILED:
+    if state["last_result"]["status"] in {JobStatus.FAILED, JobStatus.CANCELLED}:
         return "revert_and_continue"
     if check_early_stop(state["last_result"]["metrics"]):
         return "revert_and_continue"
@@ -527,6 +551,7 @@ def propose_hypothesis(
     current_config: dict,
     diary: ResearchDiary,
     task: TaskAnalysis,
+    allowed_params: list[str] | None = None,
 ) -> Hypothesis:
     """Calls Claude API (claude-haiku-4-5-20251001) to generate a single testable hypothesis as a code/config diff."""
     client = anthropic.Anthropic()
@@ -537,6 +562,23 @@ def propose_hypothesis(
         "You propose exactly ONE config-level change per iteration, grounded in the "
         "experiment history. Return only valid JSON — no prose, no markdown fences."
     )
+    change_rule = (
+        f"Change exactly ONE of these supported hyperparameters: {', '.join(allowed_params)}."
+        if allowed_params
+        else "Change exactly ONE hyperparameter."
+    )
+    if allowed_params:
+        bounds_rule = (
+            "Stay within safe bounds: learning_rate [1e-6, 1e-2], batch_size [4, 8192], "
+            "max_seq_length [128, 4096], lora_rank in [4,8,16,32,64,128], "
+            "num_epochs [1, 100]."
+        )
+    else:
+        bounds_rule = (
+            "Stay within safe bounds: learning_rate [1e-6, 1e-2], batch_size [4, 8192], "
+            "max_seq_length [128, 4096], lora_rank in [4,8,16,32,64,128], "
+            "warmup_steps [0, 2000], dropout [0, 0.5]."
+        )
     user = f"""Current training configuration:
 {json.dumps(current_config, indent=2)}
 
@@ -549,10 +591,8 @@ Recent experiment history ({len(recent)} entries):
 {json.dumps(recent, indent=2) if recent else "No history yet — this is the first iteration."}
 
 Rules:
-- Change exactly ONE hyperparameter.
-- Stay within safe bounds: learning_rate [1e-6, 1e-2], batch_size [4, 8192],
-  max_seq_length [128, 4096], lora_rank in [4,8,16,32,64,128],
-  warmup_steps [0, 2000], dropout [0, 0.5].
+- {change_rule}
+- {bounds_rule}
 - Avoid repeating a change that recently caused a REVERTED outcome.
 - Prefer evidence-based choices over random exploration when history exists.
 
@@ -578,9 +618,17 @@ Respond with this JSON object and nothing else:
             if not line.startswith("```")
         )
     parsed = json.loads(raw)
+    patch = parsed["patch"]
+    if allowed_params:
+        unsupported = [key for key in patch if key not in set(allowed_params)]
+        if unsupported:
+            raise ValueError(
+                f"Unsupported Tinker SFT hyperparameter(s): {unsupported}. "
+                f"Allowed: {allowed_params}"
+            )
     return Hypothesis(
         description=parsed["description"],
-        patch=json.dumps(parsed["patch"]),
+        patch=json.dumps(patch),
         expected_effect=parsed["expected_effect"],
         search_strategy=parsed["search_strategy"],
     )
@@ -616,7 +664,7 @@ def apply_patch(script_path: str, patch: str) -> str:
         #     raise RuntimeError(f"patch failed: {result.stderr}")
         raise NotImplementedError(
             "Script-level patching not yet implemented. "
-            "Requires RUN phase and Tinker job submission."
+            "The Tinker SFT v1 path patches JSON config only."
         )
     else:
         raise ValueError(f"Unsupported file type for patching: {path.suffix!r}")
@@ -631,69 +679,108 @@ def revert_patch(script_path: str, original_content: str) -> None:
 
 # ─── RUN HELPERS ──────────────────────────────────────────────────────────────
 
+def _dataset_result_from_plan(plan: TrainingPlan) -> DatasetResult:
+    dataset_path = plan.get("dataset_path") or str(Path(plan["training_script_path"]).parent)
+    return {
+        "dataset": {
+            "path": dataset_path,
+            "format": "jsonl",
+            "train_size": 0,
+            "val_size": 0,
+            "test_size": 0,
+        },
+        "mode_used": "A",
+        "quality_notes": "AutoResearch Tinker SFT dataset",
+        "validation_report": {
+            "passed": True,
+            "issues": [],
+            "sample_accuracy_estimate": 0.0,
+        },
+    }
+
+
+def _training_config_from_state(state: AutoResearchState) -> TrainingConfig:
+    data: dict[str, Any] = dict(state["current_config"])
+    data.setdefault("model_name", state["plan"].get("base_model") or DEFAULT_TINKER_MODEL)
+    if "max_seq_len" in data and "max_seq_length" not in data:
+        data["max_seq_length"] = data["max_seq_len"]
+    if "epochs" in data and "num_epochs" not in data:
+        data["num_epochs"] = data["epochs"]
+    lora = state["plan"].get("lora_config")
+    if lora and "lora_rank" not in data:
+        data["lora_rank"] = lora["rank"]
+    if lora and "lora_alpha" not in data:
+        data["lora_alpha"] = lora["alpha"]
+    return TrainingConfig.from_dict(data)
+
+
+def _training_config_from_plan(plan: TrainingPlan) -> TrainingConfig:
+    if _CONFIG_PATH.exists():
+        data = TrainingConfig.load(_CONFIG_PATH).to_dict()
+    else:
+        data = {"model_name": plan.get("base_model") or DEFAULT_TINKER_MODEL}
+    data["model_name"] = plan.get("base_model") or data.get("model_name") or DEFAULT_TINKER_MODEL
+    lora = plan.get("lora_config")
+    if lora:
+        data.setdefault("lora_rank", lora["rank"])
+        data.setdefault("lora_alpha", lora["alpha"])
+    return TrainingConfig.from_dict(data)
+
+
+def _max_steps_from_state(state: AutoResearchState) -> int:
+    procedure = state["config"].get("training_procedure", {})
+    hyperparameters = procedure.get("hyperparameters", {})
+    for source in (state["current_config"], hyperparameters, procedure):
+        value = source.get("max_steps") if isinstance(source, dict) else None
+        if value is not None:
+            return max(1, int(value))
+    return DEFAULT_LIVE_SMOKE_STEPS
+
+
 def submit_experiment(
     script_path: str,
     plan: TrainingPlan,
     timeout_min: int = 5,
 ) -> str:
-    """Submits a constrained training run to Tinker. Returns the Tinker job ID."""
-    # Translate our TrainingPlan into a Tinker JobConfig.
-    # GPU allocation is kept minimal: single A100 with the plan's time budget.
-    from src.tinker_api.tinker_api import submit_job
+    """Run a constrained SDK-native Tinker experiment and return its run ID.
 
-    job_config: JobConfig = {
-        "gpu_type": "A100",
-        "num_gpus": 1,
-        "timeout_min": timeout_min,
-        "env_vars": {},
-        "output_dir": "outputs/experiments",
-    }
-    return submit_job(script_path, job_config)
+    Kept as a compatibility wrapper for older call sites; it no longer submits
+    a REST job.
+    """
+    _ = script_path, timeout_min
+    result = run_tinker_sft_experiment(
+        _training_config_from_plan(plan),
+        _dataset_result_from_plan(plan),
+        max_steps=DEFAULT_LIVE_SMOKE_STEPS,
+    )
+    _EXPERIMENT_CACHE[result["job_id"]] = result
+    return result["job_id"]
 
 
 def wait_for_experiment(job_id: str, timeout_min: int) -> ExperimentResult:
-    """Polls Tinker for job completion. Raises TimeoutError if timeout_min exceeded."""
-    import time
-    from src.tinker_api.tinker_api import get_job_status, get_cumulative_spend
+    """Return a completed SDK-native Tinker experiment result."""
+    _ = timeout_min
+    if job_id in _EXPERIMENT_CACHE:
+        return _EXPERIMENT_CACHE[job_id]
 
-    deadline = time.time() + timeout_min * 60
-    poll_interval = 15  # seconds between status checks
-
-    while time.time() < deadline:
-        status = get_job_status(job_id)
-        if status == JobStatus.COMPLETED:
-            cost = get_cumulative_spend(job_id)
-            # Tinker writes metrics to outputs/experiments/<job_id>/metrics.json.
-            metrics_path = Path("outputs/experiments") / job_id / "metrics.json"
-            metrics: TrainingMetrics = json.loads(metrics_path.read_text())
-            model_path = str(Path("outputs/experiments") / job_id / "model")
-            return {
-                "job_id": job_id,
-                "status": status,
-                "metrics": metrics,
-                "model_path": model_path,
-                "cost_usd": cost,
-                "logs_path": str(Path("outputs/experiments") / job_id / "logs.txt"),
-            }
-        if status == JobStatus.FAILED:
-            return {
-                "job_id": job_id,
-                "status": status,
-                "metrics": {
-                    "train_loss": float("nan"),
-                    "val_loss": float("nan"),
-                    "test_loss": float("nan"),
-                    "primary_metric": 0.0,
-                },
-                "model_path": "",
-                "cost_usd": get_cumulative_spend(job_id),
-                "logs_path": str(Path("outputs/experiments") / job_id / "logs.txt"),
-            }
-        time.sleep(poll_interval)
-
-    raise TimeoutError(
-        f"Tinker job {job_id} did not finish within {timeout_min} minutes"
-    )
+    run_dir = Path("outputs/experiments") / job_id
+    metrics_path = run_dir / "metrics.json"
+    if not metrics_path.exists():
+        raise TimeoutError(f"Tinker run {job_id} has no metrics artifact")
+    metrics: TrainingMetrics = json.loads(metrics_path.read_text())
+    manifest_path = run_dir / "manifest.json"
+    status = JobStatus.COMPLETED
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text())
+        status = manifest.get("status", status)
+    return {
+        "job_id": job_id,
+        "status": status,
+        "metrics": metrics,
+        "model_path": str(run_dir),
+        "cost_usd": 0.0,
+        "logs_path": str(run_dir / "metrics.jsonl"),
+    }
 
 
 def check_early_stop(metrics: TrainingMetrics) -> bool:
@@ -717,21 +804,25 @@ def check_early_stop(metrics: TrainingMetrics) -> bool:
 # ─── EVALUATE HELPERS ─────────────────────────────────────────────────────────
 
 def run_evals(model_path: str, eval_suite: EvalSuite) -> EvalScore:
-    """Runs the evaluation suite against the model and returns a scalar score + per-metric breakdown."""
-    # Wire-in point for the model inference layer (transformers / PEFT / Tinker artifacts).
-    #
-    # Expected implementation:
-    #   1. Load the model from model_path (AutoModelForSequenceClassification or equivalent).
-    #   2. Load the test split from eval_suite["test_split_path"].
-    #   3. Run inference and compute each metric in eval_suite["metrics"].
-    #   4. If eval_suite["use_llm_grading"], call Claude to score free-form outputs.
-    #   5. Return EvalScore with scalar = primary metric value, metrics = per-metric dict.
-    #
-    # Blocked on: transformers model loading + Tinker artifact download (F4).
-    raise NotImplementedError(
-        "run_evals not yet implemented. "
-        "Requires model loading from Tinker artifacts and inference infrastructure."
-    )
+    """Score Tinker SFT artifacts using val loss as the v1 proxy metric."""
+    _ = eval_suite
+    metrics_path = Path(model_path) / "metrics.json"
+    if not metrics_path.exists():
+        raise FileNotFoundError(f"Missing Tinker metrics artifact: {metrics_path}")
+    raw_metrics = json.loads(metrics_path.read_text())
+    val_loss = float(raw_metrics.get("val_loss", raw_metrics.get("train_loss", float("nan"))))
+    scalar = 0.0 if not math.isfinite(val_loss) or val_loss < 0 else 1.0 / (1.0 + val_loss)
+    metrics = {
+        "train_loss": float(raw_metrics.get("train_loss", val_loss)),
+        "val_loss": val_loss,
+        "test_loss": float(raw_metrics.get("test_loss", val_loss)),
+        "primary_metric": scalar,
+    }
+    return {
+        "scalar": scalar,
+        "metrics": metrics,
+        "critique": "Tinker SFT v1 score uses primary_metric = 1 / (1 + val_loss).",
+    }
 
 
 def compare_scores(new_score: EvalScore, baseline_score: EvalScore) -> ScoreDelta:

@@ -138,7 +138,7 @@ class CostEstimate(TypedDict):
     confidence: str  # 'low' | 'medium' | 'high'
 
 
-class TrainingPlan(TypedDict):
+class _TrainingPlanRequired(TypedDict):
     strategy: str           # 'fine-tune' | 'pre-train'
     base_model: str | None
     lora_config: LoRAConfig | None
@@ -146,6 +146,11 @@ class TrainingPlan(TypedDict):
     estimated_time_min: int
     training_script_path: str
     eval_metric: str
+
+
+class TrainingPlan(_TrainingPlanRequired, total=False):
+    backend: str            # 'tinker_sft' for the SDK-native Tinker v1 path
+    dataset_path: str       # Local JSONL path consumed by the Tinker SFT runner
 
 
 class EvalScore(TypedDict):

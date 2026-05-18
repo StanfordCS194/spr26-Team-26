@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from src.autoresearch.config import BOUNDS, TrainingConfig
+from src.tinker_api.sft_runner import SUPPORTED_TINKER_TUNABLES
 from src.types import IterationRecord
 
 
@@ -67,8 +68,11 @@ class SearchSpace:
     NON_TUNABLE: frozenset[str] = frozenset({"model_name"})
 
     @classmethod
-    def tunable_params(cls) -> list[str]:
-        return [k for k in BOUNDS if k not in cls.NON_TUNABLE]
+    def tunable_params(cls, backend: str | None = None) -> list[str]:
+        params = [k for k in BOUNDS if k not in cls.NON_TUNABLE]
+        if backend == "tinker_sft":
+            return [k for k in params if k in SUPPORTED_TINKER_TUNABLES]
+        return params
 
     @classmethod
     def sample_value(cls, param: str, rng: random.Random) -> Any:
@@ -151,11 +155,12 @@ class RandomSearchProposalStrategy(ProposalStrategy):
     stored in Proposal.metadata makes any iteration reproducible.
     """
 
-    def __init__(self, seed: int | None = None) -> None:
+    def __init__(self, seed: int | None = None, backend: str | None = None) -> None:
         # _next_seed advances on each call so a fixed initial seed still
         # produces a distinct proposal every iteration.
         self._next_seed = seed
         self._initial_seed = seed
+        self._backend = backend
 
     def propose(self, config: TrainingConfig, history: list[IterationRecord]) -> Proposal:
         if self._next_seed is not None:
@@ -164,7 +169,7 @@ class RandomSearchProposalStrategy(ProposalStrategy):
         else:
             seed = random.randint(0, 2**32 - 1)
         rng = random.Random(seed)
-        param = rng.choice(SearchSpace.tunable_params())
+        param = rng.choice(SearchSpace.tunable_params(self._backend))
         old_val = getattr(config, param, None)
         new_val = SearchSpace.sample_value(param, rng)
         hypothesis = (
@@ -198,10 +203,12 @@ class LocalPerturbationProposalStrategy(ProposalStrategy):
         perturbation_factor: float = 0.2,
         seed: int | None = None,
         history_window: int = 5,
+        backend: str | None = None,
     ) -> None:
         self._factor = perturbation_factor
         self._next_seed = seed
         self._window = history_window
+        self._backend = backend
 
     def propose(self, config: TrainingConfig, history: list[IterationRecord]) -> Proposal:
         if self._next_seed is not None:
@@ -210,7 +217,7 @@ class LocalPerturbationProposalStrategy(ProposalStrategy):
         else:
             seed = random.randint(0, 2**32 - 1)
         rng = random.Random(seed)
-        candidates = SearchSpace.tunable_params()
+        candidates = SearchSpace.tunable_params(self._backend)
 
         # Collect params that appeared in recently REVERTED patches.
         # The diary "patch" field is a diff string (format_patch_as_diff output),

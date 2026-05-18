@@ -19,12 +19,14 @@ from src.types import (
     TaskAnalysis,
     TrainingPlan,
 )
+from src.tinker_api.sft_runner import DEFAULT_TINKER_MODEL
 
 # Cost per GPU-hour on Tinker (USD) — update when Tinker docs confirm pricing
 _TINKER_GPU_COST_PER_HOUR = 2.50
 
 # Rough model-size → GPU-hours-per-epoch lookup (for cost estimation)
 _MODEL_COST_PROFILE = {
+    DEFAULT_TINKER_MODEL:           {"gpu_hours_per_epoch": 0.15, "strategy": "fine-tune"},
     "bert-base-uncased":        {"gpu_hours_per_epoch": 0.1,  "strategy": "fine-tune"},
     "bert-large-uncased":       {"gpu_hours_per_epoch": 0.3,  "strategy": "fine-tune"},
     "distilbert-base-uncased":  {"gpu_hours_per_epoch": 0.05, "strategy": "fine-tune"},
@@ -34,12 +36,13 @@ _MODEL_COST_PROFILE = {
 }
 
 _TASK_TO_BASE_MODEL = {
-    "text-classification":       "distilbert-base-uncased",
-    "token-classification":      "bert-base-uncased",
-    "seq2seq":                   "t5-small",
-    "question-answering":        "bert-base-uncased",
-    "summarization":             "t5-base",
-    "translation":               "t5-small",
+    "text-classification":       DEFAULT_TINKER_MODEL,
+    "token-classification":      DEFAULT_TINKER_MODEL,
+    "seq2seq":                   DEFAULT_TINKER_MODEL,
+    "question-answering":        DEFAULT_TINKER_MODEL,
+    "summarization":             DEFAULT_TINKER_MODEL,
+    "translation":               DEFAULT_TINKER_MODEL,
+    "custom":                    DEFAULT_TINKER_MODEL,
 }
 
 _TASK_TO_METRIC = {
@@ -78,6 +81,8 @@ def run_decision_engine(
         estimated_time_min=cost["estimated_time_min"],
         training_script_path=script_path,
         eval_metric=task["eval_metric"],
+        backend="tinker_sft",
+        dataset_path=dataset["dataset"]["path"],
     )
 
 

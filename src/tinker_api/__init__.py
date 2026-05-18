@@ -14,6 +14,15 @@ from .tinker_api import (
     cancel_job,
     is_cancelled,
 )
+from .sft_runner import (
+    DEFAULT_LIVE_SMOKE_STEPS,
+    DEFAULT_TINKER_MODEL,
+    SUPPORTED_TINKER_TUNABLES,
+    load_conversations,
+    record_to_conversation,
+    resolve_renderer_name,
+    run_tinker_sft_experiment,
+)
 
 __all__ = [
     "TinkerAPIError",
@@ -30,4 +39,11 @@ __all__ = [
     "get_cumulative_spend",
     "cancel_job",
     "is_cancelled",
+    "DEFAULT_LIVE_SMOKE_STEPS",
+    "DEFAULT_TINKER_MODEL",
+    "SUPPORTED_TINKER_TUNABLES",
+    "load_conversations",
+    "record_to_conversation",
+    "resolve_renderer_name",
+    "run_tinker_sft_experiment",
 ]
