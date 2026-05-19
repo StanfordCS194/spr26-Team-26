@@ -14,6 +14,7 @@ import json
 import math
 from pathlib import Path
 from typing import Literal
+from rouge_score import rouge_scorer
 
 import anthropic
 
@@ -715,6 +716,49 @@ def check_early_stop(metrics: TrainingMetrics) -> bool:
 
 
 # ─── EVALUATE HELPERS ─────────────────────────────────────────────────────────
+
+def compute_accuracy(predictions: list[str], references: list[str]) -> float:
+    if not predictions:
+        return 0.0
+    return sum(p == r for p, r in zip(predictions, references)) / len(references)
+
+def compute_f1_score(predictions: list[str], references: list[str]) -> tuple[float, float, float]:
+    if not predictions:
+        return 0.0, 0.0, 0.0
+    classes = set(references)
+    per_precision, per_recall, per_f1 = [], [], []
+    
+    for c in classes:
+        true_positive = sum(p == c and r == c for p, r in zip(predictions, references))
+        false_positive = sum(p == c and r != c for p, r in zip(predictions, references))
+        false_negative = sum(p != c and r == c for p, r in zip(predictions, references))
+
+        if (true_positive + false_positive) > 0:
+            precision = true_positive / (true_positive + false_positive)
+        else:
+            precision = 0.0
+        
+        recall = true_positive / (true_positive + false_negative) if (true_positive + false_negative) > 0 else 0.0
+        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+        per_precision.append(precision)
+        per_recall.append(recall)
+        per_f1.append(f1)
+    k = len(per_f1)
+
+    return sum(per_f1) / k, sum(per_precision) / k, sum(per_recall) / k
+
+def compute_rouge(predictions: list[str], references: list[str], variant: str) -> float:
+    if not predictions:
+        return 0.0
+    scorer = rouge_scorer.RougeScorer([variant], use_stemmer=True)
+    scores = []
+    for pred, ref in zip(predictions, references):
+        result = scorer.score(ref, pred)
+        scores.append(result[variant].fmeasure)
+    
+    return sum(scores) / len(scores)
+
+
 
 def run_evals(model_path: str, eval_suite: EvalSuite) -> EvalScore:
     """Runs the evaluation suite against the model and returns a scalar score + per-metric breakdown."""

@@ -8,7 +8,7 @@
   --border-subtle: rgba(255,255,255,0.04);
   --text-primary: #e2e8f0;
   --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-muted: rgba(255, 255, 255, 0.7);
   --accent: #60a5fa;
   --accent-dim: rgba(96,165,250,0.12);
   --success: #4ade80;
@@ -27,6 +27,7 @@ body {
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  height: 100%
 }
 
 #root {
@@ -42,4 +43,92 @@ body {
 @media (max-width: 768px) {
   .two-col-grid { grid-template-columns: 1fr !important; }
   .metrics-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+
+.btn-primary {
+  padding: 0.625rem 1.25rem;
+  background: var(--accent);
+  border: 0.5px solid var(--accent);
+  border-radius: 6px;
+  color: white;
+  font-size: 25px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.btn-primary:hover {
+  background: var(--accent);
+  color: white;
+  box-shadow: 0px 0px 20px 2px rgba(59, 130, 246, 0.5);
+}
+
+.btn-primary:active {
+  background: #1d4ed8;
+  transform: scale(0.97);
+  opacity: 0.85;
+}
+
+.btn-secondary {
+  padding: 0.625rem 1rem;
+  background: var(--bg-elevated);
+  border: 0.5px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 20px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.btn-secondary:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.btn-secondary:active {
+  transform: scale(0.97);
+  opacity: 0.85;
+}
+
+.seg-btn {
+  padding: 0.625rem 0.5rem;
+  background: var(--bg-elevated);
+  border: 0.5px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transition: all 0.15s;
+}
+
+.seg-btn:hover {
+  background: var(--bg-surface);
+  border-color: var(--accent);
+  color: var(--text-primary);
+  box-shadow: 0px 0px 20px 2px rgba(59, 130, 246, 0.5);
+}
+
+.seg-btn:active {
+  transform: scale(0.97);
+}
+
+.seg-btn--active {
+  background: var(--accent);
+  border: 0.5px solid var(--accent);
+  color: white;
+}
+
+.seg-btn--active:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
 }
