@@ -1,6 +1,8 @@
 import json
 from types import SimpleNamespace
 
+import pytest
+
 from src.data_generator.mode_c.nodes import aggregate_web_sources_node
 from src.data_generator.mode_c.structuring import (
     WebStructuringResult,
@@ -353,24 +355,75 @@ def test_aggregate_web_sources_auto_without_teacher_falls_back_synthetic(monkeyp
     assert "Web acquisition report retained for provenance" in out["human_readable"]
 
 
-def test_aggregate_web_sources_required_without_teacher_keeps_structuring_failure(monkeypatch):
+def test_aggregate_web_sources_required_without_teacher_raises_structuring_failure(monkeypatch):
     monkeypatch.setenv("DATA_GENERATOR_WEB_STRUCTURING", "required")
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
-    out = aggregate_web_sources_node(
-        {
-            "config": _config(),
-            "web_plan": {"planner_backend": "test"},
-            "web_search_results": [{"url": "https://example.com/urgency"}],
-            "web_pages": _pages(),
-            "mode_c_backend": "web",
-        }
+    with pytest.raises(RuntimeError, match="web structuring requires a teacher"):
+        aggregate_web_sources_node(
+            {
+                "config": _config(),
+                "web_plan": {"planner_backend": "test"},
+                "web_search_results": [{"url": "https://example.com/urgency"}],
+                "web_pages": _pages(),
+                "mode_c_backend": "web",
+            }
+        )
+
+
+def test_aggregate_web_sources_required_raises_invalid_teacher_output(monkeypatch):
+    monkeypatch.setenv("DATA_GENERATOR_WEB_STRUCTURING", "required")
+    from src.data_generator.mode_c import nodes as mode_c_nodes
+
+    schema = {
+        "input_format": "support ticket text",
+        "output_format": "one of: urgent, normal",
+        "input_description": "A support ticket.",
+        "output_description": "The urgency label.",
+        "example_pair": {"input": "The site is down.", "output": "urgent"},
+    }
+    structured_raw = {
+        "records": [
+            {
+                "input": "The site is down.",
+                "output": "urgent",
+                "messages": [
+                    {"role": "user", "content": "The site is down."},
+                    {"role": "assistant", "content": "urgent"},
+                ],
+            }
+        ],
+        "format_meta": {
+            "modality": "text",
+            "file_type": "web_structured_chat_jsonl",
+            "encoding": "utf-8",
+            "schema": schema,
+            "teacher_used": True,
+        },
+    }
+
+    monkeypatch.setattr(
+        mode_c_nodes,
+        "structure_web_sources_for_sft",
+        lambda _config, _pages: WebStructuringResult(
+            schema=schema,
+            raw_data=structured_raw,
+            validation_report={
+                "passed": False,
+                "issues": ["Classification-style data should include at least two labels"],
+                "sample_accuracy_estimate": 1.0,
+            },
+            teacher_used=True,
+        ),
     )
 
-    assert out["validation_report"]["passed"] is False
-    assert out["raw_data"]["format_meta"]["file_type"] == "web_structured_chat_jsonl"
-    assert out["raw_data"]["records"] == []
-    assert any(
-        "web structuring requires a teacher" in issue
-        for issue in out["validation_report"]["issues"]
-    )
+    with pytest.raises(RuntimeError, match="at least two labels"):
+        aggregate_web_sources_node(
+            {
+                "config": _config(),
+                "web_plan": {"planner_backend": "test"},
+                "web_search_results": [{"url": "https://example.com/urgency"}],
+                "web_pages": _pages(),
+                "mode_c_backend": "web",
+            }
+        )
