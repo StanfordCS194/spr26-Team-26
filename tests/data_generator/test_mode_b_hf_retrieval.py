@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -49,6 +52,10 @@ LIVE_HF_DATASET_SEEDS = [
     "SetFit/sst2",
     "bitext/Bitext-customer-support-llm-chatbot-training-dataset",
 ]
+
+
+def _env_truthy(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _extract_hf_dataset_ids_from_report(report: dict) -> list[str]:
@@ -410,6 +417,9 @@ def _write_subagent2_artifacts(handoff: dict) -> None:
 
 
 def test_hf_retreival(monkeypatch, tmp_path: Path) -> None:
+    if _env_truthy("NO_SPEND"):
+        pytest.skip("NO_SPEND=1 disables live Hugging Face retrieval")
+
     assert EXAMPLE_REPORT_PATH.exists(), f"Missing example report: {EXAMPLE_REPORT_PATH}"
 
     report = json.loads(EXAMPLE_REPORT_PATH.read_text(encoding="utf-8"))
