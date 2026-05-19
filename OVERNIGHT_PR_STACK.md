@@ -235,5 +235,13 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   with #84 by preserving both `interactive_data_prompt` and `task_type_hint`;
   focused API/Manager tests passed (`37 passed, 1 skipped`) and the full
   no-live Python suite passed (`261 passed, 6 skipped`).
+- #89 fixes frontend artifact download links on top of #87. Backend artifact
+  paths are already rooted at `/api/runs/...`; the frontend now avoids doubling
+  `/api` when `VITE_API_BASE_URL=/api`, while still supporting full-origin API
+  bases. Branch and composed-stack validation passed frontend lint,
+  `VITE_API_BASE_URL=/api npm run build`, and a direct resolver contract check.
+- #49 now also updates root `README.md` and `Home.md` to describe the current
+  Tinker chat/SFT V1 scope instead of stale image-classification, pretraining,
+  and REST-job promises. Spec-site lint/build passed after the docs refresh.
 
 Current conservative live spend: `$94.14 / $100.00`.
