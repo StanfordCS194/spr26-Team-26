@@ -1,6 +1,6 @@
 # Overnight PR Stack
 
-Updated: 2026-05-19 09:51 PDT
+Updated: 2026-05-19 10:02 PDT
 
 Purpose: give reviewers a merge/review order for the draft PR stack without
 having to infer dependencies from GitHub.
@@ -37,6 +37,7 @@ having to infer dependencies from GitHub.
    - #74 `codex/api-run-output-isolation` -> #50
    - #76 `codex/frontend-dataset-source` -> #74
    - #77 `codex/api-run-artifacts` -> #76
+   - #78 `codex/api-progress-cancel` -> #77
    - #52 `codex/preserve-chat-messages-curation` -> #40
    - #58 `codex/curation-small-splits` -> #52
    - #64 `codex/curation-source-splits` -> #58
@@ -67,7 +68,7 @@ having to infer dependencies from GitHub.
 
 ## Latest Local Stack Validation
 
-Unpublished local stack currently includes #55 through #77, including #73/#74/#75/#76/#77
+Unpublished local stack currently includes #55 through #78, including #73/#74/#75/#76/#77/#78
 on top of #51.
 
 - `python3 -m compileall src`
@@ -127,6 +128,13 @@ on top of #51.
   metadata. Validation passed compileall, focused API/DataSource/Manager tests
   (`27 passed, 1 skipped`), broad no-live branch tests (`188 passed, 7 skipped`),
   frontend lint, and frontend build.
+- #78 adds live API progress refresh and cooperative cancellation on top of
+  #77. It routes observability logs into the run output root, refreshes API
+  state from run-local logs/diary/Tinker metrics, exposes
+  `POST /api/runs/{run_id}/cancel`, and adds frontend Cancel/Cancelling/
+  Cancelled states. Validation passed compileall, focused progress/cancel
+  tests (`33 passed`), broad no-live branch tests (`194 passed, 7 skipped`),
+  frontend lint/build, and browser cancellation UI sanity.
 - #75 resolves the DataGen stack topology issue where #44 was a sibling of the
   latest DataGen leaf chain. It merges the existing Mode C teacher-backed web
   structuring work onto #68 and passed the broad no-live suite (`181 passed,
@@ -138,5 +146,11 @@ on top of #51.
   the full no-live Python suite (`245 passed, 9 skipped`), and frontend
   lint/build all passed. The only remaining dirty file in that temporary
   worktree is generated `configs/current.json`.
+- After merging #78 into the unpublished composition branch, compileall, the
+  full no-live Python suite (`251 passed, 9 skipped`), and frontend lint/build
+  all passed. The only conflicts were in `src/autoresearch/autoresearch.py` and
+  `src/tinker_api/sft_runner.py`, where the resolution preserved the newer
+  stack's budget/split/heldout behavior and wrapped it with #78's cancellation
+  hooks.
 
 Current conservative live spend: `$68.64 / $100.00`.
