@@ -65,5 +65,7 @@ Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
 - Live full AutoResearch graph smoke with #62/#63 completed with split 17/2/3
   reaching both baseline/candidate Tinker calls; `learning_rate=5e-4` improved
   heldout scalar from `0.0675` to `0.2300`.
+- Live Mode B partial with #64 pulled `SetFit/sst2` and verified curation
+  preserves source split counts as 2/2/2.
 
 Current conservative live spend: `$46.04 / $100.00`.
