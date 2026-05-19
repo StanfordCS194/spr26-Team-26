@@ -131,6 +131,25 @@ def test_curate_handoff_prefers_mode_c_curation_payload(tmp_path):
     ]
 
 
+def test_curate_handoff_keeps_validation_split_for_small_datasets(tmp_path):
+    handoff = {
+        "mode_used": "C",
+        "raw_data": {
+            "records": [
+                {"input": f"ticket {idx}", "output": "normal"}
+                for idx in range(6)
+            ]
+        },
+    }
+
+    result = curate_handoff_to_dataset_result(handoff, output_dir=str(tmp_path))
+
+    assert result["validation_report"]["passed"] is True
+    assert result["dataset"]["train_size"] == 4
+    assert result["dataset"]["val_size"] == 1
+    assert result["dataset"]["test_size"] == 1
+
+
 def test_curate_handoff_preserves_upstream_validation(tmp_path):
     handoff = {
         "mode_used": "C",
