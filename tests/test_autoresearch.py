@@ -993,7 +993,13 @@ def test_propose_node_auto_without_anthropic_key_uses_local_proposer(monkeypatch
     assert key in SUPPORTED_TINKER_TUNABLES
     assert out["current_script"] == "outputs/scripts/train.py"
     assert out["last_description"]
+    before_config = TrainingConfig(
+        model_name="Qwen/Qwen3.5-9B",
+        learning_rate=1e-4,
+        batch_size=4,
+    ).to_dict()
     patched_config = TrainingConfig.load(config_path).to_dict()
+    assert value != before_config[key]
     if isinstance(value, (int, float)):
         assert patched_config[key] == pytest.approx(value)
     else:
@@ -1024,6 +1030,13 @@ def test_propose_node_local_mode_produces_tinker_supported_patch(monkeypatch, tm
 
     assert len(patch) == 1
     assert set(patch).issubset(SUPPORTED_TINKER_TUNABLES)
+    key, value = next(iter(patch.items()))
+    before_config = TrainingConfig(
+        model_name="Qwen/Qwen3.5-9B",
+        learning_rate=1e-4,
+        batch_size=4,
+    ).to_dict()
+    assert value != before_config[key]
     TrainingConfig.load(config_path).apply_patch(patch)
 
 
