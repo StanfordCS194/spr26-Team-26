@@ -536,17 +536,45 @@ def _artifacts_from_result(record: _RunRecord, result: dict[str, Any]) -> RunArt
     )
 
 
+def _budget_preflight_skip_reason_from_result(
+    record: _RunRecord,
+    result: dict[str, Any],
+) -> str | None:
+    cost = result.get("cost") or {}
+    if cost.get("termination_reason") != "budget_limit":
+        return None
+
+    model_path = _resolve_reported_path(record, result.get("weights_path"))
+    manifest = _read_json_if_exists(model_path / "manifest.json") if model_path else None
+    if not _is_budget_preflight_skip(manifest):
+        return None
+
+    reason = str((manifest or {}).get("budget_skip_reason") or "").strip()
+    return reason or "budget preflight skipped the Tinker launch"
+
+
 def _store_manager_result(record: _RunRecord, result: dict[str, Any]) -> None:
+    budget_skip_reason = _budget_preflight_skip_reason_from_result(record, result)
     record.result = result
-    record.status = "complete"
     record.cost_spent = float((result.get("cost") or {}).get("total_usd") or 0.0)
     metric = _metric_from_result(result)
-    if not record.metrics:
+    if not budget_skip_reason and not record.metrics:
         record.metrics = [metric] if metric else []
     record.iterations = _iterations_from_diary(result.get("research_diary_path"))
     record.artifacts = _artifacts_from_result(record, result)
     _complete_all_stages(record)
-    _append_log(record, "Manager", "Training pipeline complete", "success")
+    if budget_skip_reason:
+        record.status = "cancelled"
+        record.error = budget_skip_reason
+        _append_log(
+            record,
+            "Manager",
+            f"Training skipped by budget guard: {budget_skip_reason}",
+            "warning",
+        )
+    else:
+        record.status = "complete"
+        _append_log(record, "Manager", "Training pipeline complete", "success")
 
 
 def _run_manager(record: _RunRecord) -> None:

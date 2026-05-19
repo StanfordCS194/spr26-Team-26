@@ -79,6 +79,7 @@ def _write_budget_skip_artifacts(run_dir: Path, *, run_id: str) -> None:
                 "run_id": run_id,
                 "status": "CANCELLED",
                 "budget_preflight_skipped": True,
+                "budget_skip_reason": "estimated run cost exceeds remaining budget",
                 "checkpoints": {},
             }
         ),
@@ -98,6 +99,35 @@ def _write_budget_skip_artifacts(run_dir: Path, *, run_id: str) -> None:
         encoding="utf-8",
     )
     (run_dir / "sample.json").write_text(json.dumps({"text": ""}), encoding="utf-8")
+
+
+def _fake_budget_skipped_model(tmp_path):
+    run_dir = tmp_path / "experiments" / "budget-skipped-run"
+    _write_budget_skip_artifacts(run_dir, run_id="budget-skipped-run")
+    diary_path = tmp_path / "logs" / "research_diary.jsonl"
+    diary_path.parent.mkdir(parents=True, exist_ok=True)
+    diary_path.write_text("", encoding="utf-8")
+    return {
+        "weights_path": str(run_dir),
+        "metrics": {
+            "scalar": 0.0,
+            "metrics": {
+                "train_loss": 1_000_000_000.0,
+                "val_loss": 1_000_000_000.0,
+                "primary_metric": 0.0,
+            },
+            "critique": "budget preflight skipped the Tinker launch",
+        },
+        "cost": {
+            "data_gen_usd": 0.0,
+            "training_usd": 0.0,
+            "llm_calls_usd": 0.0,
+            "total_usd": 0.0,
+            "termination_reason": "budget_limit",
+        },
+        "n_iterations": 0,
+        "research_diary_path": str(diary_path),
+    }
 
 
 def _fake_model(tmp_path, *, total_cost=1.25, with_artifacts=False):
@@ -461,6 +491,45 @@ def test_running_run_hides_budget_skip_sentinel_metrics(tmp_path, monkeypatch):
     assert [item["experiment"] for item in state["iterations"]] == [
         "Increase learning rate"
     ]
+
+
+def test_budget_preflight_skip_is_not_reported_as_complete(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    def fake_invoke(prompt, budget, data_path=None, **_kwargs):
+        root = get_output_root()
+        assert root is not None
+        return _fake_budget_skipped_model(root)
+
+    monkeypatch.setattr(server_app, "invoke_manager_graph", fake_invoke)
+    client = TestClient(server_app.app)
+
+    response = client.post(
+        "/api/runs",
+        json={
+            "prompt": "Fine tune with a budget too small to start Tinker",
+            "budget": 1,
+            "task_type": "fine-tuning",
+        },
+    )
+
+    assert response.status_code == 200
+    run_id = response.json()["run_id"]
+    state = _wait_for_status(client, run_id, "cancelled")
+
+    assert state["status"] == "cancelled"
+    assert state["error"] == "estimated run cost exceeds remaining budget"
+    assert state["costSpent"] == 0.0
+    assert state["metrics"] == []
+    assert state["iterations"] == []
+    assert state["result"]["cost"]["termination_reason"] == "budget_limit"
+    assert state["artifacts"]["modelPath"].endswith("experiments/budget-skipped-run")
+    assert state["artifacts"]["checkpoints"] == {}
+    assert any("budget guard" in item["message"].lower() for item in state["logs"])
+
+    manifest_response = client.get(f"/api/runs/{run_id}/artifacts/manifest")
+    assert manifest_response.status_code == 200
+    assert manifest_response.json()["budget_preflight_skipped"] is True
 
 
 def test_running_run_keeps_previous_artifacts_when_newer_experiment_is_incomplete(

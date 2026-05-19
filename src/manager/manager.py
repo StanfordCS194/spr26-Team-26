@@ -163,10 +163,17 @@ def orchestrate_node(state: ManagerState) -> dict:
     result = invoke_autoresearch_graph(plan, config, cost_manager)
     raise_if_cancelled()
 
+    termination = result["cost"].get("termination_reason")
+    if termination == "budget_limit" and result["n_iterations"] == 0:
+        summary = "Training skipped by budget guard"
+    elif termination == "budget_limit":
+        summary = "Training stopped at budget limit"
+    else:
+        summary = "Training complete"
     log_event(
         AgentName.MANAGER,
         LogLevel.INFO,
-        f"Training complete — {result['n_iterations']} iterations, "
+        f"{summary} — {result['n_iterations']} iterations, "
         f"cost=${result['cost']['total_usd']:.2f}",
         {},
     )
