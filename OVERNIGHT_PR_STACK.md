@@ -1,6 +1,6 @@
 # Overnight PR Stack
 
-Updated: 2026-05-19 09:41 PDT
+Updated: 2026-05-19 09:51 PDT
 
 Purpose: give reviewers a merge/review order for the draft PR stack without
 having to infer dependencies from GitHub.
@@ -36,6 +36,7 @@ having to infer dependencies from GitHub.
    - #50 `codex/frontend-manager-api-bridge` -> #46
    - #74 `codex/api-run-output-isolation` -> #50
    - #76 `codex/frontend-dataset-source` -> #74
+   - #77 `codex/api-run-artifacts` -> #76
    - #52 `codex/preserve-chat-messages-curation` -> #40
    - #58 `codex/curation-small-splits` -> #52
    - #64 `codex/curation-source-splits` -> #58
@@ -66,7 +67,7 @@ having to infer dependencies from GitHub.
 
 ## Latest Local Stack Validation
 
-Unpublished local stack currently includes #55 through #76, including #73/#74/#75/#76
+Unpublished local stack currently includes #55 through #77, including #73/#74/#75/#76/#77
 on top of #51.
 
 - `python3 -m compileall src`
@@ -120,6 +121,12 @@ on top of #51.
   through Manager, and passed compileall, focused API/Manager tests
   (`26 passed, 1 skipped`), broad no-live branch tests (`187 passed, 7 skipped`),
   frontend lint/build, and browser form sanity.
+- #77 surfaces completed-run artifacts through the API/frontend bridge. It adds
+  typed artifact summaries, allowlisted downloads for run-local manifest,
+  metrics, metrics log, sample, and diary files, and final-results UI/export
+  metadata. Validation passed compileall, focused API/DataSource/Manager tests
+  (`27 passed, 1 skipped`), broad no-live branch tests (`188 passed, 7 skipped`),
+  frontend lint, and frontend build.
 - #75 resolves the DataGen stack topology issue where #44 was a sibling of the
   latest DataGen leaf chain. It merges the existing Mode C teacher-backed web
   structuring work onto #68 and passed the broad no-live suite (`181 passed,
@@ -127,5 +134,9 @@ on top of #51.
 - The unpublished composition branch now includes #55 through #76, including
   #73/#74/#75/#76. After merging #76 on top of the composed stack, compileall
   and the full no-live test suite passed (`244 passed, 9 skipped`).
+- After merging #77 into the same unpublished composition branch, compileall,
+  the full no-live Python suite (`245 passed, 9 skipped`), and frontend
+  lint/build all passed. The only remaining dirty file in that temporary
+  worktree is generated `configs/current.json`.
 
 Current conservative live spend: `$68.64 / $100.00`.
