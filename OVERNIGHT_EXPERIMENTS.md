@@ -31,6 +31,7 @@ Budget cap: $100 total.
 | stack-006 | 2026-05-19 07:22 | local only #55/#56/#57/#58 | verified stack composition smoke | none | passed | $0.00 | $11.79 | Recreated the throwaway stack as a real local branch and verified the leaf commits were present; compileall passed; broad non-live suite excluding live Tinker/HF passed `197 passed, 7 skipped`. |
 | stack-007 | 2026-05-19 07:22 | #59 | AutoResearch early-stop validation | none | passed | $0.00 | $11.79 | PR #59 focused tests passed (`29 passed`); broader AutoResearch/Tinker cluster passed `65 passed`; local integration stack with #59 passed compileall and `200 passed, 7 skipped`. |
 | tinker-008 | 2026-05-19 07:22 | local only #55/#56/#57/#58/#59 | live AutoResearch rerun after early-stop fix | Tinker | passed | $1.00 | $12.79 | Baseline plus one candidate, both 1 step on `Qwen/Qwen3.5-9B`; candidate reached `EVALUATE`, reverted normally on tie, and final `n_iterations=1`. Local Tinker cost report: `$0.00005`. |
+| docs-002 | 2026-05-19 07:23 | #49 | spec-site refresh | none | passed | $0.00 | $12.79 | Refreshed #49 on top of current `codex/full-stack-contract-smoke`; `npm run lint` and `npm run build` passed; PR diff remains limited to spec-site files. |
 
 ## Spend Ledger
 
