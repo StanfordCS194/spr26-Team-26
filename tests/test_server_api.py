@@ -76,6 +76,33 @@ def test_health_check():
     assert response.json() == {"status": "ok"}
 
 
+def test_cors_allows_alternate_local_dev_ports():
+    client = TestClient(server_app.app)
+
+    response = client.options(
+        "/api/runs",
+        headers={
+            "Origin": "http://127.0.0.1:5177",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5177"
+
+
+def test_cors_origins_can_be_extended_from_env(monkeypatch):
+    monkeypatch.setenv(
+        "MANAGER_API_CORS_ORIGINS",
+        "https://preview.example.com, http://localhost:5173",
+    )
+
+    origins = server_app._cors_origins_from_env()
+
+    assert origins.count("http://localhost:5173") == 1
+    assert "https://preview.example.com" in origins
+
+
 def test_create_run_completes_with_manager_result(tmp_path, monkeypatch):
     calls = []
 

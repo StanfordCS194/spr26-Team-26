@@ -8,6 +8,7 @@ added later once observability emits run-scoped events.
 from __future__ import annotations
 
 import json
+import os
 import threading
 import uuid
 from dataclasses import dataclass, field
@@ -38,12 +39,27 @@ STAGE_LABELS = [
     "AutoResearch",
     "Finalization",
 ]
+LOCAL_DEV_ORIGIN_REGEX = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+
+
+def _cors_origins_from_env() -> list[str]:
+    origins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+    extra_origins = os.getenv("MANAGER_API_CORS_ORIGINS", "")
+    for origin in extra_origins.split(","):
+        normalized = origin.strip().rstrip("/")
+        if normalized and normalized not in origins:
+            origins.append(normalized)
+    return origins
 
 
 app = FastAPI(title="Nemoral ML Agent API")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=_cors_origins_from_env(),
+    allow_origin_regex=LOCAL_DEV_ORIGIN_REGEX,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
