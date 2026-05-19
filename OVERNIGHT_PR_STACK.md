@@ -431,5 +431,13 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   tests (`25 passed, 1 skipped`). A throwaway #88 + updated #92 composition
   resolved the expected Manager conflicts and passed Manager/API tests (`44
   passed, 1 skipped`) plus a direct `NO_SPEND=1` fake-key check.
+- #86 was updated after audit to distinguish a Tinker budget-preflight skip
+  from successful training. When the result points at a manifest with
+  `budget_preflight_skipped=true` and `termination_reason=budget_limit`, the
+  API now returns terminal `cancelled`, keeps artifacts/downloads and the budget
+  reason, and avoids repopulating sentinel metrics from the Manager result.
+  Manager logs now say skipped/stopped by budget rather than always training
+  complete. Validation passed server API tests (`19 passed`) and Manager tests
+  (`13 passed, 1 skipped`).
 
 Current conservative live spend: `$94.14 / $100.00`.
