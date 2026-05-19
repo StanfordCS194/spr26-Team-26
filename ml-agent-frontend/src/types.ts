@@ -20,6 +20,8 @@ export interface PipelineStage {
 export interface MetricPoint {
   loss: number;
   accuracy: number;
+  primaryMetric?: number | null;
+  primaryMetricLabel?: string | null;
   iteration: number;
 }
 
@@ -29,6 +31,8 @@ export interface Iteration {
   diff?: string;
   loss: number;
   f1: number;
+  primaryMetric?: number | null;
+  primaryMetricLabel?: string | null;
   status: IterationStatus;
 }
 

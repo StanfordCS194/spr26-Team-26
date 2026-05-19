@@ -1,4 +1,5 @@
 import type { MetricPoint } from '../types';
+import { formatPrimaryMetric, metricPointValue, primaryMetricLabel } from '../utils/metricDisplay';
 import Tooltip from './Tooltip';
 
 interface Props {
@@ -12,9 +13,9 @@ const TOOLTIPS: Record<string, { label: string; body: string }> = {
     label: 'Training Loss',
     body: 'Measures how wrong the model\'s predictions are on training data. Lower is better — a steadily decreasing value means the model is learning.',
   },
-  accuracy: {
-    label: 'Validation Accuracy',
-    body: 'The model\'s correct-prediction rate on held-out data it has never seen. This is the more honest measure of real-world performance.',
+  primary: {
+    label: 'Primary Metric',
+    body: 'The higher-is-better score returned by the evaluation step. Tinker SFT runs report the normalized primary score derived from validation loss.',
   },
   cost: {
     label: 'Budget Accounted',
@@ -59,7 +60,8 @@ function MetricCard({ label, value, tooltipKey }: CardProps) {
 export default function MetricsGrid({ metrics, costSpent }: Props) {
   const last = metrics[metrics.length - 1];
   const loss = last ? last.loss.toFixed(4) : '—';
-  const accuracy = last ? `${(last.accuracy * 100).toFixed(1)}%` : '—';
+  const scoreLabel = primaryMetricLabel(last?.primaryMetricLabel);
+  const score = formatPrimaryMetric(metricPointValue(last), scoreLabel);
   const cost = `$${costSpent.toFixed(2)}`;
   const iter = `${metrics.length}/${Math.max(metrics.length, 12)}`;
 
@@ -74,7 +76,7 @@ export default function MetricsGrid({ metrics, costSpent }: Props) {
       aria-label="Training metrics"
     >
       <MetricCard label="Training Loss" value={loss} tooltipKey="loss" />
-      <MetricCard label="Val Accuracy" value={accuracy} tooltipKey="accuracy" />
+      <MetricCard label={scoreLabel} value={score} tooltipKey="primary" />
       <MetricCard label="Budget Used" value={cost} tooltipKey="cost" />
       <MetricCard label="Iterations" value={iter} tooltipKey="iter" />
     </div>

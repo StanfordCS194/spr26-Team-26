@@ -198,18 +198,54 @@ def _fail_current_stage(record: _RunRecord, message: str) -> None:
     _append_log(record, "Manager", message, "error")
 
 
+def _primary_metric_value_and_label(
+    metrics: dict[str, Any],
+    *,
+    scalar: Any = None,
+) -> tuple[float, str]:
+    for key, label in (
+        ("accuracy", "Accuracy"),
+        ("f1", "F1"),
+        ("primary_metric", "Primary Score"),
+    ):
+        value = metrics.get(key)
+        if value is None:
+            continue
+        try:
+            score = float(value)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(score):
+            return score, label
+
+    try:
+        score = float(scalar)
+    except (TypeError, ValueError):
+        return 0.0, "Primary Score"
+    return (score, "Primary Score") if math.isfinite(score) else (0.0, "Primary Score")
+
+
 def _metric_from_result(result: dict[str, Any]) -> MetricPoint | None:
     score = result.get("metrics") or {}
     metrics = score.get("metrics") or {}
-    scalar = float(score.get("scalar") or metrics.get("primary_metric") or 0.0)
+    primary_metric, primary_metric_label = _primary_metric_value_and_label(
+        metrics,
+        scalar=score.get("scalar"),
+    )
 
     loss = metrics.get("val_loss")
     if loss is None:
         loss = metrics.get("train_loss")
     if loss is None:
-        loss = max(0.0, 1.0 - scalar)
+        loss = max(0.0, 1.0 - primary_metric)
 
-    return MetricPoint(loss=float(loss), accuracy=scalar, iteration=1)
+    return MetricPoint(
+        loss=float(loss),
+        accuracy=primary_metric,
+        primaryMetric=primary_metric,
+        primaryMetricLabel=primary_metric_label,
+        iteration=1,
+    )
 
 
 def _iterations_from_diary(path: str | None) -> list[IterationView]:
@@ -234,6 +270,7 @@ def _iterations_from_diary(path: str | None) -> list[IterationView]:
         decision = row.get("decision") or "PENDING"
         if decision not in {"KEPT", "REVERTED", "PENDING"}:
             decision = "PENDING"
+        primary_metric, primary_metric_label = _primary_metric_value_and_label(metrics)
 
         iterations.append(
             IterationView(
@@ -241,7 +278,9 @@ def _iterations_from_diary(path: str | None) -> list[IterationView]:
                 experiment=str(row.get("hypothesis") or "AutoResearch iteration"),
                 diff=row.get("patch"),
                 loss=float(metrics.get("val_loss") or metrics.get("train_loss") or 0.0),
-                f1=float(metrics.get("primary_metric") or 0.0),
+                f1=primary_metric,
+                primaryMetric=primary_metric,
+                primaryMetricLabel=primary_metric_label,
                 status=decision,
             )
         )
@@ -345,15 +384,20 @@ def _latest_artifact_experiment_dir(record: _RunRecord) -> Path | None:
 
 def _metric_point(row: dict[str, Any], iteration: int) -> MetricPoint | None:
     loss = row.get("val_loss", row.get("train_loss"))
-    score = row.get("primary_metric")
+    primary_metric, primary_metric_label = _primary_metric_value_and_label(row)
     try:
         loss_value = float(loss)
-        score_value = float(score or 0.0)
     except (TypeError, ValueError):
         return None
     if not math.isfinite(loss_value):
         return None
-    return MetricPoint(loss=loss_value, accuracy=score_value, iteration=iteration)
+    return MetricPoint(
+        loss=loss_value,
+        accuracy=primary_metric,
+        primaryMetric=primary_metric,
+        primaryMetricLabel=primary_metric_label,
+        iteration=iteration,
+    )
 
 
 def _metrics_from_experiments(record: _RunRecord) -> list[MetricPoint]:

@@ -1,5 +1,12 @@
 import { resolveApiHref } from '../api/runs';
 import type { TrainingState } from '../types';
+import {
+  formatPrimaryMetric,
+  iterationMetricValue,
+  metricPointValue,
+  primaryMetricLabel,
+  shortMetricLabel,
+} from '../utils/metricDisplay';
 import Tooltip from './Tooltip';
 
 interface Props {
@@ -8,25 +15,25 @@ interface Props {
 }
 
 const RESULT_TOOLTIPS: Record<string, { label: string; body: string }> = {
-  'Final F1': {
-    label: 'Final F1 Score',
-    body: 'Balances precision and recall into one number. Ranges from 0 to 1 — higher is better, especially useful when classes are imbalanced.',
-  },
-  'Val Accuracy': {
-    label: 'Validation Accuracy',
-    body: 'The model\'s correct-prediction rate on held-out data it has never seen. This is the more honest measure of real-world performance.',
+  score: {
+    label: 'Primary Metric',
+    body: 'The higher-is-better score returned by the evaluation step. Tinker SFT runs report the normalized primary score derived from validation loss.',
   },
   'Budget Used': {
     label: 'Budget Accounted',
     body: 'The amount counted against this run\'s budget cap. Dry-run and no-spend runs use reserved or estimated budget, not provider-billed spend.',
   },
 };
+type ResultTooltipKey = keyof typeof RESULT_TOOLTIPS;
 
 export default function FinalResults({ state, onReset }: Props) {
   const lastMetric = state.metrics[state.metrics.length - 1];
   const bestIter = state.iterations.find(i => i.status === 'KEPT') ?? state.iterations[0];
   const artifactFiles = state.artifacts?.files.filter(file => file.exists) ?? [];
   const checkpointEntries = Object.entries(state.artifacts?.checkpoints ?? {}).filter(([, value]) => value);
+  const bestLabel = primaryMetricLabel(bestIter?.primaryMetricLabel ?? lastMetric?.primaryMetricLabel);
+  const finalScoreLabel = `Final ${shortMetricLabel(bestLabel)}`;
+  const latestLabel = primaryMetricLabel(lastMetric?.primaryMetricLabel ?? bestLabel);
 
   const handleExportDiary = () => {
     const diary = {
@@ -50,10 +57,18 @@ export default function FinalResults({ state, onReset }: Props) {
     URL.revokeObjectURL(url);
   };
 
-  const results = [
-    { label: 'Final F1', value: bestIter ? bestIter.f1.toFixed(3) : '—' },
-    { label: 'Val Accuracy', value: lastMetric ? `${(lastMetric.accuracy * 100).toFixed(1)}%` : '—' },
-    { label: 'Budget Used', value: `$${state.costSpent.toFixed(2)}` },
+  const results: Array<{ label: string; value: string; tooltipKey: ResultTooltipKey }> = [
+    {
+      label: finalScoreLabel,
+      value: formatPrimaryMetric(iterationMetricValue(bestIter), bestLabel),
+      tooltipKey: 'score',
+    },
+    {
+      label: latestLabel,
+      value: formatPrimaryMetric(metricPointValue(lastMetric), latestLabel),
+      tooltipKey: 'score',
+    },
+    { label: 'Budget Used', value: `$${state.costSpent.toFixed(2)}`, tooltipKey: 'Budget Used' },
   ];
   const compactPath = (value?: string | null) => {
     if (!value) return '—';
@@ -101,8 +116,8 @@ export default function FinalResults({ state, onReset }: Props) {
         gap: '12px',
         marginBottom: '1.5rem',
       }}>
-        {results.map(({ label, value }) => {
-          const tip = RESULT_TOOLTIPS[label];
+        {results.map(({ label, value, tooltipKey }) => {
+          const tip = RESULT_TOOLTIPS[tooltipKey];
           return (
             <div key={label} style={{
               background: 'var(--bg-elevated)',

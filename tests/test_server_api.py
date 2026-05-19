@@ -197,7 +197,11 @@ def test_create_run_completes_with_manager_result(tmp_path, monkeypatch):
     assert state["dataPath"] is None
     assert state["metrics"][0]["loss"] == 0.29
     assert state["metrics"][0]["accuracy"] == 0.775
+    assert state["metrics"][0]["primaryMetric"] == 0.775
+    assert state["metrics"][0]["primaryMetricLabel"] == "Primary Score"
     assert state["iterations"][0]["status"] == "KEPT"
+    assert state["iterations"][0]["primaryMetric"] == 0.775
+    assert state["iterations"][0]["primaryMetricLabel"] == "Primary Score"
     assert state["result"]["weights_path"] == "outputs/experiments/run/model"
 
 

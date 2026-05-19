@@ -64,37 +64,37 @@ const ITERATIONS: Array<Omit<Iteration, 'id'>> = [
   {
     experiment: 'Decrease learning_rate 3e-4→1.5e-4 to reduce loss spikes.',
     diff: '- learning_rate: 0.0003\n+ learning_rate: 0.00015',
-    loss: 0.289, f1: 0.871, status: 'KEPT',
+    loss: 0.289, f1: 0.871, primaryMetric: 0.871, primaryMetricLabel: 'F1', status: 'KEPT',
   },
   {
     experiment: 'Increase lora_rank 16→32 to expand model capacity for task.',
     diff: '- lora_rank: 16\n+ lora_rank: 32',
-    loss: 0.271, f1: 0.901, status: 'KEPT',
+    loss: 0.271, f1: 0.901, primaryMetric: 0.901, primaryMetricLabel: 'F1', status: 'KEPT',
   },
   {
     experiment: 'Increase learning_rate 1.5e-4→6.1e-4 (local ±20% perturbation).',
     diff: '- learning_rate: 0.00015\n+ learning_rate: 0.00061',
-    loss: 0.334, f1: 0.862, status: 'REVERTED',
+    loss: 0.334, f1: 0.862, primaryMetric: 0.862, primaryMetricLabel: 'F1', status: 'REVERTED',
   },
   {
     experiment: 'Increase warmup_steps 100→500 to stabilize early training.',
     diff: '- warmup_steps: 100\n+ warmup_steps: 500',
-    loss: 0.248, f1: 0.914, status: 'KEPT',
+    loss: 0.248, f1: 0.914, primaryMetric: 0.914, primaryMetricLabel: 'F1', status: 'KEPT',
   },
   {
     experiment: 'Decrease dropout 0.1→0.06 (local ±20% perturbation).',
     diff: '- dropout: 0.1\n+ dropout: 0.06',
-    loss: 0.243, f1: 0.917, status: 'KEPT',
+    loss: 0.243, f1: 0.917, primaryMetric: 0.917, primaryMetricLabel: 'F1', status: 'KEPT',
   },
   {
     experiment: 'Increase num_epochs 3→4 to allow longer convergence.',
     diff: '- num_epochs: 3\n+ num_epochs: 4',
-    loss: 0.261, f1: 0.908, status: 'REVERTED',
+    loss: 0.261, f1: 0.908, primaryMetric: 0.908, primaryMetricLabel: 'F1', status: 'REVERTED',
   },
   {
     experiment: 'Decrease learning_rate 1.5e-4→1.2e-4 (local ±20% perturbation).',
     diff: '- learning_rate: 0.00015\n+ learning_rate: 0.00012',
-    loss: 0.231, f1: 0.923, status: 'KEPT',
+    loss: 0.231, f1: 0.923, primaryMetric: 0.923, primaryMetricLabel: 'F1', status: 'KEPT',
   },
 ];
 
@@ -184,7 +184,16 @@ export function useTrainingSimulation() {
           schedule(() => {
             setState(prev => ({
               ...prev,
-              metrics: [...prev.metrics, { loss, accuracy, iteration: prev.metrics.length + 1 }],
+              metrics: [
+                ...prev.metrics,
+                {
+                  loss,
+                  accuracy,
+                  primaryMetric: accuracy,
+                  primaryMetricLabel: 'Accuracy',
+                  iteration: prev.metrics.length + 1,
+                },
+              ],
             }));
           }, stageStart + t * 500 + 200);
         }

@@ -6,6 +6,13 @@ import MetricsChart from './MetricsChart';
 import IterationsList from './IterationsList';
 import ActivityLog from './ActivityLog';
 import FinalResults from './FinalResults';
+import {
+  formatPrimaryMetric,
+  iterationMetricValue,
+  metricPointValue,
+  primaryMetricLabel,
+  shortMetricLabel,
+} from '../utils/metricDisplay';
 
 interface Props {
   state: TrainingState;
@@ -71,14 +78,22 @@ function CancelledArtifacts({ state, onReset }: Props) {
   const bestIter = state.iterations.find(i => i.status === 'KEPT') ?? state.iterations[0];
   const artifactFiles = state.artifacts?.files.filter(file => file.exists) ?? [];
   const checkpointEntries = Object.entries(state.artifacts?.checkpoints ?? {}).filter(([, value]) => value);
+  const bestLabel = primaryMetricLabel(bestIter?.primaryMetricLabel ?? lastMetric?.primaryMetricLabel);
+  const latestLabel = primaryMetricLabel(lastMetric?.primaryMetricLabel ?? bestLabel);
   const compactPath = (value?: string | null) => {
     if (!value) return '—';
     if (value.length <= 72) return value;
     return `…${value.slice(-69)}`;
   };
   const results = [
-    { label: 'Checkpoint F1', value: bestIter ? bestIter.f1.toFixed(3) : '—' },
-    { label: 'Val Accuracy', value: lastMetric ? `${(lastMetric.accuracy * 100).toFixed(1)}%` : '—' },
+    {
+      label: `Checkpoint ${shortMetricLabel(bestLabel)}`,
+      value: formatPrimaryMetric(iterationMetricValue(bestIter), bestLabel),
+    },
+    {
+      label: latestLabel,
+      value: formatPrimaryMetric(metricPointValue(lastMetric), latestLabel),
+    },
     { label: 'Budget Used', value: `$${state.costSpent.toFixed(2)}` },
   ];
 

@@ -28,6 +28,8 @@ class PipelineStage(BaseModel):
 class MetricPoint(BaseModel):
     loss: float
     accuracy: float
+    primaryMetric: float | None = None
+    primaryMetricLabel: str = "Primary Score"
     iteration: int
 
 
@@ -37,6 +39,8 @@ class IterationView(BaseModel):
     diff: str | None = None
     loss: float
     f1: float
+    primaryMetric: float | None = None
+    primaryMetricLabel: str = "Primary Score"
     status: Literal["KEPT", "REVERTED", "PENDING"]
 
 
