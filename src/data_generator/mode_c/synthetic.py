@@ -348,12 +348,17 @@ def build_mode_c_dataset(
 
 
 def scrape_web(query: str, schema: DataSchema, max_examples: int = 500) -> RawData:
-    """Fallback scraper interface.
+    """Scrape/adapt web sources into the same chat/SFT contract.
 
-    The repo does not yet have a search/scraping provider configured. This
-    returns deterministic excerpt-style records so callers can exercise the
-    fallback path without network access.
+    If the Mode C web-acquisition modules from PR #27 are present, this uses
+    them as the source collector and adapts extracted pages into trainable
+    records. Otherwise it returns deterministic excerpt-style records so tests
+    and demos can run without network credentials.
     """
+    acquired = _scrape_with_mode_c_web_pipeline(query, schema, max_examples)
+    if acquired is not None:
+        return acquired
+
     config = {
         "prompt": query,
         "training_procedure": {
@@ -362,10 +367,133 @@ def scrape_web(query: str, schema: DataSchema, max_examples: int = 500) -> RawDa
             "training_type": "SFT",
             "base_model": None,
             "hyperparameters": {"synthetic_examples": max_examples},
-            "notes": "web fallback",
+            "notes": "synthetic fallback for unavailable web acquisition",
         },
     }
-    return generate_synthetic_data(schema, min(max_examples, DEFAULT_SYNTHETIC_EXAMPLES), config=config)
+    raw = generate_synthetic_data(
+        schema,
+        min(max_examples, DEFAULT_SYNTHETIC_EXAMPLES),
+        config=config,
+    )
+    raw["format_meta"]["web_acquisition_used"] = False
+    raw["format_meta"]["web_acquisition_fallback"] = "deterministic_synthetic"
+    return raw
+
+
+def _scrape_with_mode_c_web_pipeline(
+    query: str,
+    schema: DataSchema,
+    max_examples: int,
+) -> RawData | None:
+    if os.getenv("DATA_GENERATOR_SYNTHETIC_OFFLINE") == "1":
+        return None
+
+    try:
+        from src.data_generator.mode_c.crawler import crawl_and_extract_pages
+        from src.data_generator.mode_c.mock_llm import mock_plan_web_acquisition
+        from src.data_generator.mode_c.search import search_web_sources
+    except Exception:
+        return None
+
+    config = {
+        "data": False,
+        "prompt": query,
+        "compute_budget": 0.0,
+        "training_procedure": {
+            "task_type": "custom",
+            "data_format": schema["input_format"],
+            "training_type": "SFT",
+            "base_model": None,
+            "hyperparameters": {"synthetic_examples": max_examples},
+            "notes": "web acquisition adapter",
+        },
+    }
+    try:
+        web_plan = mock_plan_web_acquisition(config)
+        web_plan["max_pages"] = min(
+            int(web_plan.get("max_pages", max_examples)),
+            max(1, max_examples),
+        )
+        search_results = search_web_sources(web_plan)
+        pages = crawl_and_extract_pages(search_results, web_plan)
+    except Exception:
+        if os.getenv("DATA_GENERATOR_SYNTHETIC_STRICT") == "1":
+            raise
+        return None
+
+    records = _web_pages_to_sft_records(pages, schema, query, max_examples)
+    if not records:
+        return None
+    quality = validate_synthetic_records(
+        records,
+        schema,
+        min_examples=min(MIN_SYNTHETIC_EXAMPLES, len(records)),
+    )
+    return {
+        "records": records,
+        "format_meta": {
+            "modality": "text",
+            "file_type": "web_acquired_chat_jsonl",
+            "encoding": "utf-8",
+            "schema": schema,
+            "web_acquisition_used": True,
+            "web_plan": web_plan,
+            "num_search_results": len(search_results),
+            "num_pages_crawled": len(pages),
+            "quality_report": quality,
+        },
+    }
+
+
+def _web_pages_to_sft_records(
+    pages: Sequence[Mapping[str, Any]],
+    schema: DataSchema,
+    query: str,
+    max_examples: int,
+) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    labels = _schema_labels(schema)
+    positive_label = labels[0] if labels else ""
+    for page in pages:
+        if len(records) >= max_examples:
+            break
+        content = _first_text(page, ("content", "snippet", "title"))
+        if not content:
+            continue
+        excerpt = content[:1800]
+        title = _first_text(page, ("title", "url", "domain")) or "web source"
+        url = _first_text(page, ("url", "source_path", "path"))
+        input_text = (
+            f"Task: {query}\n"
+            f"Source: {title}\n"
+            f"URL: {url or 'unknown'}\n"
+            f"Excerpt: {excerpt}"
+        )
+        if "one of:" in schema.get("output_format", "") and positive_label:
+            output_text = positive_label
+        else:
+            output_text = (
+                "Use this source as relevant evidence for the requested task; "
+                f"it discusses: {excerpt[:280]}"
+            )
+        records.append(
+            {
+                "source": "mode_c_web_acquisition",
+                "synthetic": False,
+                "task_type": "custom",
+                "bucket": "web_acquired",
+                "difficulty": "medium",
+                "input": input_text,
+                "output": output_text,
+                "messages": [
+                    {"role": "user", "content": input_text},
+                    {"role": "assistant", "content": output_text},
+                ],
+                "url": url,
+                "metadata": page.get("metadata", {}),
+            }
+        )
+    return _standardize_records(records, schema, max_examples)
 
 
 def _generate_batch_with_teacher(

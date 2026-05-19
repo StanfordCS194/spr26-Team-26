@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from src.data_generator.synthetic import (
+from src.data_generator.mode_c.synthetic import (
     DEFAULT_SYNTHETIC_EXAMPLES,
     DEFAULT_TEACHER_MODEL,
     SyntheticGenerationResult,

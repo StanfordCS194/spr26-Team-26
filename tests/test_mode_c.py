@@ -1,5 +1,7 @@
 import json
 import re
+import sys
+import types
 from types import SimpleNamespace
 
 from src.data_generator.mode_c import (
@@ -238,3 +240,43 @@ def test_scrape_web_fallback_uses_same_standard_contract(monkeypatch):
     assert len(raw["records"]) == 9
     assert raw["format_meta"]["quality_report"]["passed"] is True
     assert raw["format_meta"]["generation_plan"]
+
+
+def test_scrape_web_uses_mode_c_web_pipeline_when_available(monkeypatch):
+    monkeypatch.delenv("DATA_GENERATOR_SYNTHETIC_OFFLINE", raising=False)
+    schema = infer_schema_without_teacher(_config())
+
+    mock_llm = types.ModuleType("src.data_generator.mode_c.mock_llm")
+    search = types.ModuleType("src.data_generator.mode_c.search")
+    crawler = types.ModuleType("src.data_generator.mode_c.crawler")
+
+    mock_llm.mock_plan_web_acquisition = lambda _config: {
+        "search_queries": ["support ticket urgency"],
+        "max_pages": 2,
+    }
+    search.search_web_sources = lambda _plan: [
+        {
+            "url": "https://example.com/support",
+            "title": "Support urgency guide",
+            "snippet": "urgent outage escalation",
+        }
+    ]
+    crawler.crawl_and_extract_pages = lambda _results, _plan: [
+        {
+            "url": "https://example.com/support",
+            "title": "Support urgency guide",
+            "content": "Urgent tickets include outages, data loss, and security incidents.",
+            "metadata": {"extraction_method": "test"},
+        }
+    ]
+    monkeypatch.setitem(sys.modules, "src.data_generator.mode_c.mock_llm", mock_llm)
+    monkeypatch.setitem(sys.modules, "src.data_generator.mode_c.search", search)
+    monkeypatch.setitem(sys.modules, "src.data_generator.mode_c.crawler", crawler)
+
+    raw = scrape_web("classify support tickets by urgency", schema, max_examples=2)
+
+    assert raw["format_meta"]["web_acquisition_used"] is True
+    assert raw["format_meta"]["file_type"] == "web_acquired_chat_jsonl"
+    assert len(raw["records"]) == 1
+    assert raw["records"][0]["source"] == "mode_c_web_acquisition"
+    assert "Urgent tickets" in raw["records"][0]["messages"][0]["content"]
