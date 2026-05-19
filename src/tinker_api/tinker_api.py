@@ -73,7 +73,7 @@ def _env_flag_enabled(name: str) -> bool:
 def _live_tinker_block_reason() -> str | None:
     if _env_flag_enabled("NO_SPEND"):
         return "NO_SPEND=1"
-    if os.getenv("TINKER_BACKEND", "").strip().lower() == "dry_run":
+    if os.getenv("TINKER_BACKEND", "").strip().lower().replace("-", "_") == "dry_run":
         return "TINKER_BACKEND=dry_run"
     return None
 

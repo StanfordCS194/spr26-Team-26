@@ -350,6 +350,7 @@ def _assert_live_tinker_call_blocked(api, call, reason):
         ("NO_SPEND", "true", "NO_SPEND=1"),
         ("NO_SPEND", "on", "NO_SPEND=1"),
         ("TINKER_BACKEND", "dry_run", "TINKER_BACKEND=dry_run"),
+        ("TINKER_BACKEND", "dry-run", "TINKER_BACKEND=dry_run"),
     ],
 )
 def test_no_spend_guards_block_sdk_helpers_before_construction_or_use(
@@ -432,6 +433,7 @@ def test_no_spend_guards_block_sdk_helpers_before_construction_or_use(
         ("NO_SPEND", "1"),
         ("NO_SPEND", "true"),
         ("TINKER_BACKEND", "dry_run"),
+        ("TINKER_BACKEND", "dry-run"),
     ],
 )
 def test_no_spend_guards_allow_ledger_and_cancel_helpers(
