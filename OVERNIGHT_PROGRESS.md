@@ -49,3 +49,7 @@ Operating rules:
 - 2026-05-19 06:26 PDT — Retargeted spec docs PR #49 from `codex/datagen-integration` to `codex/full-stack-contract-smoke` so the docs sit behind the code they describe.
 - 2026-05-19 06:29 PDT — Draft PR #52 opened: DataGen curation payload now preserves chat `messages` instead of flattening them away. Focused validation passed (`36 passed, 1 skipped` in the broader DataGen/Manager/Tinker cluster).
 - 2026-05-19 06:29 PDT — Merged #52 into integration PR #51 and reran the broad non-live stack suite: `193 passed, 4 skipped`.
+- 2026-05-19 06:43 PDT — Draft PR #53 opened by parallel worker: AutoResearch compiled graph now has an offline budget-boundary test proving baseline + one fake Tinker candidate stops exactly at the budget before another proposal.
+- 2026-05-19 06:53 PDT — Draft PR #54 opened: Mode C web structuring and the Manager trainability gate are now proven together at the Manager boundary. Structured web chat/SFT rows reach DecisionEngine/AutoResearch; raw targetless web is rejected before training.
+- 2026-05-19 06:53 PDT — Accidentally started the live HF retrieval suite via an overly broad pytest command and stopped it once it entered the external dataset pull. No Tinker/LLM budget was spent; future broad checks should explicitly ignore `tests/data_generator/test_mode_b_hf_retrieval.py`.
+- 2026-05-19 06:54 PDT — Merged #53 and #54 into integration PR #51 and pushed commit `98e2951`. Refreshed #51 description. Non-live stack suite passed with `196 passed, 6 skipped`.

@@ -26,3 +26,5 @@
 - 2026-05-19 06:22 PDT — Keep the first frontend/backend bridge intentionally thin: start a run, poll state, and surface final Manager results. Live per-stage streaming should wait for run-scoped observability rather than fabricating precision.
 - 2026-05-19 06:26 PDT — Add an explicit integration PR for the draft stack rather than assuming sibling branches compose. Retarget docs behind this integrated stack so review order matches implementation reality.
 - 2026-05-19 06:29 PDT — Preserve chat `messages` as a first-class data contract through DataGen and curation. Flattening chat records to `input`/`output` loses system and multi-turn context before Tinker ever sees it.
+- 2026-05-19 06:53 PDT — Treat `tests/data_generator/test_mode_b_hf_retrieval.py` as live external validation, not part of the normal non-live stack suite. Broad local commands must explicitly ignore it unless the goal is a dedicated Hugging Face retrieval run.
+- 2026-05-19 06:54 PDT — Keep #51 as the integration proof branch and fold fresh leaf validation PRs into it after they pass. Leaf PRs remain separately reviewable, while #51 answers whether the stack composes.

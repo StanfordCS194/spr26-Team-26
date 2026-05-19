@@ -17,6 +17,10 @@ Budget cap: $100 total.
 | api-001 | 2026-05-19 06:22 | #50 | backend/frontend API validation | none | passed | $0.00 | $8.94 | FastAPI run bridge tests plus Manager tests passed (`15 passed, 1 skipped`); frontend `npm run lint` and `npm run build` passed. |
 | stack-001 | 2026-05-19 06:26 | #51 | full-stack offline contract | none | passed | $0.00 | $8.94 | New Manager -> DataGen -> DecisionEngine -> real AutoResearch graph -> fake Tinker smoke passed; broad non-live suite passed with `192 passed, 4 skipped`. |
 | datagen-005 | 2026-05-19 06:29 | #52/#51 | chat-message curation contract | none | passed | $0.00 | $8.94 | DataGen preserves chat `messages` through curation; focused cluster passed `36 passed, 1 skipped`; updated #51 broad stack passed `193 passed, 4 skipped`. |
+| stack-002 | 2026-05-19 06:43 | #53 | AutoResearch budget-boundary graph validation | none | passed | $0.00 | $8.94 | Parallel worker added offline compiled-graph coverage proving baseline plus one fake Tinker candidate stops at the budget boundary before another proposal. |
+| stack-003 | 2026-05-19 06:53 | #54 | Mode C web/Manager boundary validation | none | passed | $0.00 | $8.94 | Structured web chat/SFT rows reach DecisionEngine/AutoResearch; raw targetless web is rejected before training. Focused and neighboring suites passed. |
+| hf-001 | 2026-05-19 06:53 | #54/#51 | accidental broad HF retrieval start | Hugging Face public dataset pull | stopped | $0.00 | $8.94 | An overly broad pytest command entered the existing live HF retrieval suite. Stopped it once identified; no Tinker, Anthropic, or Tavily spend. |
+| stack-004 | 2026-05-19 06:54 | #51 | refreshed full-stack non-live validation | none | passed | $0.00 | $8.94 | Folded #53 and #54 into #51; `python3 -m compileall src`; non-live suite excluding live Tinker and live HF retrieval passed with `196 passed, 6 skipped`. |
 
 ## Spend Ledger
 
