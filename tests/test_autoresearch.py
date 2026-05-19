@@ -309,6 +309,21 @@ def test_compare_scores_not_improved_when_lower():
     assert delta["improved"] is False
 
 
+def test_compare_scores_tiny_positive_delta_is_not_improved():
+    new_score = {"scalar": 0.057829344672345545, "metrics": {}, "critique": ""}
+    baseline = {"scalar": 0.0577940194157755, "metrics": {}, "critique": ""}
+    delta = compare_scores(new_score, baseline)
+    assert delta["relative_pct"] == pytest.approx(0.0611, abs=0.001)
+    assert delta["improved"] is False
+
+
+def test_compare_scores_zero_baseline_allows_positive_improvement():
+    new_score = {"scalar": 0.01, "metrics": {}, "critique": ""}
+    baseline = {"scalar": 0.0, "metrics": {}, "critique": ""}
+    delta = compare_scores(new_score, baseline)
+    assert delta["improved"] is True
+
+
 def test_compare_scores_tie_not_improved():
     score = {"scalar": 0.85, "metrics": {}, "critique": ""}
     delta = compare_scores(score, score)

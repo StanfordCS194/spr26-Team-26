@@ -52,6 +52,8 @@ _DIARY_PATH = Path("outputs/logs/research_diary.jsonl")
 _CONFIG_PATH = Path("configs/current.json")  # the JSON file apply_patch/revert_patch target
 _MAX_NO_IMPROVE = 3   # halt after this many consecutive non-improving iterations
 _MAX_ITERATIONS = 20  # hard cap on total iterations regardless of improvement
+_MIN_RELATIVE_IMPROVEMENT_PCT = 1.0
+_MIN_ABSOLUTE_IMPROVEMENT = 1e-9
 _EXPERIMENT_CACHE: dict[str, ExperimentResult] = {}
 
 
@@ -928,10 +930,17 @@ def compare_scores(new_score: EvalScore, baseline_score: EvalScore) -> ScoreDelt
     base_val = baseline_score["scalar"]
     absolute = new_val - base_val
     relative_pct = (absolute / base_val * 100.0) if base_val != 0.0 else 0.0
+    if base_val == 0.0:
+        improved = absolute > _MIN_ABSOLUTE_IMPROVEMENT
+    else:
+        improved = (
+            absolute > _MIN_ABSOLUTE_IMPROVEMENT
+            and relative_pct >= _MIN_RELATIVE_IMPROVEMENT_PCT
+        )
     return {
         "absolute": absolute,
         "relative_pct": relative_pct,
-        "improved": absolute > 0.0,
+        "improved": improved,
     }
 
 
