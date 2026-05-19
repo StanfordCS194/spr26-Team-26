@@ -415,5 +415,14 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   `Budget Used` with tooltip copy that distinguishes budget accounting from
   provider-billed spend in dry-run/no-spend mode. Branch and product composition
   frontend lint/build passed, plus a simulation browser smoke.
+- #109 is a new stacked draft PR on #108 for metric-label honesty. Backend run
+  state now exposes `primaryMetric` and `primaryMetricLabel` for metric points
+  and AutoResearch iteration rows while keeping legacy `accuracy`/`f1` fields
+  as compatibility shims. The frontend renders the API-provided metric label in
+  cards, charts, final results, and cancelled artifacts, so Tinker SFT proxy
+  scores are no longer presented as validation accuracy or F1. Branch
+  validation passed compileall, server API tests (`17 passed`), frontend
+  lint/build, and a simulation browser smoke. Product UI composition through
+  #109 passed server API tests (`22 passed`) plus frontend lint/build.
 
 Current conservative live spend: `$94.14 / $100.00`.
