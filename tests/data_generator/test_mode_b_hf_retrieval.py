@@ -654,6 +654,39 @@ def test_hf_row_limit_distributes_remainder_across_splits(monkeypatch) -> None:
     ]
 
 
+def test_parse_hf_dataset_ids_ignores_free_text_slash_words() -> None:
+    from src.data_generator.mode_b import parse_explicit_hf_dataset_ids
+
+    config = {
+        "prompt": "Compare the Mode B/Tinker path with the web/DataGen path.",
+        "training_procedure": {
+            "task_type": "text-classification",
+            "notes": "Overnight bounded live Mode B/Tinker validation.",
+        },
+    }
+
+    assert parse_explicit_hf_dataset_ids(config) == []
+
+
+def test_parse_hf_dataset_ids_keeps_explicit_sources_and_urls() -> None:
+    from src.data_generator.mode_b import parse_explicit_hf_dataset_ids
+
+    config = {
+        "prompt": "Use hf://SetFit/sst2 for the smoke run.",
+        "data_request": {"sources": [{"type": "hf_dataset", "id": "mteb/banking77"}]},
+        "training_procedure": {
+            "task_type": "text-classification",
+            "notes": "Reference: https://huggingface.co/datasets/DeepPavlov/clinc150",
+        },
+    }
+
+    assert parse_explicit_hf_dataset_ids(config) == [
+        "DeepPavlov/clinc150",
+        "mteb/banking77",
+        "SetFit/sst2",
+    ]
+
+
 def test_live_hf_retrieval_requires_explicit_opt_in(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.delenv(RUN_LIVE_HF_RETRIEVAL_ENV, raising=False)
 
