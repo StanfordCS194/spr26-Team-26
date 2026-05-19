@@ -1,10 +1,11 @@
-import type { MetricPoint } from '../types';
+import type { MetricPoint, SkillLevel } from '../types';
 import Tooltip from './Tooltip';
 
 interface Props {
   metrics: MetricPoint[];
   costSpent: number;
   budget?: number;
+  skillLevel: SkillLevel;
 }
 
 const TOOLTIPS: Record<string, { label: string; body: string }> = {
@@ -23,6 +24,10 @@ const TOOLTIPS: Record<string, { label: string; body: string }> = {
   iter: {
     label: 'Experiment Iterations',
     body: 'How many hyperparameter configurations have been tried out of the planned total. More iterations generally improve the final model but cost more.',
+  },
+  progress: {
+    label: 'Training Progress',
+    body: 'How far the training run has gotten — a friendly rollup that combines loss improvement and iteration count.',
   },
 };
 
@@ -56,15 +61,46 @@ function MetricCard({ label, value, tooltipKey }: CardProps) {
   );
 }
 
-export default function MetricsGrid({ metrics, costSpent }: Props) {
+export default function MetricsGrid({ metrics, costSpent, budget, skillLevel }: Props) {
   const last = metrics[metrics.length - 1];
   const loss = last ? last.loss.toFixed(4) : '—';
   const accuracy = last ? `${(last.accuracy * 100).toFixed(1)}%` : '—';
   const cost = `$${costSpent.toFixed(2)}`;
   const iter = `${metrics.length}/${Math.max(metrics.length, 12)}`;
 
+  // Beginner-friendly progress: map loss down toward a 0–100 score.
+  // Interpolates 0.42 (start) → 0% to 0.12 (great) → 100%, clamped.
+  const progress = last
+    ? Math.max(0, Math.min(100, Math.round(((0.42 - last.loss) / (0.42 - 0.12)) * 100)))
+    : 0;
+  const progressPct = last ? `${progress}%` : '—';
+  const budgetPct = budget ? `${Math.round((costSpent / budget) * 100)}% of budget` : cost;
+  void budgetPct;
+
+  if (skillLevel === 'beginner') {
+    // 3 friendly cards — no raw loss.
+    return (
+      <div
+        className="metrics-grid"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '12px',
+          marginBottom: '1.5rem',
+        }}
+        aria-label="Training metrics"
+      >
+        <MetricCard label="Progress" value={progressPct} tooltipKey="progress" />
+        <MetricCard label="Accuracy" value={accuracy} tooltipKey="accuracy" />
+        <MetricCard label="Spent" value={cost} tooltipKey="cost" />
+      </div>
+    );
+  }
+
+  // Intermediate + Expert: full 4-card grid.
   return (
     <div
+      className="metrics-grid"
       style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(4, 1fr)',
