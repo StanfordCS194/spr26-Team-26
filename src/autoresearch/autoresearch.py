@@ -116,8 +116,8 @@ def _eval_adaptation_skip_reason() -> str | None:
         return f"{_EVAL_ADAPTATION_ENV}=off"
     if _env_truthy(_NO_SPEND_ENV):
         return f"{_NO_SPEND_ENV}=1"
-    if setting == "auto" and not os.getenv("ANTHROPIC_API_KEY"):
-        return "ANTHROPIC_API_KEY is not configured"
+    if setting == "auto":
+        return f"{_EVAL_ADAPTATION_ENV}=auto"
     return None
 
 
