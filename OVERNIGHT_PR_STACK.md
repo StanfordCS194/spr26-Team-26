@@ -253,7 +253,10 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   `AUTORESEARCH_EVAL_ADAPTATION=auto` now adapts only when
   `ANTHROPIC_API_KEY` is configured, `off` disables it, and `required` preserves
   the explicit live path. Branch no-live suite passed (`168 passed, 4 skipped`);
-  composed stack through #91 passed (`264 passed, 6 skipped`).
+  composed stack through #91 passed (`264 passed, 6 skipped`). Follow-up update:
+  `NO_SPEND=1` now skips eval adaptation before any live path even when a key is
+  loaded or adaptation is marked required; full branch AutoResearch tests passed
+  (`42 passed`).
 - #92 adds a local Manager reasoner on top of the noninteractive Manager path.
   `MANAGER_REASONER=auto` keeps Claude when a key is configured, but falls back
   to deterministic local planning without a key or under `NO_SPEND=1`.
@@ -266,7 +269,10 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   to avoid no-op proposals by sampling alternate random values, stepping
   discrete candidates to neighbors, and forcing integer perturbations to move
   when bounds allow. Branch validation passed (`67 passed, 3 skipped`); composed
-  AutoResearch/Tinker passed (`74 passed`).
+  AutoResearch/Tinker passed (`74 passed`). Follow-up update: after rebasing on
+  #91, `NO_SPEND=1` now forces the local proposer even if
+  `AUTORESEARCH_PROPOSER=claude` is accidentally set; branch AutoResearch/Tinker
+  validation passed (`65 passed`).
 - #71 was updated for compatibility with #95: the fake-Claude full-stack budget
   contract now explicitly sets `AUTORESEARCH_PROPOSER=claude` when it
   monkeypatches `propose_hypothesis()`. This keeps the test's intended path
