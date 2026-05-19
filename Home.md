@@ -20,33 +20,29 @@
 
 ---
 
-## Theme Music
-
-🎵 **["Harder, Better, Faster, Stronger" — Daft Punk](https://www.youtube.com/watch?v=yydNF8tuVmU)**
-
-*Training loops, hyperparameter tuning, AutoResearch — harder, better, faster, stronger, one epoch at a time.*
-
----
-
 ## Project Synopsis
 
-**AutoTrain Agent** is an end-to-end autonomous ML training agent that turns a plain-English prompt and a hard budget cap into a fully trained, saved model — with no infrastructure knowledge required.
+**Nemoral** is an end-to-end autonomous ML training agent that turns a plain-English prompt, optional dataset source, and hard budget cap into a trained model artifact.
 
-**The problem:** Training a custom ML model today requires stitching together data wrangling, architecture decisions, cloud GPU setup, hyperparameter tuning, and cost monitoring. For students and researchers, any one of those steps can derail an entire project.
+**The problem:** Training a custom language model today requires stitching together data wrangling, dataset validation, model choice, LoRA configuration, GPU execution, hyperparameter search, evaluation, and budget controls. For students and researchers, any one of those steps can derail an entire project.
 
-**Our solution:** A multi-agent pipeline with five components:
+**Current V1 scope:** chat-style supervised fine-tuning on Tinker. The supported execution path is JSONL chat/SFT data -> DataGen curation -> DecisionEngine Tinker plan -> AutoResearch baseline/candidate loop -> SDK-native Tinker LoRA runner -> metrics, checkpoint, sample, and manifest artifacts.
+
+**Out of scope for V1:** image classification, RL/GRPO, and full pre-training. The repository may still contain compatibility stubs or older notes for those paths, but the active implementation target is Tinker chat/SFT.
+
+**Pipeline components:**
 
 | Feature | What it does |
 |---------|--------------|
 | **Manager Agent** | Orchestrates the entire pipeline end-to-end |
-| **Data Generator** | Finds data on Hugging Face, scrapes the web, or synthetically generates a dataset from the prompt |
-| **Decision Engine** | Decides whether to fine-tune (LoRA) or pre-train from scratch based on the task and budget |
-| **AutoResearch Loop** | Iterates hypothesis → code edit → Tinker run → validation loss check; keeps wins, reverts losses (inspired by [Karpathy's autoresearch](https://github.com/karpathy/autoresearch)) |
-| **Cost Manager** | Polls Tinker's billing API; saves `state_dict` and kills the instance the moment the budget is hit |
+| **Data Generator** | Finds Hugging Face data, structures web sources, or creates synthetic chat/SFT rows from the prompt |
+| **Decision Engine** | Chooses the Tinker SFT plan, base model, LoRA config, run estimate, and compatibility training artifact |
+| **AutoResearch Loop** | Iterates hypothesis -> config patch -> bounded Tinker run -> heldout score; keeps material wins and reverts losses |
+| **Cost Manager** | Guards launches with budget preflight, records in-process spend, and wraps SDK-native Tinker runs with monitoring hooks |
 
-**June Demo Target:** A working agent that handles 3 task types (image classification, LLM fine-tuning, custom pre-training), runs fully autonomously on Tinker GPUs, and outputs saved model weights.
+**June Demo Target:** A working chat/SFT agent that can run from prompt plus optional dataset source, stay inside a budget, execute real Tinker LoRA experiments on `Qwen/Qwen3.5-9B`, and return inspectable artifacts.
 
-**Tech Stack:** Python · Tinker Distributed GPU API · Hugging Face Hub API · PyTorch · LoRA / PEFT
+**Tech Stack:** Python · FastAPI · LangGraph · Tinker SDK · Tinker Cookbook · Hugging Face Hub API · Tavily · React/Vite
 
 ---
 
