@@ -152,6 +152,7 @@ Budget cap: $100 total.
 | ui-dry-011 | 2026-05-19 15:16 | #105 update | frontend deployment-mode docs/build validation | none | passed | $0.00 | $94.14 | Updated #105 with explicit simulation build/preview scripts and README deployment guidance. Validation passed `npm run lint`, default `npm run build`, and `npm run build:simulation`. |
 | stack-084 | 2026-05-19 15:18 | #86 update | terminal artifact API status validation | none | passed | $0.00 | $94.14 | Updated #86 so API terminal status honors selected Tinker artifact manifests: failed artifacts surface as failed, non-budget cancelled artifacts surface as cancelled, and budget-preflight skips remain budget-cancelled with downloadable evidence. Validation passed compileall and no-network `tests/test_server_api.py` (`21 passed`). |
 | stack-085 | 2026-05-19 15:21 | product composition + #86 update | broad no-network product composition validation | none | passed | $0.00 | $94.14 | Merged the #86 terminal-artifact status update into `/private/tmp/spr26-product-ui-compose` and resolved the local-only conflict with provenance/DataGen artifact exposure. Composed API tests passed (`30 passed`), and the full no-network Python suite passed with live credentials unset and `UV_NO_NETWORK=1` (`336 passed, 10 skipped`). |
+| tavily-001 | 2026-05-19 15:22 | credential sanity | one-result Tavily connectivity probe | Tavily | passed | ~$0.01 Tavily allowance | $94.14 | Loaded the key from `.env` without printing it and sent one `search_depth=basic`, `max_results=1` request. API returned HTTP 200 with one result and a response-time field. Main conservative Tinker/LLM ledger unchanged; note one request against the provided Tavily allowance. |
 
 ## Spend Ledger
 
@@ -160,3 +161,4 @@ Current estimated cumulative spend: **$94.14 / $100.00**
 Notes:
 - Tinker billing may not be available through the local code, so per-run spend will be estimated conservatively from run type and observed duration unless a real cost is exposed.
 - Tavily budget provided by user: $16 ~= 2000 requests. Track requests qualitatively unless API exposes exact usage.
+  - Tavily requests used after the allowance note: 1 basic probe.
