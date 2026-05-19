@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:simulation": "VITE_USE_SIMULATION=1 tsc -b && VITE_USE_SIMULATION=1 vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "preview:simulation": "npm run build:simulation && vite preview"
   },
   "dependencies": {
     "react": "^19.2.5",
