@@ -753,6 +753,7 @@ def test_autoresearch_propose_then_run_uses_proposed_config(monkeypatch, tmp_pat
         batch_size=4,
     ).save(config_path)
     monkeypatch.setattr(ar, "_CONFIG_PATH", config_path)
+    monkeypatch.setenv("AUTORESEARCH_PROPOSER", "claude")
     monkeypatch.setattr(
         ar,
         "propose_hypothesis",

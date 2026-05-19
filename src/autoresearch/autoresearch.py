@@ -20,6 +20,7 @@ from uuid import uuid4
 import anthropic
 
 from src.autoresearch.config import TrainingConfig
+from src.autoresearch.proposer import LocalPerturbationProposalStrategy, ProposalStrategy
 from src.observability.observability import log_event
 from src.runtime_context import raise_if_cancelled, resolve_output_path
 from src.tinker_api.sft_runner import (
@@ -63,6 +64,7 @@ _TINKER_HYPERPARAMETER_ALIASES = {
     "max_seq_len": "max_seq_length",
 }
 _EVAL_ADAPTATION_ENV = "AUTORESEARCH_EVAL_ADAPTATION"
+_PROPOSER_ENV = "AUTORESEARCH_PROPOSER"
 
 
 def _diary_path() -> Path:
@@ -121,6 +123,30 @@ def _eval_adaptation_skip_reason() -> str | None:
     return None
 
 
+def _proposer_setting() -> Literal["auto", "local", "claude"]:
+    """Return the configured hypothesis proposer mode."""
+    raw = os.getenv(_PROPOSER_ENV, "auto").strip().lower()
+    if raw in {"", "auto"}:
+        return "auto"
+    if raw in {"local", "offline", "deterministic"}:
+        return "local"
+    if raw in {"claude", "anthropic", "required"}:
+        return "claude"
+    raise ValueError(
+        f"{_PROPOSER_ENV} must be one of: auto, local, claude"
+    )
+
+
+def _use_claude_proposer() -> bool:
+    """Return True when propose_node should call the live Claude proposer."""
+    setting = _proposer_setting()
+    if setting == "claude":
+        return True
+    if setting == "local":
+        return False
+    return bool(os.getenv("ANTHROPIC_API_KEY"))
+
+
 def _current_config_for_plan(
     plan: TrainingPlan,
     config: OrchestrationConfig,
@@ -129,6 +155,50 @@ def _current_config_for_plan(
     if plan.get("backend") == "tinker_sft":
         return _canonicalize_tinker_hyperparameters(current_config)
     return current_config
+
+
+def _training_config_for_proposal(state: AutoResearchState) -> TrainingConfig:
+    """Build a TrainingConfig snapshot from graph state hyperparameters."""
+    current_config = dict(state["current_config"])
+    if state["plan"].get("backend") == "tinker_sft":
+        current_config = _canonicalize_tinker_hyperparameters(current_config)
+
+    current_config.setdefault(
+        "model_name",
+        state["config"]["training_procedure"].get("base_model")
+        or state["plan"].get("base_model")
+        or DEFAULT_TINKER_MODEL,
+    )
+    return TrainingConfig.from_dict(current_config)
+
+
+def _local_proposal_strategy(state: AutoResearchState) -> ProposalStrategy:
+    """Return the deterministic offline proposer used by LangGraph local mode."""
+    return LocalPerturbationProposalStrategy(
+        seed=int(state["iteration"]),
+        backend=state["plan"].get("backend"),
+    )
+
+
+def _local_propose_hypothesis(
+    state: AutoResearchState,
+    task: TaskAnalysis,
+) -> Hypothesis:
+    """Generate a Hypothesis from ProposalStrategy without constructing Anthropic."""
+    proposal = _local_proposal_strategy(state).propose(
+        _training_config_for_proposal(state),
+        state["diary"],
+    )
+    param = proposal.metadata.get("param")
+    return Hypothesis(
+        description=proposal.hypothesis,
+        patch=json.dumps(proposal.patch),
+        expected_effect=(
+            f"Refine {task['eval_metric']} by testing a deterministic local "
+            f"perturbation of {param or 'one hyperparameter'}."
+        ),
+        search_strategy="local",
+    )
 
 
 # ─── GRAPH BUILDER ────────────────────────────────────────────────────────────
@@ -320,12 +390,15 @@ def propose_node(state: AutoResearchState) -> dict:
         if state["plan"].get("backend") == "tinker_sft"
         else None
     )
-    hypothesis = propose_hypothesis(
-        state["current_config"],
-        state["diary"],
-        task_analysis,
-        allowed_params=allowed_params,
-    )
+    if _use_claude_proposer():
+        hypothesis = propose_hypothesis(
+            state["current_config"],
+            state["diary"],
+            task_analysis,
+            allowed_params=allowed_params,
+        )
+    else:
+        hypothesis = _local_propose_hypothesis(state, task_analysis)
     raise_if_cancelled()
 
     # Bug fix: patch the config JSON, not the training script (.py files are not patchable).
