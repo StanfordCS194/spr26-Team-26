@@ -14,6 +14,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
+from src.data_sources import looks_like_local_data_path, normalize_hf_dataset_source
 from src.runtime_context import get_output_root
 from src.types import (
     DatasetResult,
@@ -75,9 +76,15 @@ def query_data_node(state: ManagerState) -> dict:
     """LangGraph node. Calls query_user_for_data(). Returns: { has_data, data_path }."""
     existing_path = state.get("data_path")
     if existing_path:
-        if os.path.exists(existing_path):
-            resolved_path = os.path.abspath(existing_path)
+        expanded_path = Path(existing_path).expanduser()
+        if expanded_path.exists():
+            resolved_path = str(expanded_path.resolve())
             return {"has_data": True, "data_path": resolved_path}
+        if looks_like_local_data_path(existing_path):
+            return {"has_data": False, "data_path": None}
+        hf_source = normalize_hf_dataset_source(existing_path)
+        if hf_source:
+            return {"has_data": True, "data_path": hf_source}
         return {"has_data": False, "data_path": None}
 
     try:

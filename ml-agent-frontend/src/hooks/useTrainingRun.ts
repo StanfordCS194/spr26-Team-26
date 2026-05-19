@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createRun, getRun } from '../api/runs';
-import type { TaskType, TrainingState } from '../types';
+import type { StartTraining, TaskType, TrainingState } from '../types';
 
 function makeInitialState(): TrainingState {
   return {
@@ -9,6 +9,7 @@ function makeInitialState(): TrainingState {
     prompt: '',
     budget: 50,
     taskType: 'classification',
+    dataPath: null,
     costSpent: 0,
     metrics: [],
     iterations: [],
@@ -18,13 +19,19 @@ function makeInitialState(): TrainingState {
   };
 }
 
-function makeStartingState(prompt: string, budget: number, taskType: TaskType): TrainingState {
+function makeStartingState(
+  prompt: string,
+  budget: number,
+  taskType: TaskType,
+  dataPath?: string | null
+): TrainingState {
   return {
     status: 'running',
     stage: 0,
     prompt,
     budget,
     taskType,
+    dataPath: dataPath ?? null,
     costSpent: 0,
     metrics: [],
     iterations: [],
@@ -62,6 +69,7 @@ export function useTrainingRun() {
       prompt: next.prompt,
       budget: next.budget,
       taskType: next.taskType,
+      dataPath: next.dataPath ?? null,
       costSpent: next.costSpent,
       metrics: next.metrics,
       iterations: next.iterations,
@@ -76,16 +84,17 @@ export function useTrainingRun() {
     }
   }, [stopPolling]);
 
-  const start = useCallback(async (prompt: string, budget: number, taskType: TaskType) => {
+  const start = useCallback<StartTraining>(async (prompt, budget, taskType, dataPath = null) => {
+    const normalizedDataPath = dataPath?.trim() || null;
     stopPolling();
-    setState(makeStartingState(prompt, budget, taskType));
+    setState(makeStartingState(prompt, budget, taskType, normalizedDataPath));
 
     try {
       const created = await createRun({
         prompt,
         budget,
         task_type: taskType,
-        data_path: null,
+        data_path: normalizedDataPath,
       });
       setState(prev => ({ ...prev, runId: created.run_id }));
       await poll(created.run_id);

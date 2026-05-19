@@ -30,6 +30,7 @@ export default function FinalResults({ state, onReset }: Props) {
       prompt: state.prompt,
       budget: state.budget,
       taskType: state.taskType,
+      dataPath: state.dataPath ?? null,
       costSpent: state.costSpent,
       iterations: state.iterations,
       metrics: state.metrics,

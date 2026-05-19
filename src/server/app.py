@@ -19,6 +19,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.data_sources import looks_like_local_data_path, normalize_hf_dataset_source
 from src.manager.manager import invoke_manager_graph
 from src.runtime_context import output_root
 from src.server.schemas import (
@@ -90,6 +91,40 @@ def _append_log(record: _RunRecord, component: str, message: str, kind: str = "d
         LogEntryView(time=_time_label(), component=component, message=message, type=kind),
     )
     record.logs = record.logs[:100]
+
+
+def _copy_request_with_data_path(request: RunRequest, data_path: str | None) -> RunRequest:
+    if hasattr(request, "model_copy"):
+        return request.model_copy(update={"data_path": data_path})
+    return request.copy(update={"data_path": data_path})
+
+
+def _normalize_data_path_for_run(data_path: str | None) -> str | None:
+    if data_path is None:
+        return None
+
+    value = data_path.strip()
+    if not value:
+        return None
+
+    local_path = Path(value).expanduser()
+    if local_path.exists():
+        return str(local_path.resolve())
+
+    if looks_like_local_data_path(value):
+        raise HTTPException(
+            status_code=400,
+            detail="data_path must be an existing local path or Hugging Face source",
+        )
+
+    hf_source = normalize_hf_dataset_source(value)
+    if hf_source:
+        return hf_source
+
+    raise HTTPException(
+        status_code=400,
+        detail="data_path must be an existing local path or Hugging Face source",
+    )
 
 
 def _mark_stage(record: _RunRecord, stage: int, status: str = "in-progress") -> None:
@@ -184,6 +219,8 @@ def _run_manager(record: _RunRecord) -> None:
     with _LOCK:
         _mark_stage(record, 0)
         _append_log(record, "Manager", "Run accepted")
+        if record.request.data_path:
+            _append_log(record, "DataGen", f"Dataset source: {record.request.data_path}")
         _append_log(record, "Manager", "Manager graph is running")
 
     try:
@@ -210,6 +247,7 @@ def _to_state(record: _RunRecord) -> RunState:
         prompt=record.request.prompt,
         budget=record.request.budget,
         taskType=record.request.task_type,
+        dataPath=record.request.data_path,
         costSpent=record.cost_spent,
         metrics=record.metrics,
         iterations=record.iterations,
@@ -227,8 +265,8 @@ def health() -> dict[str, str]:
 
 @app.post("/api/runs", response_model=RunCreated)
 def create_run(request: RunRequest) -> RunCreated:
-    if request.data_path and not Path(request.data_path).exists():
-        raise HTTPException(status_code=400, detail="data_path does not exist")
+    normalized_data_path = _normalize_data_path_for_run(request.data_path)
+    request = _copy_request_with_data_path(request, normalized_data_path)
 
     run_id = str(uuid.uuid4())
     output_dir = RUN_OUTPUT_ROOT / run_id

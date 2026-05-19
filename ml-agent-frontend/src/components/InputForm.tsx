@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import type { TaskType } from '../types';
+import type { StartTraining, TaskType } from '../types';
 
 interface Props {
-  onStart: (prompt: string, budget: number, taskType: TaskType) => void;
+  onStart: StartTraining;
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -146,6 +146,7 @@ export default function InputForm({ onStart }: Props) {
   const [prompt, setPrompt] = useState('');
   const [budget, setBudget] = useState(50);
   const [taskType, setTaskType] = useState<TaskType>('classification');
+  const [dataPath, setDataPath] = useState('');
   const [error, setError] = useState('');
 
   const handleSubmit = () => {
@@ -158,13 +159,14 @@ export default function InputForm({ onStart }: Props) {
       return;
     }
     setError('');
-    onStart(prompt.trim(), budget, taskType);
+    onStart(prompt.trim(), budget, taskType, dataPath.trim() || null);
   };
 
   const handleReset = () => {
     setPrompt('');
     setBudget(50);
     setTaskType('classification');
+    setDataPath('');
     setError('');
   };
 
@@ -192,6 +194,20 @@ export default function InputForm({ onStart }: Props) {
             <span style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'right' }}>
               {prompt.length}/500
             </span>
+          </div>
+
+          <div style={styles.field}>
+            <label style={styles.label} htmlFor="dataPath">Dataset Source</label>
+            <input
+              id="dataPath"
+              type="text"
+              style={styles.input}
+              placeholder="/data/train.jsonl or hf://SetFit/sst2"
+              value={dataPath}
+              onChange={e => setDataPath(e.target.value)}
+              maxLength={1000}
+              aria-label="Dataset source"
+            />
           </div>
 
           <div style={styles.row}>

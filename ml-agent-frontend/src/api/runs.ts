@@ -7,6 +7,7 @@ export interface CreateRunResponse {
 
 export interface BackendRunState extends TrainingState {
   run_id: string;
+  dataPath?: string | null;
   result?: Record<string, unknown> | null;
 }
 

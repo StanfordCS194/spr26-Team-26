@@ -132,6 +132,48 @@ def test_query_data_node_uses_programmatic_data_path_without_input(tmp_path, mon
     assert out == {"has_data": True, "data_path": str(data_path.resolve())}
 
 
+def test_query_data_node_preserves_hf_dataset_source(monkeypatch):
+    def fail_input(_prompt):
+        raise AssertionError("query_data_node should not prompt when data_path is set")
+
+    monkeypatch.setattr("builtins.input", fail_input)
+
+    out = query_data_node(
+        {
+            "prompt": "classify",
+            "budget": 5.0,
+            "data_path": "hf://SetFit/sst2",
+            "has_data": True,
+            "task_reasoning": None,
+            "config": None,
+            "result": None,
+        }
+    )
+
+    assert out == {"has_data": True, "data_path": "hf://SetFit/sst2"}
+
+
+def test_query_data_node_does_not_treat_missing_relative_file_as_hf(monkeypatch):
+    def fail_input(_prompt):
+        raise AssertionError("query_data_node should not prompt when data_path is set")
+
+    monkeypatch.setattr("builtins.input", fail_input)
+
+    out = query_data_node(
+        {
+            "prompt": "classify",
+            "budget": 5.0,
+            "data_path": "data/train.jsonl",
+            "has_data": True,
+            "task_reasoning": None,
+            "config": None,
+            "result": None,
+        }
+    )
+
+    assert out == {"has_data": False, "data_path": None}
+
+
 def test_query_data_node_treats_eof_as_no_data(monkeypatch):
     def raise_eof(_prompt):
         raise EOFError
