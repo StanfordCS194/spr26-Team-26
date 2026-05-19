@@ -78,10 +78,11 @@ Budget cap: $100 total.
 | stack-032 | 2026-05-19 09:52 | local only #55-#77 + #73/#74/#75 | unpublished combined stack validation | none | passed | $0.00 | $68.64 | Merged #77 into the local composition stack. Compileall passed, the full no-live Python suite passed (`245 passed, 9 skipped`), and frontend lint/build passed after installing frontend dependencies in the temporary stack worktree. |
 | stack-033 | 2026-05-19 10:02 | #78 | API progress refresh and cancellation | none | passed | $0.00 | $68.64 | Draft PR #78 opened on #77. API polling now reads run-local observability logs, diary rows, and Tinker metrics/artifacts; server exposes cooperative cancellation; frontend shows Cancel/Cancelling/Cancelled states. Validation passed compileall, focused tests (`33 passed`), broad no-live branch suite (`194 passed, 7 skipped`), frontend lint/build, and browser cancellation UI sanity. |
 | stack-034 | 2026-05-19 10:03 | local only #55-#78 + #73/#74/#75 | unpublished combined stack validation | none | passed | $0.00 | $68.64 | Merged #78 into the local composition stack. Conflict resolution preserved newer AutoResearch budget/split/heldout code and added cancellation hooks around it. Compileall passed, full no-live Python suite passed (`251 passed, 9 skipped`), and frontend lint/build passed. |
+| api-live-001 | 2026-05-19 10:08 | local only #55-#78 + #73/#74/#75 | live API Mode B progress validation | Tinker, Anthropic, Hugging Face public dataset pull | failed with integration bug found | $5.00 | $73.64 | `TestClient` POST to `/api/runs` with `hf://SetFit/sst2`, `$2.50` software budget, and run-scoped output root. API progress refresh worked through Manager/DataGen/DecisionEngine/AutoResearch, streamed five Tinker metric points, and surfaced manifest/metrics/sample artifacts. Run failed after baseline because Manager/DecisionEngine config used legacy `epochs`, while Tinker V1 validation only allows `num_epochs`. |
 
 ## Spend Ledger
 
-Current estimated cumulative spend: **$68.64 / $100.00**
+Current estimated cumulative spend: **$73.64 / $100.00**
 
 Notes:
 - Tinker billing may not be available through the local code, so per-run spend will be estimated conservatively from run type and observed duration unless a real cost is exposed.

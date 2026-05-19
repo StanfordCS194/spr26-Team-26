@@ -152,5 +152,10 @@ on top of #51.
   `src/tinker_api/sft_runner.py`, where the resolution preserved the newer
   stack's budget/split/heldout behavior and wrapped it with #78's cancellation
   hooks.
+- A live API Mode B validation on the unpublished stack confirmed #78's progress
+  refresh behavior: the API streamed Manager/DataGen/AutoResearch/Tinker progress,
+  five Tinker metric points, and partial artifacts before failing on a separate
+  Tinker config-name bug (`epochs` vs `num_epochs`). That bug should become the
+  next scoped AutoResearch compatibility PR.
 
-Current conservative live spend: `$68.64 / $100.00`.
+Current conservative live spend: `$73.64 / $100.00`.
