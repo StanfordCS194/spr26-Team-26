@@ -20,6 +20,7 @@ having to infer dependencies from GitHub.
    - #66 `codex/tinker-primary-metric-plan` -> #63
    - #69 `codex/autoresearch-budget-preflight` -> #66
    - #70 `codex/tinker-run-cost-estimate` -> #69
+   - #72 `codex/autoresearch-estimated-spend-floor` -> #70
 3. Tinker runner chain:
    - #43 `codex/tinker-single-assistant-rendering` -> #35
    - #57 `codex/tinker-live-loss-metrics` -> #43
@@ -62,11 +63,11 @@ having to infer dependencies from GitHub.
 ## Latest Local Stack Validation
 
 Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
-#62, #63, #64, #65, #66, #67, #68, #69, #70, and #71 on top of #51.
+#62, #63, #64, #65, #66, #67, #68, #69, #70, #71, and #72 on top of #51.
 
 - `python3 -m compileall src`
 - Full non-live suite with live Tinker/HF cases skipped by default:
-  `224 passed, 9 skipped`
+  `225 passed, 9 skipped`
 - Live #62 heldout smoke on the 22-row web DataGen dataset completed with
   split 17/2/3, saved checkpoints, `val_loss=3.5944`, and `test_loss=8.8181`.
 - Live full AutoResearch graph smoke with #62/#63 completed with split 17/2/3
@@ -95,5 +96,8 @@ Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
   runs. #71 updates the integration proof test so its fake budget/cost scale
   remains compatible with the new preflight estimate while still proving the
   budget boundary.
+- #72 records launched Tinker runs at a conservative spend floor of
+  `max(reported_cost_usd, estimated_run_cost_usd)`. Budget preflight skips
+  still record zero because no SDK call happened.
 
 Current conservative live spend: `$58.54 / $100.00`.
