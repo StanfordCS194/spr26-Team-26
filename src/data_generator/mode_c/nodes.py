@@ -150,7 +150,7 @@ def aggregate_web_sources_node(state: DataGenState) -> dict:
         return unstructured
 
     structured = structure_web_sources_for_sft(state["config"], pages)
-    if structured.validation_report["passed"] or structuring_mode == "required":
+    if structured.validation_report["passed"]:
         structured.raw_data["human_readable"] = report
         structured.raw_data["format_meta"]["mode_c_backend"] = backend
         structured.raw_data["format_meta"]["web_plan"] = web_plan
@@ -162,6 +162,11 @@ def aggregate_web_sources_node(state: DataGenState) -> dict:
             "validation_report": structured.validation_report,
             "human_readable": report,
         }
+
+    if structuring_mode == "required":
+        issues = structured.validation_report.get("issues", [])
+        issue_text = "; ".join(str(issue) for issue in issues) or "validation failed"
+        raise RuntimeError(f"Mode C web structuring required valid SFT rows: {issue_text}")
 
     return _mode_c_synthetic_fallback_output(
         state["config"],
