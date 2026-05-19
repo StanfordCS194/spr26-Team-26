@@ -189,12 +189,12 @@ def _fetch_with_hf_datasets(dataset_id: str, max_rows_per_dataset: int | None) -
         ds_obj = load_dataset(dataset_id, configs[0])
 
     split_items = list(ds_obj.items()) if hasattr(ds_obj, "items") else [("train", ds_obj)]
-    per_split_limit = None
-    if max_rows_per_dataset is not None:
-        per_split_limit = max(1, max_rows_per_dataset // max(1, len(split_items)))
-
-    for split_name, split_ds in split_items:
-        take_n = len(split_ds) if per_split_limit is None else min(per_split_limit, len(split_ds))
+    for split_idx, (split_name, split_ds) in enumerate(split_items):
+        if max_rows_per_dataset is None:
+            take_n = len(split_ds)
+        else:
+            split_limit = _split_row_limit(max_rows_per_dataset, len(split_items), split_idx)
+            take_n = min(split_limit, len(split_ds))
         for row in split_ds.select(range(take_n)):
             text_val, label_val = _extract_input_and_label(row, getattr(split_ds, "features", None))
             if not text_val:
@@ -212,6 +212,13 @@ def _fetch_with_hf_datasets(dataset_id: str, max_rows_per_dataset: int | None) -
         if max_rows_per_dataset is not None and len(records) >= max_rows_per_dataset:
             break
     return records
+
+
+def _split_row_limit(max_rows: int, total_splits: int, split_idx: int) -> int:
+    safe_total = max(1, total_splits)
+    base = max_rows // safe_total
+    remainder = max_rows % safe_total
+    return base + (1 if split_idx < remainder else 0)
 
 
 def _extract_input_and_label(row: dict, features: Any = None) -> tuple[str, str]:
