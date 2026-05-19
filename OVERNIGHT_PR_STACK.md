@@ -283,5 +283,15 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   no longer switch to `strategy="pre-train"` while keeping `backend="tinker_sft"`;
   they stay on the supported Tinker SFT path and let budget preflight handle
   affordability.
+- #94 was updated with a graph-level dry-run smoke that exercises the compiled
+  AutoResearch graph against the real dry-run Tinker backend. It explicitly
+  forces the fake-Claude proposal path for compatibility with #95, blocks live
+  SDK dependency loading, and now composes with the local stack (`286 passed,
+  8 skipped` full no-live suite).
+- #98 is an integration-only stacked draft PR against the pushed
+  `codex/local-leaf-stack-smoke` base branch. It intentionally is not based on
+  `main` because its API-level HF dry-run smoke depends on the current draft
+  stack (#92-#97 plus the earlier API/data-source/runtime branches). Diff
+  against that integration base is one focused test in `tests/test_server_api.py`.
 
 Current conservative live spend: `$94.14 / $100.00`.
