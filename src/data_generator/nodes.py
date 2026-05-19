@@ -51,9 +51,9 @@ def acquire_hf_data_node(state: DataGenState) -> dict:
 
 
 def acquire_web_data_node(state: DataGenState) -> dict:
-    """Acquisition backbone for Mode C (placeholder logic for now)."""
+    """Acquisition backbone for Mode C synthetic chat/SFT data."""
     query = str(state["config"].get("prompt", "")).strip() or "generic task"
-    raw = acquire_web_data(query)
+    raw = acquire_web_data(query, state["config"])
     return {"raw_data": raw}
 
 
