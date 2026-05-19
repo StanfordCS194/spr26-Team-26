@@ -5,6 +5,9 @@ interface Props {
   onStart: StartTraining;
 }
 
+const MIN_BUDGET = 1;
+const MAX_BUDGET = 500;
+
 const styles: Record<string, React.CSSProperties> = {
   wrapper: {
     minHeight: '100vh',
@@ -154,8 +157,8 @@ export default function InputForm({ onStart }: Props) {
       setError('Prompt must be at least 10 characters.');
       return;
     }
-    if (budget < 10 || budget > 500) {
-      setError('Budget must be between $10 and $500.');
+    if (budget < MIN_BUDGET || budget > MAX_BUDGET) {
+      setError(`Budget must be between $${MIN_BUDGET} and $${MAX_BUDGET}.`);
       return;
     }
     setError('');
@@ -218,9 +221,9 @@ export default function InputForm({ onStart }: Props) {
                 type="number"
                 style={styles.input}
                 value={budget}
-                min={10}
-                max={500}
-                step={5}
+                min={MIN_BUDGET}
+                max={MAX_BUDGET}
+                step={0.5}
                 onChange={e => setBudget(Number(e.target.value))}
                 aria-label="Budget cap in dollars"
               />

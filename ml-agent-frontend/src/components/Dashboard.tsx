@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from '../api/runs';
 import type { TrainingState } from '../types';
 import PipelineProgress from './PipelineProgress';
 import MetricsGrid from './MetricsGrid';
@@ -65,8 +66,156 @@ function StatusDot({ status }: { status: TrainingState['status'] }) {
   );
 }
 
+function CancelledArtifacts({ state, onReset }: Props) {
+  const apiBaseUrl = getApiBaseUrl();
+  const lastMetric = state.metrics[state.metrics.length - 1];
+  const bestIter = state.iterations.find(i => i.status === 'KEPT') ?? state.iterations[0];
+  const artifactFiles = state.artifacts?.files.filter(file => file.exists) ?? [];
+  const checkpointEntries = Object.entries(state.artifacts?.checkpoints ?? {}).filter(([, value]) => value);
+  const artifactHref = (downloadPath?: string | null) => (
+    apiBaseUrl && downloadPath ? `${apiBaseUrl}${downloadPath}` : null
+  );
+  const compactPath = (value?: string | null) => {
+    if (!value) return '—';
+    if (value.length <= 72) return value;
+    return `…${value.slice(-69)}`;
+  };
+  const results = [
+    { label: 'Checkpoint F1', value: bestIter ? bestIter.f1.toFixed(3) : '—' },
+    { label: 'Val Accuracy', value: lastMetric ? `${(lastMetric.accuracy * 100).toFixed(1)}%` : '—' },
+    { label: 'Cost Spent', value: `$${state.costSpent.toFixed(2)}` },
+  ];
+
+  return (
+    <section
+      style={{
+        background: 'var(--bg-surface)',
+        border: '0.5px solid var(--warning)',
+        borderRadius: 'var(--radius)',
+        padding: '1.5rem',
+        marginBottom: '1.5rem',
+      }}
+      aria-label="Cancelled run artifacts"
+    >
+      <div style={{ marginBottom: '1.25rem', textAlign: 'center' }}>
+        <span style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.4rem',
+          fontSize: '11px',
+          fontWeight: 600,
+          letterSpacing: '0.1em',
+          color: 'var(--warning)',
+          background: 'var(--bg-elevated)',
+          border: '0.5px solid var(--warning)',
+          borderRadius: '4px',
+          padding: '3px 10px',
+          marginBottom: '0.75rem',
+        }}>
+          CANCELLED RUN ARTIFACTS
+        </span>
+        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+          This run was cancelled before completion. The latest checkpoint metrics and downloadable files are still available.
+        </p>
+      </div>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: '12px',
+        marginBottom: '1.5rem',
+      }}>
+        {results.map(({ label, value }) => (
+          <div key={label} style={{
+            background: 'var(--bg-elevated)',
+            border: '0.5px solid var(--border)',
+            borderRadius: '6px',
+            padding: '0.75rem',
+            textAlign: 'center',
+          }}>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>{label}</p>
+            <p style={{ fontSize: '22px', fontWeight: 500, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>{value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div style={{
+        borderTop: '0.5px solid var(--border)',
+        paddingTop: '1rem',
+        marginBottom: '1.5rem',
+      }}>
+        <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+          Available Files
+        </p>
+        <div style={{ display: 'grid', gap: '0.4rem' }}>
+          {state.artifacts?.modelPath && (
+            <div style={{ display: 'grid', gridTemplateColumns: '96px 1fr', gap: '0.75rem', alignItems: 'center' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Model</span>
+              <code style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {compactPath(state.artifacts.modelPath)}
+              </code>
+            </div>
+          )}
+          {artifactFiles.map(file => {
+            const href = artifactHref(file.downloadPath);
+            return (
+              <div
+                key={file.name}
+                style={{ display: 'grid', gridTemplateColumns: '96px 1fr auto', gap: '0.75rem', alignItems: 'center' }}
+              >
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{file.label}</span>
+                <code style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {compactPath(file.path)}
+                </code>
+                {href && (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ fontSize: '11px', color: 'var(--accent)', textDecoration: 'none' }}
+                  >
+                    Open
+                  </a>
+                )}
+              </div>
+            );
+          })}
+          {checkpointEntries.map(([key, value]) => (
+            <div key={key} style={{ display: 'grid', gridTemplateColumns: '96px 1fr', gap: '0.75rem', alignItems: 'center' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{key}</span>
+              <code style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {String(value)}
+              </code>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <button
+          onClick={onReset}
+          style={{
+            padding: '0.5rem 1rem',
+            background: 'transparent',
+            border: '0.5px solid var(--border)',
+            borderRadius: '6px',
+            color: 'var(--text-secondary)',
+            fontSize: '13px',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+          }}
+          aria-label="Try another training run"
+        >
+          Try Another
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export default function Dashboard({ state, onReset, onCancel }: Props) {
   const canCancel = state.status === 'running' || state.status === 'cancelling';
+  const hasCancelledArtifacts = state.status === 'cancelled' && Boolean(state.artifacts);
 
   return (
     <div style={{ minHeight: '100vh' }}>
@@ -212,7 +361,9 @@ export default function Dashboard({ state, onReset, onCancel }: Props) {
               Run cancelled
             </p>
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-              The backend stopped the training pipeline at the next safe checkpoint.
+              {hasCancelledArtifacts
+                ? 'The backend stopped the training pipeline, but checkpoint and artifact files are available below.'
+                : 'The backend stopped the training pipeline at the next safe checkpoint.'}
             </p>
           </section>
         )}
@@ -238,6 +389,7 @@ export default function Dashboard({ state, onReset, onCancel }: Props) {
         {state.status === 'complete' && (
           <FinalResults state={state} onReset={onReset} />
         )}
+        {hasCancelledArtifacts && <CancelledArtifacts state={state} onReset={onReset} onCancel={onCancel} />}
       </main>
     </div>
   );
