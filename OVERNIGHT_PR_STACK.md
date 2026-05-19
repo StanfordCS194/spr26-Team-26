@@ -321,5 +321,8 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   Offline/no-spend mode now permits cached shards but blocks both `download_data`
   and direct `download_single_shard` network downloads. Focused no-network
   validation passed (`7 passed`).
+- Local composition of #98/#99/#100 with #101/#102/#103 passed the focused
+  no-spend guard cluster (`81 passed`) and the full no-live suite with live
+  credentials unset plus `UV_NO_NETWORK=1` (`308 passed, 8 skipped`).
 
 Current conservative live spend: `$94.14 / $100.00`.
