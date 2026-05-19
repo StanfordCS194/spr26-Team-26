@@ -7,10 +7,15 @@ First sub-agent façade: acquisition + handoff to second sub-agent.
 
 from __future__ import annotations
 
+from src.data_generator.curation import curate_handoff_to_dataset_result, curate_record
 from src.data_generator.edges import select_mode_edge
 from src.data_generator.graph import build_data_generator_graph, invoke_data_generator_graph
 from src.data_generator.mode_a import detect_format, load_raw_data
-from src.data_generator.mode_b import build_explicit_hf_candidates, fetch_hf_datasets, parse_explicit_hf_dataset_ids
+from src.data_generator.mode_b import (
+    build_explicit_hf_candidates,
+    fetch_hf_datasets,
+    parse_explicit_hf_dataset_ids,
+)
 from src.data_generator.mode_c import (
     acquire_synthetic_dataset,
     acquire_web_data,
@@ -51,4 +56,6 @@ __all__ = [
     "infer_schema_without_teacher",
     "plan_synthetic_generation",
     "validate_synthetic_records",
+    "curate_record",
+    "curate_handoff_to_dataset_result",
 ]
