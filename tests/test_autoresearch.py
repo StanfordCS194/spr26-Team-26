@@ -515,6 +515,43 @@ def test_log_node_records_early_stop_once(tmp_path):
         ar._DIARY_PATH = original_path
 
 
+def test_log_node_labels_budget_preflight_skip(tmp_path):
+    import src.autoresearch.autoresearch as ar
+
+    run_dir = tmp_path / "budget-skip"
+    run_dir.mkdir()
+    (run_dir / "manifest.json").write_text(
+        json.dumps({"budget_preflight_skipped": True})
+    )
+    original_path = ar._DIARY_PATH
+    ar._DIARY_PATH = tmp_path / "diary.jsonl"
+    try:
+        state = _make_state(
+            eval_suite={"primary_metric": "primary_metric", "metrics": [], "test_split_path": "",
+                        "use_llm_grading": False},
+            current_config={"learning_rate": 1e-4, "batch_size": 4},
+            current_patch=json.dumps({"learning_rate": 2e-4}),
+            last_description="Increase learning rate.",
+            last_delta=None,
+            last_result={
+                "job_id": "candidate",
+                "status": "CANCELLED",
+                "metrics": {"train_loss": 1e9, "val_loss": 1e9,
+                            "test_loss": 1e9, "primary_metric": 0.0},
+                "model_path": str(run_dir),
+                "cost_usd": 0.0,
+                "logs_path": str(run_dir / "metrics.jsonl"),
+            },
+        )
+
+        out = ar.log_node(state)
+
+        assert out["diary"][0]["decision"] == "REVERTED"
+        assert "budget preflight" in out["diary"][0]["notes"]
+    finally:
+        ar._DIARY_PATH = original_path
+
+
 def test_completed_high_finite_sft_loss_flows_to_evaluate():
     import src.autoresearch.autoresearch as ar
 
@@ -531,6 +568,56 @@ def test_completed_high_finite_sft_loss_flows_to_evaluate():
     )
 
     assert ar.early_stop_edge(state) == "evaluate"
+
+
+def test_run_node_preflight_skips_unaffordable_candidate(monkeypatch, tmp_path):
+    import src.autoresearch.autoresearch as ar
+    from src.cost_manager.cost_manager import CostManager
+
+    def fail_runner(*args, **kwargs):
+        raise AssertionError("Tinker runner should not start when preflight rejects")
+
+    monkeypatch.setattr(ar, "run_tinker_sft_experiment", fail_runner)
+    monkeypatch.chdir(tmp_path)
+    state = _make_state(
+        plan={
+            "strategy": "fine-tune",
+            "base_model": "Qwen/Qwen3.5-9B",
+            "lora_config": None,
+            "estimated_cost": 2.0,
+            "estimated_time_min": 5,
+            "training_script_path": "outputs/scripts/train.py",
+            "eval_metric": "primary_metric",
+            "backend": "tinker_sft",
+            "dataset_path": str(tmp_path / "train.jsonl"),
+        },
+        config={
+            "compute_budget": 1.0,
+            "prompt": "",
+            "data": False,
+            "training_procedure": {
+                "task_type": "text-classification",
+                "data_format": "jsonl",
+                "training_type": "SFT",
+                "base_model": "Qwen/Qwen3.5-9B",
+                "hyperparameters": {"learning_rate": 1e-4, "batch_size": 1},
+                "notes": "",
+            },
+        },
+        current_config={"learning_rate": 1e-4, "batch_size": 1},
+        current_patch=json.dumps({"learning_rate": 2e-4}),
+        cost_manager=CostManager(1.0),
+    )
+
+    out = ar.run_node(state)
+    manifest = json.loads(
+        (Path(out["last_result"]["model_path"]) / "manifest.json").read_text()
+    )
+
+    assert out["last_result"]["status"] == "CANCELLED"
+    assert out["last_result"]["cost_usd"] == 0.0
+    assert out["should_stop"] is True
+    assert manifest["budget_preflight_skipped"] is True
 
 
 # ─── continue_edge ────────────────────────────────────────────────────────────
@@ -718,7 +805,7 @@ def test_autoresearch_graph_passes_plan_dataset_splits_to_tinker(monkeypatch, tm
         "strategy": "fine-tune",
         "base_model": "Qwen/Qwen3.5-9B",
         "lora_config": {"rank": 8, "alpha": 16, "dropout": 0.05, "target_modules": []},
-        "estimated_cost": 1.0,
+        "estimated_cost": 0.005,
         "estimated_time_min": 5,
         "training_script_path": "outputs/scripts/train.py",
         "eval_metric": "primary_metric",
