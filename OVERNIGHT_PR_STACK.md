@@ -195,5 +195,14 @@ on top of #51.
 - A live cancellation rerun after composing #83 confirmed the intended browser
   contract: no placeholder artifact bundle during `cancelling`, then real
   downloadable artifacts at terminal `cancelled`.
+- A live API Mode C/no-data run on the composed stack completed end-to-end with
+  live web acquisition, teacher structuring, curation, baseline plus one
+  candidate Tinker run, and API artifact downloads. It exposed the legacy stdin
+  prompt in the server path.
+- #84 fixes that Manager prompt issue on top of #73 by making
+  `invoke_manager_graph()` noninteractive by default and preserving an explicit
+  `interactive_data_prompt=True` opt-in. It composes cleanly with the local stack
+  after resolving only the `typing` import conflict; the composed no-live suite
+  passed with `256 passed, 6 skipped`.
 
-Current conservative live spend: `$83.64 / $100.00`.
+Current conservative live spend: `$88.64 / $100.00`.
