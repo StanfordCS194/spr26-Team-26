@@ -104,6 +104,27 @@ def test_query_data_node_uses_programmatic_data_path_without_input(tmp_path, mon
     assert out == {"has_data": True, "data_path": str(data_path.resolve())}
 
 
+def test_query_data_node_treats_eof_as_no_data(monkeypatch):
+    def raise_eof(_prompt):
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", raise_eof)
+
+    out = query_data_node(
+        {
+            "prompt": "build an assistant",
+            "budget": 5.0,
+            "data_path": None,
+            "has_data": False,
+            "task_reasoning": None,
+            "config": None,
+            "result": None,
+        }
+    )
+
+    assert out == {"has_data": False, "data_path": None}
+
+
 def test_invoke_manager_graph_returns_trained_model():
     pytest.skip("end-to-end graph test requires LangGraph + live sub-agents")
 
@@ -210,3 +231,36 @@ def test_orchestrate_node_returns_trained_model(tmp_path, monkeypatch):
     assert "result" in out
     assert out["result"]["n_iterations"] == 3
     assert out["result"]["cost"]["total_usd"] == 1.0
+
+
+def test_orchestrate_node_stops_before_training_on_untrainable_dataset(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    fake_handoff = {
+        "mode_used": "C",
+        "curation_payload": {
+            "records": [
+                {
+                    "content": "A raw web page without an assistant target.",
+                    "source_kind": "web_page",
+                    "source_locator": "https://example.com/raw",
+                }
+            ]
+        },
+        "validation_report": {
+            "passed": False,
+            "issues": ["raw web pages require structuring before training"],
+            "sample_accuracy_estimate": 0.0,
+        },
+    }
+
+    with patch("src.data_generator.graph.invoke_data_generator_graph",
+               return_value=fake_handoff), \
+         patch("src.decision_engine.decision_engine.run_decision_engine") as mock_de, \
+         patch("src.autoresearch.autoresearch.invoke_autoresearch_graph") as mock_ar, \
+         patch("src.observability.observability.log_event"):
+
+        with pytest.raises(ValueError, match="DataGen did not produce a trainable dataset"):
+            orchestrate_node(_make_orchestrate_state())
+
+    mock_de.assert_not_called()
+    mock_ar.assert_not_called()

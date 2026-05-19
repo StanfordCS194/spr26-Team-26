@@ -190,6 +190,36 @@ def test_flag_regression_at_boundary_is_not_triggered():
     assert flag_regression(delta, threshold=-0.01) is False
 
 
+def test_evaluate_node_compares_against_current_best(monkeypatch):
+    import src.autoresearch.autoresearch as ar
+
+    monkeypatch.setattr(
+        ar,
+        "run_evals",
+        lambda _model_path, _suite: {"scalar": 0.70, "metrics": {}, "critique": ""},
+    )
+    state = _make_state(
+        eval_suite={"primary_metric": "accuracy", "metrics": [], "test_split_path": "",
+                    "use_llm_grading": False},
+        baseline_score={"scalar": 0.50, "metrics": {}, "critique": ""},
+        best_score={"scalar": 0.80, "metrics": {}, "critique": ""},
+        last_result={
+            "job_id": "candidate",
+            "status": "COMPLETED",
+            "metrics": {"train_loss": 0.3, "val_loss": 0.4,
+                        "test_loss": 0.5, "primary_metric": 0.70},
+            "model_path": "candidate-model",
+            "cost_usd": 0.01,
+            "logs_path": "candidate.jsonl",
+        },
+    )
+
+    out = ar.evaluate_node(state)
+
+    assert out["last_delta"]["improved"] is False
+    assert out["last_delta"]["absolute"] == pytest.approx(-0.10)
+
+
 # ─── log_iteration ────────────────────────────────────────────────────────────
 
 def test_log_iteration_appends_to_diary(tmp_path, monkeypatch):
@@ -237,6 +267,40 @@ def test_log_iteration_returns_extended_diary(tmp_path, monkeypatch):
         ar._DIARY_PATH = original_path
 
 
+def test_log_node_uses_pre_patch_config_for_kept_diff(tmp_path):
+    import src.autoresearch.autoresearch as ar
+
+    original_path = ar._DIARY_PATH
+    ar._DIARY_PATH = tmp_path / "diary.jsonl"
+    try:
+        state = _make_state(
+            eval_suite={"primary_metric": "accuracy", "metrics": [], "test_split_path": "",
+                        "use_llm_grading": False},
+            current_config={"learning_rate": 2e-4, "batch_size": 4},
+            current_patch=json.dumps({"learning_rate": 2e-4}),
+            original_content=json.dumps({"learning_rate": 1e-4, "batch_size": 4}),
+            last_description="Increase learning rate.",
+            last_delta={"absolute": 0.1, "relative_pct": 20.0, "improved": True},
+            last_result={
+                "job_id": "candidate",
+                "status": "COMPLETED",
+                "metrics": {"train_loss": 0.3, "val_loss": 0.4,
+                            "test_loss": 0.5, "primary_metric": 0.70},
+                "model_path": "candidate-model",
+                "cost_usd": 0.01,
+                "logs_path": "candidate.jsonl",
+            },
+        )
+
+        out = ar.log_node(state)
+
+        assert out["diary"][0]["decision"] == "KEPT"
+        assert "- learning_rate: 0.0001" in out["diary"][0]["patch"]
+        assert "+ learning_rate: 0.0002" in out["diary"][0]["patch"]
+    finally:
+        ar._DIARY_PATH = original_path
+
+
 # ─── continue_edge ────────────────────────────────────────────────────────────
 
 def _make_state(**overrides):
@@ -257,6 +321,7 @@ def _make_state(**overrides):
         "original_content": None,
         "diary": [],
         "baseline_score": None,
+        "baseline_result": None,
         "best_score": None,
         "best_script": "train.py",
         "last_result": None,
@@ -265,6 +330,7 @@ def _make_state(**overrides):
         "iteration": 0,
         "no_improve_streak": 0,
         "should_stop": False,
+        "cost_manager": None,
     }
     base.update(overrides)
     return base
@@ -298,3 +364,57 @@ def test_continue_edge_ends_at_max_iterations():
     from src.autoresearch.autoresearch import _MAX_ITERATIONS
     state = _make_state(iteration=_MAX_ITERATIONS)
     assert continue_edge(state) == "__end__"
+
+
+def test_invoke_autoresearch_graph_cost_breakdown_includes_baseline_cost(monkeypatch):
+    import src.autoresearch.autoresearch as ar
+    from src.cost_manager.cost_manager import CostManager
+
+    class FakeGraph:
+        def invoke(self, initial_state):
+            cost_manager = initial_state["cost_manager"]
+            cost_manager.record_spend(0.20, category="training")
+            cost_manager.record_spend(0.30, category="training")
+            baseline_result = {
+                "job_id": "baseline",
+                "status": "COMPLETED",
+                "metrics": {"train_loss": 0.5, "val_loss": 0.5,
+                            "test_loss": 0.5, "primary_metric": 0.5},
+                "model_path": "baseline-model",
+                "cost_usd": 0.20,
+                "logs_path": "baseline.jsonl",
+            }
+            return {
+                **initial_state,
+                "baseline_result": baseline_result,
+                "baseline_score": {"scalar": 0.5, "metrics": {}, "critique": ""},
+                "best_score": {"scalar": 0.6, "metrics": {}, "critique": ""},
+                "best_script": "iteration-model",
+                "diary": [
+                    {
+                        "iteration": 1,
+                        "hypothesis": "x",
+                        "patch": "",
+                        "cost_usd": 0.30,
+                        "metrics": {},
+                        "decision": "KEPT",
+                        "notes": "",
+                    }
+                ],
+                "iteration": 1,
+            }
+
+    monkeypatch.setattr(ar, "build_autoresearch_graph", lambda: FakeGraph())
+    state = _make_state()
+    plan = {
+        **state["plan"],
+        "strategy": "fine-tune",
+        "training_script_path": "train.py",
+    }
+    cost_manager = CostManager(10.0)
+
+    result = ar.invoke_autoresearch_graph(plan, state["config"], cost_manager)
+
+    assert result["cost"]["training_usd"] == pytest.approx(0.50)
+    assert result["cost"]["total_usd"] == pytest.approx(0.50)
+    assert result["cost"]["termination_reason"] == "training_complete"

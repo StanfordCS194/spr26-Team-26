@@ -14,6 +14,7 @@ import json
 import math
 from pathlib import Path
 from typing import Any, Literal
+from uuid import uuid4
 
 import anthropic
 
@@ -28,6 +29,7 @@ from src.tinker_api.sft_runner import (
 from src.types import (
     AgentName,
     AutoResearchState,
+    BudgetStatus,
     CostBreakdown,
     DatasetResult,
     EvalScore,
@@ -84,7 +86,11 @@ def build_autoresearch_graph():
     # Linear entry path
     graph.set_entry_point("init")
     graph.add_edge("init", "baseline")
-    graph.add_edge("baseline", "propose")
+    graph.add_conditional_edges(
+        "baseline",
+        continue_edge,
+        {"propose": "propose", "__end__": END},
+    )
 
     # Cyclic core: propose → run → (early-stop check) → evaluate → (keep/revert) → log → ...
     graph.add_edge("propose", "run")
@@ -121,6 +127,7 @@ def invoke_autoresearch_graph(
     initial_state: AutoResearchState = {
         "plan": plan,
         "config": config,
+        "cost_manager": cost_manager,
         "eval_suite": None,
         "current_script": plan["training_script_path"],
         "current_config": config["training_procedure"]["hyperparameters"],
@@ -129,6 +136,7 @@ def invoke_autoresearch_graph(
         "original_content": None,
         "diary": [],
         "baseline_score": None,
+        "baseline_result": None,
         "best_score": None,
         "best_script": plan["training_script_path"],
         "last_result": None,
@@ -141,15 +149,8 @@ def invoke_autoresearch_graph(
 
     final_state = graph.invoke(initial_state)
 
-    total_cost = sum(r["cost_usd"] for r in final_state["diary"])
-    termination = "budget_limit" if final_state["should_stop"] else "training_complete"
-    cost_breakdown: CostBreakdown = {
-        "data_gen_usd": 0.0,
-        "training_usd": total_cost,
-        "llm_calls_usd": 0.0,
-        "total_usd": total_cost,
-        "termination_reason": termination,
-    }
+    termination = "budget_limit" if _budget_exhausted(final_state) else "training_complete"
+    cost_breakdown = _cost_breakdown_from_state(final_state, termination)
 
     return {
         "weights_path": final_state["best_script"],
@@ -164,6 +165,8 @@ def invoke_autoresearch_graph(
 
 def init_node(state: AutoResearchState) -> dict:
     """LangGraph node. Calls create_eval_suite(). Returns: { eval_suite, current_script, current_config, iteration: 0 }."""
+    _write_current_config(_training_config_from_state(state))
+
     task_analysis: TaskAnalysis = {
         "task_type": state["config"]["training_procedure"]["task_type"],
         "modality": "text",
@@ -223,11 +226,8 @@ def baseline_node(state: AutoResearchState) -> dict:
         "BASELINE: submitting unmodified training script",
     )
 
-    experiment = run_tinker_sft_experiment(
-        _training_config_from_state(state),
-        _dataset_result_from_plan(state["plan"]),
-        max_steps=_max_steps_from_state(state),
-    )
+    experiment = _run_tinker_experiment_for_state(state, phase="baseline")
+    budget_status = _record_experiment_cost(state, experiment)
     baseline_score = run_evals(experiment["model_path"], state["eval_suite"])
 
     log_event(
@@ -239,9 +239,11 @@ def baseline_node(state: AutoResearchState) -> dict:
 
     return {
         "baseline_score": baseline_score,
+        "baseline_result": experiment,
         "best_score": baseline_score,
         "best_script": experiment["model_path"],
         "last_result": experiment,
+        "should_stop": budget_status == BudgetStatus.EXCEEDED,
     }
 
 
@@ -305,11 +307,8 @@ def run_node(state: AutoResearchState) -> dict:
         metadata={"iteration": state["iteration"] + 1},
     )
 
-    result = run_tinker_sft_experiment(
-        _training_config_from_state(state),
-        _dataset_result_from_plan(state["plan"]),
-        max_steps=_max_steps_from_state(state),
-    )
+    result = _run_tinker_experiment_for_state(state, phase="iteration")
+    budget_status = _record_experiment_cost(state, result)
 
     log_event(
         AgentName.AUTORESEARCH,
@@ -318,7 +317,10 @@ def run_node(state: AutoResearchState) -> dict:
         metadata={"job_id": result["job_id"], "cost_usd": result["cost_usd"]},
     )
 
-    return {"last_result": result}
+    return {
+        "last_result": result,
+        "should_stop": budget_status == BudgetStatus.EXCEEDED,
+    }
 
 
 def revert_and_continue_node(state: AutoResearchState) -> dict:
@@ -362,7 +364,8 @@ def revert_and_continue_node(state: AutoResearchState) -> dict:
 def evaluate_node(state: AutoResearchState) -> dict:
     """LangGraph node. Calls run_evals(), compare_scores(), flag_regression(). Returns: { last_score, last_delta }."""
     last_score = run_evals(state["last_result"]["model_path"], state["eval_suite"])
-    last_delta = compare_scores(last_score, state["baseline_score"])
+    reference_score = state.get("best_score") or state["baseline_score"]
+    last_delta = compare_scores(last_score, reference_score)
     regressed = flag_regression(last_delta)
 
     log_event(
@@ -373,6 +376,7 @@ def evaluate_node(state: AutoResearchState) -> dict:
         + ("  ⚠ REGRESSION" if regressed else ""),
         metadata={
             "score": last_score,
+            "reference_score": reference_score,
             "delta": last_delta,
             "regression": regressed,
         },
@@ -454,7 +458,7 @@ def log_node(state: AutoResearchState) -> dict:
             else {"train_loss": 0.0, "val_loss": 0.0, "test_loss": 0.0, "primary_metric": 0.0}
         )
         patch_dict = json.loads(state.get("current_patch", "{}"))
-        diff = _patch_to_diff(patch_dict, state["current_config"])
+        diff = _patch_to_diff(patch_dict, _pre_patch_config_from_state(state))
         record: IterationRecord = {
             "iteration": iteration_number,
             "hypothesis": state.get("last_description", str(patch_dict)),
@@ -517,8 +521,8 @@ def continue_edge(state: AutoResearchState) -> Literal["propose", "__end__"]:
         return "__end__"
 
     budget = state["config"].get("compute_budget", float("inf"))
-    spent = sum(r["cost_usd"] for r in state["diary"])
-    if spent >= budget:
+    spent = _spent_usd_from_state(state)
+    if _budget_exhausted(state):
         log_event(
             AgentName.AUTORESEARCH,
             LogLevel.INFO,
@@ -543,6 +547,58 @@ def continue_edge(state: AutoResearchState) -> Literal["propose", "__end__"]:
         return "__end__"
 
     return "propose"
+
+
+def _pre_patch_config_from_state(state: AutoResearchState) -> dict[str, Any]:
+    original_content = state.get("original_content")
+    if original_content:
+        try:
+            original_config = json.loads(original_content)
+        except json.JSONDecodeError:
+            original_config = None
+        if isinstance(original_config, dict):
+            return original_config
+    return state["current_config"]
+
+
+def _spent_usd_from_state(state: AutoResearchState) -> float:
+    cost_manager = state.get("cost_manager")
+    if cost_manager is not None and hasattr(cost_manager, "spent_usd"):
+        return float(cost_manager.spent_usd)
+    baseline_cost = (
+        state.get("baseline_result", {}).get("cost_usd", 0.0)
+        if state.get("baseline_result")
+        else 0.0
+    )
+    return baseline_cost + sum(r["cost_usd"] for r in state["diary"])
+
+
+def _budget_exhausted(state: AutoResearchState) -> bool:
+    if state.get("should_stop"):
+        return True
+    cost_manager = state.get("cost_manager")
+    if cost_manager is not None and getattr(cost_manager, "status", None) == BudgetStatus.EXCEEDED:
+        return True
+    budget = state["config"].get("compute_budget", float("inf"))
+    return _spent_usd_from_state(state) >= budget
+
+
+def _cost_breakdown_from_state(
+    state: AutoResearchState,
+    termination_reason: str,
+) -> CostBreakdown:
+    cost_manager = state.get("cost_manager")
+    if cost_manager is not None and hasattr(cost_manager, "cost_breakdown"):
+        return cost_manager.cost_breakdown(termination_reason=termination_reason)
+
+    total_cost = _spent_usd_from_state(state)
+    return {
+        "data_gen_usd": 0.0,
+        "training_usd": total_cost,
+        "llm_calls_usd": 0.0,
+        "total_usd": total_cost,
+        "termination_reason": termination_reason,
+    }
 
 
 # ─── PROPOSE HELPERS ──────────────────────────────────────────────────────────
@@ -650,7 +706,7 @@ def apply_patch(script_path: str, patch: str) -> str:
     if path.suffix == ".json":
         config_dict = json.loads(original)
         patch_dict = json.loads(patch)
-        config_dict.update(patch_dict)
+        config_dict = TrainingConfig.from_dict(config_dict).apply_patch(patch_dict).to_dict()
         # Write atomically via a temp file + rename so a crash mid-write
         # never leaves a partially-written config on disk.
         tmp = path.with_suffix(".json.tmp")
@@ -699,7 +755,11 @@ def _dataset_result_from_plan(plan: TrainingPlan) -> DatasetResult:
     }
 
 
-def _training_config_from_state(state: AutoResearchState) -> TrainingConfig:
+def _training_config_from_state(
+    state: AutoResearchState,
+    *,
+    include_pending_patch: bool = False,
+) -> TrainingConfig:
     data: dict[str, Any] = dict(state["current_config"])
     data.setdefault("model_name", state["plan"].get("base_model") or DEFAULT_TINKER_MODEL)
     if "max_seq_len" in data and "max_seq_length" not in data:
@@ -711,7 +771,14 @@ def _training_config_from_state(state: AutoResearchState) -> TrainingConfig:
         data["lora_rank"] = lora["rank"]
     if lora and "lora_alpha" not in data:
         data["lora_alpha"] = lora["alpha"]
-    return TrainingConfig.from_dict(data)
+    config = TrainingConfig.from_dict(data)
+    if include_pending_patch and state.get("current_patch"):
+        config = config.apply_patch(json.loads(state["current_patch"]))
+    return config
+
+
+def _write_current_config(config: TrainingConfig) -> None:
+    config.save(_CONFIG_PATH)
 
 
 def _training_config_from_plan(plan: TrainingPlan) -> TrainingConfig:
@@ -735,6 +802,41 @@ def _max_steps_from_state(state: AutoResearchState) -> int:
         if value is not None:
             return max(1, int(value))
     return DEFAULT_LIVE_SMOKE_STEPS
+
+
+def _run_tinker_experiment_for_state(
+    state: AutoResearchState,
+    *,
+    phase: str,
+) -> ExperimentResult:
+    run_id = f"autoresearch-{phase}-{state['iteration']}-{uuid4().hex[:8]}"
+    cost_manager = state.get("cost_manager")
+    if cost_manager is not None and hasattr(cost_manager, "start"):
+        cost_manager.start(run_id)
+    try:
+        return run_tinker_sft_experiment(
+            _training_config_from_state(
+                state,
+                include_pending_patch=phase == "iteration",
+            ),
+            _dataset_result_from_plan(state["plan"]),
+            run_id=run_id,
+            max_steps=_max_steps_from_state(state),
+        )
+    finally:
+        if cost_manager is not None and hasattr(cost_manager, "stop"):
+            cost_manager.stop()
+
+
+def _record_experiment_cost(
+    state: AutoResearchState,
+    result: ExperimentResult,
+    category: str = "training",
+) -> str | None:
+    cost_manager = state.get("cost_manager")
+    if cost_manager is None or not hasattr(cost_manager, "record_spend"):
+        return None
+    return cost_manager.record_spend(float(result.get("cost_usd", 0.0)), category=category)
 
 
 def submit_experiment(

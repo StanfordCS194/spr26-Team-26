@@ -336,6 +336,28 @@ def test_ar_apply_patch_returns_valid_original_json(tmp_path, base_config):
     assert old["batch_size"] == 16  # TrainingConfig default
 
 
+def test_ar_apply_patch_rejects_invalid_patch_without_writing(tmp_path, base_config):
+    config_path = tmp_path / "config.json"
+    base_config.save(config_path)
+    before = config_path.read_text()
+
+    with pytest.raises(ValueError, match="above maximum"):
+        ar_apply_patch(str(config_path), json.dumps({"learning_rate": 1.0}))
+
+    assert config_path.read_text() == before
+
+
+def test_ar_apply_patch_rejects_unknown_patch_without_writing(tmp_path, base_config):
+    config_path = tmp_path / "config.json"
+    base_config.save(config_path)
+    before = config_path.read_text()
+
+    with pytest.raises(ValueError, match="Unknown hyperparameter"):
+        ar_apply_patch(str(config_path), json.dumps({"not_a_real_param": 42}))
+
+    assert config_path.read_text() == before
+
+
 def test_ar_revert_patch_restores_original(tmp_path, base_config):
     config_path = tmp_path / "config.json"
     base_config.save(config_path)

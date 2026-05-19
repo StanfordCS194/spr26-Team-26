@@ -107,9 +107,59 @@ def test_run_tinker_sft_experiment_writes_artifacts(tmp_path, monkeypatch):
     manifest = json.loads((run_dir / "manifest.json").read_text())
     assert manifest["checkpoints"]["state_path"].startswith("tinker://state/")
     assert manifest["checkpoints"]["sampler_path"].startswith("tinker://sampler/")
+    assert manifest["train_on_what"] == "last_assistant_message"
+    assert manifest["training_examples"] == 2
     assert json.loads((run_dir / "sample.json").read_text())["text"] == "sample text"
     assert state.training_client.forward_backward_calls == 2
     assert state.training_client.optim_step_calls == 2
+    assert {call["train_on_what"] for call in state.conversions} == {
+        "last_assistant_message"
+    }
+
+
+def test_run_tinker_sft_experiment_splits_multi_assistant_conversations(
+    tmp_path,
+    monkeypatch,
+):
+    state = _install_fake_tinker_stack(monkeypatch, losses=[0.5])
+    from src.tinker_api.sft_runner import run_tinker_sft_experiment
+
+    data_path = _write_jsonl(
+        tmp_path / "train.jsonl",
+        [
+            {
+                "messages": [
+                    {"role": "system", "content": "Be brief."},
+                    {"role": "user", "content": "First"},
+                    {"role": "assistant", "content": "One"},
+                    {"role": "user", "content": "Second"},
+                    {"role": "assistant", "content": "Two"},
+                ]
+            },
+        ],
+    )
+
+    result = run_tinker_sft_experiment(
+        TrainingConfig(model_name="Qwen/Qwen3.5-9B", batch_size=4),
+        str(data_path),
+        run_id="multi-assistant-run",
+        max_steps=1,
+        output_dir=str(tmp_path / "experiments"),
+    )
+
+    run_dir = tmp_path / "experiments" / "multi-assistant-run"
+    manifest = json.loads((run_dir / "manifest.json").read_text())
+    assert result["status"] == "COMPLETED"
+    assert manifest["training_examples"] == 2
+    assert len(state.conversions) == 4
+    converted_targets = {
+        call["conversation"][-1]["content"]
+        for call in state.conversions
+    }
+    assert converted_targets == {"One", "Two"}
+    assert {call["train_on_what"] for call in state.conversions} == {
+        "last_assistant_message"
+    }
 
 
 def test_run_tinker_sft_experiment_stops_on_cancel_and_writes_artifacts(tmp_path, monkeypatch):
@@ -177,6 +227,7 @@ def test_autoresearch_run_node_calls_tinker_runner(monkeypatch, tmp_path):
         captured["config"] = config
         captured["dataset"] = dataset
         captured["max_steps"] = max_steps
+        captured["run_id"] = kwargs.get("run_id")
         run_dir = tmp_path / "run"
         run_dir.mkdir()
         (run_dir / "metrics.json").write_text(
@@ -203,8 +254,218 @@ def test_autoresearch_run_node_calls_tinker_runner(monkeypatch, tmp_path):
 
     assert result["last_result"]["job_id"] == "fake-run"
     assert captured["max_steps"] == 5
+    assert captured["run_id"].startswith("autoresearch-iteration-")
     assert captured["dataset"]["dataset"]["path"] == str(data_path)
     assert captured["config"].model_name == "Qwen/Qwen3.5-9B"
+
+
+def test_autoresearch_run_node_uses_pending_proposal_patch(monkeypatch, tmp_path):
+    import src.autoresearch.autoresearch as ar
+
+    data_path = _write_jsonl(tmp_path / "train.jsonl", [{"input": "x", "output": "y"}])
+    captured = {}
+
+    def fake_runner(config, dataset, *, max_steps=None, **kwargs):
+        captured["config"] = config
+        run_dir = tmp_path / "run-patched"
+        run_dir.mkdir()
+        (run_dir / "metrics.json").write_text(
+            json.dumps({"train_loss": 0.5, "val_loss": 0.5, "test_loss": 0.5})
+        )
+        return {
+            "job_id": "fake-run",
+            "status": "COMPLETED",
+            "metrics": {
+                "train_loss": 0.5,
+                "val_loss": 0.5,
+                "test_loss": 0.5,
+                "primary_metric": 2 / 3,
+            },
+            "model_path": str(run_dir),
+            "cost_usd": 0.01,
+            "logs_path": str(run_dir / "metrics.jsonl"),
+        }
+
+    monkeypatch.setattr(ar, "run_tinker_sft_experiment", fake_runner)
+    state = _autoresearch_state(str(data_path))
+    state["current_config"] = {"learning_rate": 1e-4, "batch_size": 4}
+    state["current_patch"] = json.dumps({"learning_rate": 2e-4})
+
+    ar.run_node(state)
+
+    assert captured["config"].learning_rate == pytest.approx(2e-4)
+    assert captured["config"].batch_size == 4
+
+
+def test_autoresearch_run_node_rejects_invalid_pending_patch(monkeypatch, tmp_path):
+    import src.autoresearch.autoresearch as ar
+
+    data_path = _write_jsonl(tmp_path / "train.jsonl", [{"input": "x", "output": "y"}])
+
+    def fail_runner(*_args, **_kwargs):
+        raise AssertionError("invalid patches should be rejected before Tinker runs")
+
+    monkeypatch.setattr(ar, "run_tinker_sft_experiment", fail_runner)
+    state = _autoresearch_state(str(data_path))
+    state["current_config"] = {"learning_rate": 1e-4, "batch_size": 4}
+    state["current_patch"] = json.dumps({"lora_rank": 3})
+
+    with pytest.raises(ValueError, match="candidates"):
+        ar.run_node(state)
+
+
+def test_autoresearch_propose_then_run_uses_proposed_config(monkeypatch, tmp_path):
+    import src.autoresearch.autoresearch as ar
+    from src.autoresearch.config import TrainingConfig
+
+    data_path = _write_jsonl(tmp_path / "train.jsonl", [{"input": "x", "output": "y"}])
+    config_path = tmp_path / "current.json"
+    TrainingConfig(
+        model_name="Qwen/Qwen3.5-9B",
+        learning_rate=1e-4,
+        batch_size=4,
+    ).save(config_path)
+    monkeypatch.setattr(ar, "_CONFIG_PATH", config_path)
+    monkeypatch.setattr(
+        ar,
+        "propose_hypothesis",
+        lambda *args, **kwargs: {
+            "description": "Increase learning rate for a bounded candidate run.",
+            "patch": json.dumps({"learning_rate": 2e-4}),
+            "expected_effect": "Lower validation loss.",
+            "search_strategy": "local",
+        },
+    )
+    captured = {}
+
+    def fake_runner(config, dataset, *, max_steps=None, **kwargs):
+        captured["config"] = config
+        run_dir = tmp_path / "run-proposed"
+        run_dir.mkdir()
+        (run_dir / "metrics.json").write_text(
+            json.dumps({"train_loss": 0.4, "val_loss": 0.4, "test_loss": 0.4})
+        )
+        return {
+            "job_id": "fake-run",
+            "status": "COMPLETED",
+            "metrics": {
+                "train_loss": 0.4,
+                "val_loss": 0.4,
+                "test_loss": 0.4,
+                "primary_metric": 1 / 1.4,
+            },
+            "model_path": str(run_dir),
+            "cost_usd": 0.01,
+            "logs_path": str(run_dir / "metrics.jsonl"),
+        }
+
+    monkeypatch.setattr(ar, "run_tinker_sft_experiment", fake_runner)
+    state = _autoresearch_state(str(data_path))
+    state["current_config"] = {"learning_rate": 1e-4, "batch_size": 4}
+    state["config"]["training_procedure"]["hyperparameters"] = dict(state["current_config"])
+
+    proposed = ar.propose_node(state)
+    ar.run_node({**state, **proposed})
+
+    assert captured["config"].learning_rate == pytest.approx(2e-4)
+    assert TrainingConfig.load(config_path).learning_rate == pytest.approx(2e-4)
+
+
+def test_autoresearch_init_node_seeds_current_config_json(monkeypatch, tmp_path):
+    import src.autoresearch.autoresearch as ar
+    from src.autoresearch.config import TrainingConfig
+
+    config_path = tmp_path / "configs" / "current.json"
+    monkeypatch.setattr(ar, "_CONFIG_PATH", config_path)
+    state = _autoresearch_state(str(tmp_path / "train.jsonl"))
+    state["current_config"] = {"learning_rate": 1e-4, "batch_size": 4}
+    state["config"]["training_procedure"]["hyperparameters"] = dict(state["current_config"])
+
+    ar.init_node(state)
+
+    seeded = TrainingConfig.load(config_path)
+    assert seeded.model_name == "Qwen/Qwen3.5-9B"
+    assert seeded.learning_rate == pytest.approx(1e-4)
+    assert seeded.batch_size == 4
+
+
+def test_autoresearch_run_node_wraps_tinker_runner_with_cost_manager(monkeypatch, tmp_path):
+    import src.autoresearch.autoresearch as ar
+
+    data_path = _write_jsonl(tmp_path / "train.jsonl", [{"input": "x", "output": "y"}])
+    cost_manager = _FakeCostManager()
+    captured = {}
+
+    def fake_runner(config, dataset, *, run_id=None, max_steps=None, **kwargs):
+        captured["run_id"] = run_id
+        run_dir = tmp_path / "run-cost"
+        run_dir.mkdir()
+        (run_dir / "metrics.json").write_text(
+            json.dumps({"train_loss": 0.4, "val_loss": 0.4, "test_loss": 0.4})
+        )
+        return {
+            "job_id": run_id,
+            "status": "COMPLETED",
+            "metrics": {
+                "train_loss": 0.4,
+                "val_loss": 0.4,
+                "test_loss": 0.4,
+                "primary_metric": 1 / 1.4,
+            },
+            "model_path": str(run_dir),
+            "cost_usd": 0.01,
+            "logs_path": str(run_dir / "metrics.jsonl"),
+        }
+
+    monkeypatch.setattr(ar, "run_tinker_sft_experiment", fake_runner)
+    state = _autoresearch_state(str(data_path))
+    state["cost_manager"] = cost_manager
+
+    result = ar.run_node(state)
+
+    assert result["last_result"]["job_id"] == captured["run_id"]
+    assert cost_manager.started == [captured["run_id"]]
+    assert cost_manager.stopped == 1
+    assert cost_manager.recorded == [(0.01, "training")]
+
+
+def test_autoresearch_baseline_node_records_cost_and_budget_stop(monkeypatch, tmp_path):
+    import src.autoresearch.autoresearch as ar
+    from src.cost_manager.cost_manager import CostManager
+
+    data_path = _write_jsonl(tmp_path / "train.jsonl", [{"input": "x", "output": "y"}])
+
+    def fake_runner(config, dataset, *, run_id=None, max_steps=None, **kwargs):
+        run_dir = tmp_path / "baseline-cost"
+        run_dir.mkdir()
+        (run_dir / "metrics.json").write_text(
+            json.dumps({"train_loss": 0.3, "val_loss": 0.3, "test_loss": 0.3})
+        )
+        return {
+            "job_id": run_id,
+            "status": "COMPLETED",
+            "metrics": {
+                "train_loss": 0.3,
+                "val_loss": 0.3,
+                "test_loss": 0.3,
+                "primary_metric": 1 / 1.3,
+            },
+            "model_path": str(run_dir),
+            "cost_usd": 0.02,
+            "logs_path": str(run_dir / "metrics.jsonl"),
+        }
+
+    monkeypatch.setattr(ar, "run_tinker_sft_experiment", fake_runner)
+    state = _autoresearch_state(str(data_path))
+    state["config"]["compute_budget"] = 0.01
+    state["cost_manager"] = CostManager(0.01)
+
+    result = ar.baseline_node(state)
+
+    assert result["baseline_result"]["cost_usd"] == 0.02
+    assert result["should_stop"] is True
+    assert state["cost_manager"].spent_usd == 0.02
+    assert ar.continue_edge({**state, **result}) == "__end__"
 
 
 def _write_jsonl(path: Path, rows: list[dict]) -> Path:
@@ -259,7 +520,25 @@ def _autoresearch_state(dataset_path: str) -> dict:
         "iteration": 0,
         "no_improve_streak": 0,
         "should_stop": False,
+        "cost_manager": None,
     }
+
+
+class _FakeCostManager:
+    def __init__(self):
+        self.started = []
+        self.stopped = 0
+        self.recorded = []
+
+    def start(self, job_id):
+        self.started.append(job_id)
+
+    def stop(self):
+        self.stopped += 1
+
+    def record_spend(self, amount, category="training"):
+        self.recorded.append((amount, category))
+        return "OK"
 
 
 class _FakeFuture:
@@ -296,10 +575,12 @@ class _FakeTrainingClient:
         self.losses = list(losses)
         self.forward_backward_calls = 0
         self.optim_step_calls = 0
+        self.batches = []
         self.sampling_client = _FakeSamplingClient()
 
     def forward_backward(self, batch, loss_fn):
         self.forward_backward_calls += 1
+        self.batches.append(batch)
         loss = self.losses[min(self.forward_backward_calls - 1, len(self.losses) - 1)]
         return _FakeFuture(types.SimpleNamespace(loss=loss))
 
@@ -358,14 +639,25 @@ def _install_fake_tinker_stack(monkeypatch, losses):
     model_info = types.ModuleType("tinker_cookbook.model_info")
     model_info.get_recommended_renderer_name = MagicMock(side_effect=KeyError("missing"))
     renderers = types.ModuleType("tinker_cookbook.renderers")
-    renderers.TrainOnWhat = types.SimpleNamespace(ALL_ASSISTANT_MESSAGES="assistant")
+    renderers.TrainOnWhat = types.SimpleNamespace(
+        ALL_ASSISTANT_MESSAGES="all_assistant_messages",
+        LAST_ASSISTANT_MESSAGE="last_assistant_message",
+    )
     renderers.get_renderer = MagicMock(return_value=_FakeRenderer())
     tokenizer_utils = types.ModuleType("tinker_cookbook.tokenizer_utils")
     tokenizer_utils.get_tokenizer = MagicMock(return_value=object())
     supervised_pkg = types.ModuleType("tinker_cookbook.supervised")
     supervised_data = types.ModuleType("tinker_cookbook.supervised.data")
+    conversions = []
 
     def conversation_to_datum(conversation, renderer, max_length, train_on_what):
+        conversions.append(
+            {
+                "conversation": conversation,
+                "max_length": max_length,
+                "train_on_what": train_on_what,
+            }
+        )
         return _FakeDatum(length=len(json.dumps(conversation)))
 
     supervised_data.conversation_to_datum = conversation_to_datum
@@ -396,4 +688,8 @@ def _install_fake_tinker_stack(monkeypatch, losses):
     monkeypatch.setitem(sys.modules, "tinker_cookbook.supervised.data", supervised_data)
 
     importlib.reload(importlib.import_module("src.tinker_api.sft_runner"))
-    return types.SimpleNamespace(training_client=training_client, service_client=service_client)
+    return types.SimpleNamespace(
+        training_client=training_client,
+        service_client=service_client,
+        conversions=conversions,
+    )

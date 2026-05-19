@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import os
 import threading
-import time
 
 from src.types import BudgetStatus, CostBreakdown
 
@@ -41,7 +40,8 @@ def start_cost_monitor(
                     return
             except Exception:
                 pass  # don't crash the monitor on transient errors
-            time.sleep(poll_interval_sec)
+            if stop_event.wait(poll_interval_sec):
+                return
 
     thread = threading.Thread(target=_monitor, daemon=True, name=f"cost-monitor-{job_id}")
     thread.stop_event = stop_event  # type: ignore[attr-defined]
@@ -57,6 +57,8 @@ def poll_spend(job_id: str) -> float:
 
 def check_budget_status(spent: float, budget: float) -> str:
     """Returns BudgetStatus: OK (< 90%), WARNING (90–99%), EXCEEDED (>= 100%)."""
+    if budget <= 0:
+        return BudgetStatus.EXCEEDED if spent > 0 else BudgetStatus.OK
     ratio = spent / budget if budget > 0 else 0.0
     if ratio >= 1.0:
         return BudgetStatus.EXCEEDED
@@ -103,10 +105,71 @@ class CostManager:
     def __init__(self, budget: float):
         self.budget = budget
         self._thread: threading.Thread | None = None
+        self._lock = threading.Lock()
+        self._category_totals: dict[str, float] = {}
+
+    @property
+    def category_totals(self) -> dict[str, float]:
+        """Returns a snapshot of in-process spend by category."""
+        with self._lock:
+            return dict(self._category_totals)
+
+    @property
+    def spent_usd(self) -> float:
+        """Returns total in-process spend recorded through this manager."""
+        with self._lock:
+            return round(sum(self._category_totals.values()), 6)
+
+    @property
+    def remaining_budget(self) -> float:
+        """Returns the remaining budget after in-process spend."""
+        return max(0.0, round(self.budget - self.spent_usd, 6))
+
+    @property
+    def status(self) -> str:
+        """Returns the current in-process budget status."""
+        return check_budget_status(self.spent_usd, self.budget)
+
+    def record_spend(self, amount: float, category: str = "training") -> str:
+        """Records completed in-process spend and returns the updated budget status."""
+        amount = float(amount)
+        if amount < 0:
+            raise ValueError("CostManager.record_spend amount must be non-negative")
+        with self._lock:
+            self._category_totals[category] = (
+                self._category_totals.get(category, 0.0) + amount
+            )
+        return self.status
+
+    def cost_breakdown(self, termination_reason: str | None = None) -> CostBreakdown:
+        """Returns a CostBreakdown from in-process spend totals."""
+        totals = self.category_totals
+        data_gen = totals.get("data_gen", 0.0) + totals.get("data_generation", 0.0)
+        training = totals.get("training", 0.0)
+        llm_calls = totals.get("llm_calls", 0.0) + totals.get("llm", 0.0)
+        total = self.spent_usd
+        other = max(0.0, total - data_gen - training - llm_calls)
+        training += other
+        reason = termination_reason or (
+            "budget_limit" if self.status == BudgetStatus.EXCEEDED else "training_complete"
+        )
+        return {
+            "data_gen_usd": round(data_gen, 6),
+            "training_usd": round(training, 6),
+            "llm_calls_usd": round(llm_calls, 6),
+            "total_usd": total,
+            "termination_reason": reason,
+        }
 
     def start(self, job_id: str) -> None:
-        self._thread = start_cost_monitor(job_id, self.budget)
+        self.stop()
+        monitor_budget = self.remaining_budget if self.spent_usd > 0 else self.budget
+        self._thread = start_cost_monitor(job_id, monitor_budget)
 
     def stop(self) -> None:
         if self._thread:
+            stop_event = getattr(self._thread, "stop_event", None)
+            if stop_event is not None:
+                stop_event.set()
             self._thread.join(timeout=5)
+            self._thread = None

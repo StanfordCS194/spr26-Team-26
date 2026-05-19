@@ -77,7 +77,10 @@ def query_data_node(state: ManagerState) -> dict:
             return {"has_data": True, "data_path": resolved_path}
         return {"has_data": False, "data_path": None}
 
-    path = query_user_for_data()
+    try:
+        path = query_user_for_data()
+    except EOFError:
+        path = None
     return {"has_data": path is not None, "data_path": path}
 
 
@@ -119,6 +122,7 @@ def orchestrate_node(state: ManagerState) -> dict:
     log_event(AgentName.MANAGER, LogLevel.INFO, "Starting DataGen sub-agent", {})
     handoff = invoke_data_generator_graph(config, state.get("data_path"))
     dataset = _handoff_to_dataset_result(handoff)
+    _ensure_dataset_is_trainable(dataset)
 
     # ── 2. Decision Engine — pick model, estimate cost, write training script
     log_event(AgentName.MANAGER, LogLevel.INFO, "Running Decision Engine", {})
@@ -213,6 +217,18 @@ def _handoff_to_dataset_result(handoff: dict) -> DatasetResult:
     from src.data_generator.curation import curate_handoff_to_dataset_result
 
     return curate_handoff_to_dataset_result(handoff)
+
+
+def _ensure_dataset_is_trainable(dataset: DatasetResult) -> None:
+    validation = dataset["validation_report"]
+    split = dataset["dataset"]
+    if validation["passed"] and split["train_size"] > 0:
+        return
+
+    issues = "; ".join(validation.get("issues") or [])
+    if not issues:
+        issues = "no trainable examples were produced"
+    raise ValueError(f"DataGen did not produce a trainable dataset: {issues}")
 
 
 def build_orchestration_config(
