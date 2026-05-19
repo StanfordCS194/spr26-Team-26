@@ -773,6 +773,88 @@ def test_create_run_hf_data_path_reaches_tinker_dry_run_without_live_credentials
     assert manifest["training_examples"] > 0
 
 
+def test_create_run_without_data_path_reaches_mode_c_tinker_dry_run_without_live_credentials(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("NO_SPEND", "1")
+    monkeypatch.setenv("MANAGER_REASONER", "local")
+    monkeypatch.setenv("AUTORESEARCH_PROPOSER", "local")
+    monkeypatch.setenv("AUTORESEARCH_EVAL_ADAPTATION", "off")
+    monkeypatch.setenv("DATA_GENERATOR_SYNTHETIC_OFFLINE", "1")
+    monkeypatch.setenv("DATA_GENERATOR_MODE_C_BACKEND", "synthetic")
+    monkeypatch.setenv("DATA_GENERATOR_MAX_ROWS_PER_DATASET", "6")
+    monkeypatch.setenv("TINKER_BACKEND", "dry_run")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("TINKER_API_KEY", raising=False)
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+
+    monkeypatch.setattr("builtins.input", _fail_live_service("user input"))
+    monkeypatch.setattr("anthropic.Anthropic", _fail_live_service("Claude"))
+
+    from src.autoresearch import autoresearch as ar
+    from src.tinker_api import sft_runner
+
+    monkeypatch.setattr(ar, "_MAX_ITERATIONS", 1)
+    monkeypatch.setattr(
+        sft_runner,
+        "_load_tinker_deps",
+        _fail_live_service("Tinker SDK"),
+    )
+
+    client = TestClient(server_app.app)
+    response = client.post(
+        "/api/runs",
+        json={
+            "prompt": "Fine tune a classifier for urgent support ticket triage",
+            "budget": 20,
+            "task_type": "classification",
+        },
+    )
+
+    assert response.status_code == 200
+    run_id = response.json()["run_id"]
+    state = _wait_for_status(client, run_id, "complete")
+
+    assert state["dataPath"] is None
+    assert 0.0 <= state["costSpent"] <= 20.0
+    assert state["result"]["n_iterations"] == 1
+    assert not any(
+        "Dataset source:" in item["message"]
+        for item in state["logs"]
+    )
+
+    artifacts = state["artifacts"]
+    assert artifacts is not None
+    assert f"outputs/api-runs/{run_id}/experiments/" in artifacts["modelPath"]
+    assert artifacts["metrics"]["train_loss"] >= 0.0
+    assert artifacts["sample"]["backend"] == "dry_run"
+    assert artifacts["sample"]["text"]
+    assert artifacts["checkpoints"]["state_path"].startswith("dry-run://state/")
+
+    files = {item["name"]: item for item in artifacts["files"]}
+    for name in ("manifest", "metrics", "metrics_log", "sample", "diary"):
+        assert files[name]["exists"] is True
+        assert files[name]["downloadPath"] == f"/api/runs/{run_id}/artifacts/{name}"
+
+    manifest_response = client.get(files["manifest"]["downloadPath"])
+    assert manifest_response.status_code == 200
+    manifest = manifest_response.json()
+    assert manifest["backend"] == "dry_run"
+    assert manifest["dataset_path"].endswith("train_data.jsonl")
+    assert manifest["training_examples"] > 0
+    assert manifest["split_examples"]["train"] > 0
+
+    metrics_log_response = client.get(files["metrics_log"]["downloadPath"])
+    assert metrics_log_response.status_code == 200
+    assert '"step": 1' in metrics_log_response.text
+
+    sample_response = client.get(files["sample"]["downloadPath"])
+    assert sample_response.status_code == 200
+    assert sample_response.json()["backend"] == "dry_run"
+
+
 def test_create_run_surfaces_manager_failure(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
