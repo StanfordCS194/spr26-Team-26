@@ -307,5 +307,10 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   C. Local composition of all three passed the full no-live Python suite (`289
   passed, 8 skipped`), and #100 focused validation after retargeting passed
   (`21 passed`).
+- #101 is stacked on #90 and hardens Mode C offline/no-spend semantics. A shared
+  policy now makes `NO_SPEND=1`, `DATA_GENERATOR_OFFLINE=1`, and
+  `DATA_GENERATOR_SYNTHETIC_OFFLINE=1` all block web acquisition and teacher
+  calls, including `scrape_web()` and web structuring. Focused and boundary
+  validation passed (`35 passed`), with no live spend.
 
 Current conservative live spend: `$94.14 / $100.00`.

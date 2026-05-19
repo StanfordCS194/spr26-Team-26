@@ -79,3 +79,4 @@
 - 2026-05-19 12:06 PDT — Do not spend engineering cycles treating Vercel `upgradeToPro=build-rate-limit` statuses as code regressions. Record them as project/quota wiring noise and rely on local validation until the Vercel owners clean up duplicate projects or quota.
 - 2026-05-19 12:11 PDT — When multiple smoke PRs touch the same test file, prefer a linear stack over sibling PRs. It reduces future merge conflicts and keeps each PR diff focused on one new entry path.
 - 2026-05-19 12:19 PDT — Treat `NO_SPEND=1` as a hard override for AutoResearch live LLM paths. Explicit `claude`/`required` env settings are useful test seams, but they should not beat a no-spend run flag when real credentials are present.
+- 2026-05-19 12:23 PDT — Use one Mode C offline policy for both cost and network controls. `NO_SPEND=1` and `DATA_GENERATOR_OFFLINE=1` should imply synthetic/no-teacher/no-web behavior just like the older `DATA_GENERATOR_SYNTHETIC_OFFLINE=1` flag.
