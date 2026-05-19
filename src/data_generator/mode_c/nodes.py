@@ -98,24 +98,14 @@ def aggregate_web_sources_node(state: DataGenState) -> dict:
     backend = _mode_c_backend(state)
 
     if backend == "synthetic" or state.get("mode_c_fallback") == "synthetic":
-        result = build_mode_c_dataset(state["config"])
-        raw_data = result.raw_data
-        raw_data["format_meta"]["mode_c_fallback"] = "synthetic"
-        raw_data["format_meta"]["mode_c_backend"] = backend
-        raw_data["format_meta"]["web_acquisition_error"] = state.get(
-            "web_acquisition_error"
+        return _mode_c_synthetic_fallback_output(
+            state["config"],
+            backend=backend,
+            reason=state.get(
+                "web_acquisition_error",
+                "web acquisition unavailable",
+            ),
         )
-        report = (
-            "Mode C Synthetic Fallback Report\n"
-            f"Reason: {state.get('web_acquisition_error', 'web acquisition unavailable')}\n"
-            f"Records generated: {len(raw_data.get('records', []))}"
-        )
-        return {
-            "schema": result.schema,
-            "raw_data": raw_data,
-            "validation_report": result.validation_report,
-            "human_readable": report,
-        }
 
     report = build_web_human_readable_report(
         web_plan=web_plan,
@@ -173,10 +163,70 @@ def aggregate_web_sources_node(state: DataGenState) -> dict:
             "human_readable": report,
         }
 
-    issues = list(unstructured["validation_report"]["issues"])
-    issues.extend(structured.validation_report.get("issues", []))
-    unstructured["validation_report"]["issues"] = issues
-    return unstructured
+    return _mode_c_synthetic_fallback_output(
+        state["config"],
+        backend=backend,
+        reason="Mode C web structuring produced no trainable records.",
+        web_report=report,
+        web_plan=web_plan,
+        search_results=search_results,
+        pages=pages,
+        structuring_issues=structured.validation_report.get("issues", []),
+    )
+
+
+def _mode_c_synthetic_fallback_output(
+    config,
+    *,
+    backend: str,
+    reason: str | None,
+    web_report: str | None = None,
+    web_plan=None,
+    search_results=None,
+    pages=None,
+    structuring_issues=None,
+) -> dict:
+    result = build_mode_c_dataset(config)
+    raw_data = result.raw_data
+    format_meta = raw_data.setdefault("format_meta", {})
+    format_meta["mode_c_fallback"] = "synthetic"
+    format_meta["mode_c_backend"] = backend
+    format_meta["web_acquisition_error"] = reason
+    if web_plan is not None:
+        format_meta["web_plan"] = web_plan
+    if search_results is not None:
+        format_meta["num_search_results"] = len(search_results)
+        search_urls = [item.get("url") for item in search_results if item.get("url")]
+        if search_urls:
+            format_meta["web_search_urls"] = search_urls
+    if pages is not None:
+        format_meta["num_pages_crawled"] = len(pages)
+        source_urls = [page.get("url") for page in pages if page.get("url")]
+        if source_urls:
+            format_meta["web_source_urls"] = source_urls
+    if structuring_issues:
+        format_meta["web_structuring_issues"] = list(structuring_issues)
+
+    report = (
+        "Mode C Synthetic Fallback Report\n"
+        f"Reason: {reason or 'web acquisition unavailable'}\n"
+        f"Records generated: {len(raw_data.get('records', []))}"
+    )
+    if web_report:
+        report = (
+            f"{report}\n\n"
+            "Web acquisition report retained for provenance:\n"
+            f"{web_report}"
+        )
+    raw_data["human_readable"] = report
+    return {
+        "schema": result.schema,
+        "raw_data": raw_data,
+        "validation_report": result.validation_report,
+        "human_readable": report,
+        "mode_c_fallback": "synthetic",
+        "web_acquisition_error": reason,
+    }
 
 
 def _mode_c_synthetic_fallback_state(
