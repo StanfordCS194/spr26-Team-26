@@ -58,7 +58,7 @@ OFFLINE_DOWNLOAD_ENV_VARS = ("NO_SPEND", "DATA_GENERATOR_OFFLINE")
 
 
 def _env_flag_enabled(name):
-    return os.getenv(name, "").strip().lower() in {"1", "true", "yes"}
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _active_download_blockers():

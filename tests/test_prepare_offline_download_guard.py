@@ -83,3 +83,16 @@ def test_download_data_offline_guard_allows_fully_cached_shards(
     prepare_module.download_data(num_shards=2, download_workers=1)
 
     assert "all 3 shards already downloaded" in capsys.readouterr().out
+
+
+def test_download_data_offline_guard_accepts_common_truthy_values(
+    tmp_path, monkeypatch, prepare_module
+):
+    monkeypatch.setenv("NO_SPEND", "on")
+    monkeypatch.setattr(prepare_module, "DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(prepare_module.requests, "get", _fail_requests_get)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        prepare_module.download_data(num_shards=1, download_workers=1)
+
+    assert "NO_SPEND=1" in str(excinfo.value)
