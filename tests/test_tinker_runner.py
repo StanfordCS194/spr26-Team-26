@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import math
 import sys
 import types
 from pathlib import Path
@@ -10,6 +11,20 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.autoresearch.config import TrainingConfig
+
+
+def _strict_json(text: str):
+    return json.loads(
+        text,
+        parse_constant=lambda value: pytest.fail(f"non-standard JSON constant: {value}"),
+    )
+
+
+def _assert_strict_json_file(path: Path):
+    text = path.read_text()
+    assert "NaN" not in text
+    assert "Infinity" not in text
+    return _strict_json(text)
 
 
 def test_record_to_conversation_accepts_messages():
@@ -115,6 +130,103 @@ def test_run_tinker_sft_experiment_writes_artifacts(tmp_path, monkeypatch):
     assert {call["train_on_what"] for call in state.conversions} == {
         "last_assistant_message"
     }
+
+
+def test_run_tinker_sft_experiment_writes_strict_json_for_nonfinite_training_loss(
+    tmp_path,
+    monkeypatch,
+):
+    _install_fake_tinker_stack(monkeypatch, losses=[float("nan"), 0.25])
+    from src.tinker_api.sft_runner import run_tinker_sft_experiment
+
+    data_path = _write_jsonl(
+        tmp_path / "train.jsonl",
+        [{"input": "Question", "output": "Answer"}],
+    )
+
+    result = run_tinker_sft_experiment(
+        TrainingConfig(model_name="Qwen/Qwen3.5-9B", batch_size=1),
+        str(data_path),
+        run_id="nonfinite-training-run",
+        max_steps=2,
+        output_dir=str(tmp_path / "experiments"),
+    )
+
+    run_dir = tmp_path / "experiments" / "nonfinite-training-run"
+    metrics = _assert_strict_json_file(run_dir / "metrics.json")
+    manifest = _assert_strict_json_file(run_dir / "manifest.json")
+    rows = [
+        _strict_json(line)
+        for line in (run_dir / "metrics.jsonl").read_text().splitlines()
+        if line.strip()
+    ]
+
+    assert result["status"] == "FAILED"
+    assert manifest["status"] == "FAILED"
+    assert rows[0]["nonfinite_loss"] is True
+    assert rows[0]["train_loss"] == 1_000_000_000.0
+    assert all(
+        math.isfinite(metrics[key])
+        for key in ("train_loss", "val_loss", "test_loss", "primary_metric")
+    )
+    assert all(
+        math.isfinite(result["metrics"][key])
+        for key in ("train_loss", "val_loss", "test_loss", "primary_metric")
+    )
+
+
+def test_run_tinker_sft_experiment_writes_strict_json_for_nonfinite_holdout_loss(
+    tmp_path,
+    monkeypatch,
+):
+    _install_fake_tinker_stack(
+        monkeypatch,
+        losses=[0.5],
+        forward_losses=[float("inf"), float("nan")],
+    )
+    from src.tinker_api.sft_runner import run_tinker_sft_experiment
+
+    data_path = _write_jsonl(
+        tmp_path / "train.jsonl",
+        [
+            {"input": "train", "output": "a"},
+            {"input": "validation", "output": "b"},
+            {"input": "test", "output": "c"},
+        ],
+    )
+    dataset_result = {
+        "dataset": {
+            "path": str(data_path),
+            "train_size": 1,
+            "val_size": 1,
+            "test_size": 1,
+        },
+        "next_agent": "decision_engine",
+    }
+
+    result = run_tinker_sft_experiment(
+        TrainingConfig(model_name="Qwen/Qwen3.5-9B", batch_size=1),
+        dataset_result,
+        run_id="nonfinite-holdout-run",
+        max_steps=1,
+        output_dir=str(tmp_path / "experiments"),
+    )
+
+    run_dir = tmp_path / "experiments" / "nonfinite-holdout-run"
+    metrics = _assert_strict_json_file(run_dir / "metrics.json")
+    manifest = _assert_strict_json_file(run_dir / "manifest.json")
+
+    assert result["status"] == "COMPLETED"
+    assert metrics["val_loss"] == 1_000_000_000.0
+    assert metrics["test_loss"] == 1_000_000_000.0
+    assert manifest["heldout_eval"] == {
+        "val_loss": 1_000_000_000.0,
+        "test_loss": 1_000_000_000.0,
+    }
+    assert all(
+        math.isfinite(result["metrics"][key])
+        for key in ("train_loss", "val_loss", "test_loss", "primary_metric")
+    )
 
 
 def test_run_tinker_sft_experiment_splits_multi_assistant_conversations(

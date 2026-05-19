@@ -39,6 +39,7 @@ SUPPORTED_TINKER_TUNABLES: frozenset[str] = frozenset(
 
 _INPUT_KEYS = ("input", "prompt", "question", "content")
 _TARGET_KEYS = ("output", "answer", "label", "target")
+_NONFINITE_LOSS_SENTINEL = 1_000_000_000.0
 
 
 @dataclass(frozen=True)
@@ -133,18 +134,25 @@ def run_tinker_sft_experiment(
 
                 tokens = sum(_datum_token_count(datum) for datum in batch)
                 record_tokens(run_name, tokens)
-                loss = _extract_loss(fwd_result, optim_result)
+                raw_loss = _extract_loss(fwd_result, optim_result)
+                loss, nonfinite_loss = _loss_for_artifact(raw_loss)
                 step_metrics = {
                     "step": step + 1,
                     "train_loss": loss,
                     "val_loss": loss,
                     "test_loss": loss,
-                    "primary_metric": _score_from_loss(loss),
+                    "primary_metric": 0.0 if nonfinite_loss else _score_from_loss(loss),
                     "tokens": tokens,
                 }
+                if nonfinite_loss:
+                    step_metrics["nonfinite_loss"] = True
+                    step_metrics["raw_loss"] = str(raw_loss)
+                    status = "FAILED"
                 metrics_history.append(step_metrics)
                 with open(metrics_path, "a") as fh:
-                    fh.write(json.dumps(step_metrics) + "\n")
+                    fh.write(json.dumps(step_metrics, allow_nan=False) + "\n")
+                if nonfinite_loss:
+                    break
 
         checkpoints, sampling_client = _save_final_artifacts(training_client, run_name)
         sample_payload = _sample_once(
@@ -477,7 +485,7 @@ def _evaluate_holdout_loss(
             for conversation in batch_targets
         ]
         result = _future_result(forward(batch, loss_fn="cross_entropy"))
-        loss = _extract_forward_loss(result, batch)
+        loss, _nonfinite_loss = _loss_for_artifact(_extract_forward_loss(result, batch))
         weight = _batch_loss_weight(batch)
         weighted_loss += loss * weight
         total_weight += weight
@@ -629,6 +637,15 @@ def _score_from_loss(loss: float | None) -> float:
     return 1.0 / (1.0 + loss)
 
 
+def _loss_for_artifact(loss: float | None) -> tuple[float, bool]:
+    if loss is None:
+        return _NONFINITE_LOSS_SENTINEL, True
+    loss = float(loss)
+    if not math.isfinite(loss):
+        return _NONFINITE_LOSS_SENTINEL, True
+    return loss, False
+
+
 def _save_final_artifacts(training_client: Any, run_id: str) -> tuple[dict[str, str], Any]:
     checkpoints: dict[str, str] = {}
     state_result = _call_optional_checkpoint(training_client, "save_state", f"{run_id}-final-state")
@@ -711,22 +728,26 @@ def _final_metrics(
     test_loss: float | None = None,
 ) -> TrainingMetrics:
     if not metrics_history:
-        loss = float("nan") if status == "FAILED" else 0.0
+        loss = _NONFINITE_LOSS_SENTINEL if status == "FAILED" else 0.0
         resolved_val_loss = loss if val_loss is None else val_loss
         resolved_test_loss = loss if test_loss is None else test_loss
+        resolved_val_loss, _ = _loss_for_artifact(resolved_val_loss)
+        resolved_test_loss, _ = _loss_for_artifact(resolved_test_loss)
         return {
             "train_loss": loss,
             "val_loss": resolved_val_loss,
             "test_loss": resolved_test_loss,
             "primary_metric": _score_from_loss(resolved_val_loss),
         }
-    train_loss = _mean_metric(metrics_history, "train_loss")
+    train_loss, _ = _loss_for_artifact(_mean_metric(metrics_history, "train_loss"))
     resolved_val_loss = (
         _mean_metric(metrics_history, "val_loss") if val_loss is None else val_loss
     )
     resolved_test_loss = (
         _mean_metric(metrics_history, "test_loss") if test_loss is None else test_loss
     )
+    resolved_val_loss, _ = _loss_for_artifact(resolved_val_loss)
+    resolved_test_loss, _ = _loss_for_artifact(resolved_test_loss)
     return {
         "train_loss": train_loss,
         "val_loss": resolved_val_loss,
@@ -757,4 +778,4 @@ def _dataset_path_for_manifest(
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as fh:
-        json.dump(payload, fh, indent=2, allow_nan=True)
+        json.dump(payload, fh, indent=2, allow_nan=False)
