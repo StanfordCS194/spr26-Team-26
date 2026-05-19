@@ -512,14 +512,20 @@ def _final_metrics(metrics_history: list[dict[str, Any]], status: str) -> Traini
             "test_loss": loss,
             "primary_metric": _score_from_loss(loss),
         }
-    last = metrics_history[-1]
-    loss = float(last["train_loss"])
+    train_loss = _mean_metric(metrics_history, "train_loss")
+    val_loss = _mean_metric(metrics_history, "val_loss")
+    test_loss = _mean_metric(metrics_history, "test_loss")
     return {
-        "train_loss": loss,
-        "val_loss": float(last["val_loss"]),
-        "test_loss": float(last["test_loss"]),
-        "primary_metric": float(last["primary_metric"]),
+        "train_loss": train_loss,
+        "val_loss": val_loss,
+        "test_loss": test_loss,
+        "primary_metric": _score_from_loss(val_loss),
     }
+
+
+def _mean_metric(metrics_history: list[dict[str, Any]], key: str) -> float:
+    values = [float(step[key]) for step in metrics_history]
+    return sum(values) / len(values)
 
 
 def _dataset_path_for_manifest(
