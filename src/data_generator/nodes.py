@@ -191,7 +191,7 @@ def _normalize_single_record(mode: str, record: dict[str, Any], index: int) -> d
         "metadata": record.get("metadata") if isinstance(record.get("metadata"), dict) else {},
     }
 
-    return {
+    normalized = {
         "record_id": f"{mode.lower()}_{index:06d}",
         "input": input_value,
         "output": output_value,
@@ -200,6 +200,9 @@ def _normalize_single_record(mode: str, record: dict[str, Any], index: int) -> d
         "source_kind": _infer_source_kind(mode, record),
         "metadata": metadata,
     }
+    if "messages" in record:
+        normalized["messages"] = record["messages"]
+    return normalized
 
 
 def _coerce_primary_input(record: dict[str, Any]) -> str:

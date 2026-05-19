@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+
+from src.data_generator.curation import curate_handoff_to_dataset_result
 from src.data_generator.nodes import build_handoff_node
 
 
@@ -52,6 +55,48 @@ def test_mode_a_handoff_preserves_raw_and_adds_standardized_curation_payload():
     assert handoff["curation_payload"]["records"][0]["record_id"].startswith("a_")
     assert handoff["curation_payload"]["records"][1]["source_locator"] == "/tmp/dir/part.json"
     assert "Sub-Agent 2 Curation Input" in handoff["curation_human_readable"]
+
+
+def test_mode_a_handoff_preserves_chat_messages_through_curation(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    messages = [
+        {"role": "system", "content": "Answer with the escalation label."},
+        {"role": "user", "content": "Payment service is down for all customers."},
+        {"role": "assistant", "content": "urgent"},
+    ]
+    state = {
+        "config": _base_config(),
+        "data_path": "/tmp/chat.jsonl",
+        "mode": "A",
+        "raw_data": {
+            "records": [
+                {
+                    "messages": messages,
+                    "source_path": "/tmp/chat.jsonl",
+                    "row_index": 1,
+                }
+            ],
+            "format_meta": {"modality": "text", "file_type": "jsonl", "encoding": "utf-8"},
+        },
+        "hf_candidates": [],
+        "selected_candidate": None,
+        "web_plan": None,
+        "web_search_results": [],
+        "human_readable": None,
+    }
+
+    handoff = build_handoff_node(state)["handoff"]
+    curation_record = handoff["curation_payload"]["records"][0]
+    assert curation_record["messages"] == messages
+
+    dataset = curate_handoff_to_dataset_result(handoff)
+    rows = [
+        json.loads(line)
+        for line in open(dataset["dataset"]["path"], encoding="utf-8")
+        if line.strip()
+    ]
+    assert rows == [{"messages": messages}]
+    assert dataset["validation_report"]["passed"] is True
 
 
 def test_mode_b_handoff_keeps_hf_artifacts_and_standardizes_records():
