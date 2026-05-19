@@ -42,10 +42,11 @@ Budget cap: $100 total.
 | datagen-008 | 2026-05-19 07:48 | local only #55/#56/#57/#58/#59/#60/#61 | live DataGen graph web mode | Tavily, Anthropic | passed | $0.75 | $34.04 | Strict Mode C web graph with mixed-source planner produced 20 search results, 22 structured raw records, and 22 curated chat/SFT rows. Dataset split: 17 train / 2 val / 3 test; artifacts at `outputs/overnight/live-datagen-graph-web/1779201994`. |
 | tinker-014 | 2026-05-19 07:51 | local only #55/#56/#57/#58/#59/#60/#61 | live AutoResearch on web graph dataset | Tinker, Anthropic | passed | $4.50 | $38.54 | Baseline plus two 3-step `Qwen/Qwen3.5-9B` candidates on the 22-row DataGen graph dataset. Batch size 4 regressed (-45.2%); `learning_rate=0.0005` improved (+59.9%) and was kept. Local Tinker cost report: `$0.000556`; diary at `outputs/overnight/live-autoresearch-webgraph-dataset/1779202168/research_diary.jsonl`. |
 | stack-010 | 2026-05-19 08:00 | #62 | heldout split runner validation | none | passed | $0.00 | $38.54 | Draft PR #62 opened. Unit tests prove `DatasetResult` split counts restrict training to train rows and score val/test rows through `TrainingClient.forward`; validation clusters passed (`45 passed, 1 skipped` and `80 passed, 3 skipped`), plus compileall. |
+| tinker-015 | 2026-05-19 08:03 | local only #55/#56/#57/#58/#59/#60/#61/#62 | live heldout eval validation | Tinker | passed | $2.50 | $41.04 | Direct runner smoke on the 22-row web DataGen `DatasetResult`: `Qwen/Qwen3.5-9B`, 2 steps, split 17 train / 2 val / 3 test. Real `TrainingClient.forward` heldout scoring wrote `val_loss=3.594405844807625`, `test_loss=8.81808090209961`, checkpoints saved, status completed. Artifacts at `outputs/overnight/live-heldout-eval/live-heldout-eval-1779202842`. |
 
 ## Spend Ledger
 
-Current estimated cumulative spend: **$38.54 / $100.00**
+Current estimated cumulative spend: **$41.04 / $100.00**
 
 Notes:
 - Tinker billing may not be available through the local code, so per-run spend will be estimated conservatively from run type and observed duration unless a real cost is exposed.
