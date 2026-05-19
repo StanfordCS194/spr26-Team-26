@@ -80,3 +80,4 @@
 - 2026-05-19 12:11 PDT — When multiple smoke PRs touch the same test file, prefer a linear stack over sibling PRs. It reduces future merge conflicts and keeps each PR diff focused on one new entry path.
 - 2026-05-19 12:19 PDT — Treat `NO_SPEND=1` as a hard override for AutoResearch live LLM paths. Explicit `claude`/`required` env settings are useful test seams, but they should not beat a no-spend run flag when real credentials are present.
 - 2026-05-19 12:23 PDT — Use one Mode C offline policy for both cost and network controls. `NO_SPEND=1` and `DATA_GENERATOR_OFFLINE=1` should imply synthetic/no-teacher/no-web behavior just like the older `DATA_GENERATOR_SYNTHETIC_OFFLINE=1` flag.
+- 2026-05-19 12:26 PDT — Guard direct helper entry points, not only product paths. Low-level Tinker helpers and legacy data-prep downloads can be called outside the API/Manager graph, so no-spend/offline policy must live at those boundaries too.

@@ -312,5 +312,14 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   `DATA_GENERATOR_SYNTHETIC_OFFLINE=1` all block web acquisition and teacher
   calls, including `scrape_web()` and web structuring. Focused and boundary
   validation passed (`35 passed`), with no live spend.
+- #102 is an independent main-based guard for the legacy low-level
+  `src/tinker_api/tinker_api.py` wrapper. It blocks direct SDK operations under
+  `NO_SPEND` or `TINKER_BACKEND=dry_run`, including `run_training_loop`, while
+  leaving ledger/cancel helpers available. Focused validation passed
+  (`26 passed`).
+- #103 is an independent main-based guard for legacy `autoresearch/prepare.py`.
+  Offline/no-spend mode now permits cached shards but blocks both `download_data`
+  and direct `download_single_shard` network downloads. Focused no-network
+  validation passed (`7 passed`).
 
 Current conservative live spend: `$94.14 / $100.00`.
