@@ -70,3 +70,4 @@ Operating rules:
 - 2026-05-19 07:31 PDT — Ran a paired 5-step live Tinker validation for `learning_rate=0.0001` vs `0.0005`. Candidate remained slightly better on final-batch scoring (`0.08739` vs `0.08615`), but the per-step trace exposed high batch noise on the tiny 6-row dataset.
 - 2026-05-19 07:32 PDT — Draft PR #60 opened: final Tinker `metrics.json` now averages observed step losses and recomputes `primary_metric` from averaged `val_loss`, while `metrics.jsonl` remains the per-step trace.
 - 2026-05-19 07:33 PDT — Local unpublished stack with #55, #56, #57, #58, #59, and #60 passed compileall and the broad non-live suite (`200 passed, 7 skipped`).
+- 2026-05-19 07:34 PDT — Live #60 validation passed: a 5-step `learning_rate=0.0005` Tinker run wrote averaged `metrics.json` loss `11.902454127464443`, exactly matching the mean of `metrics.jsonl`.

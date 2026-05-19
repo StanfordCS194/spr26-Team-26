@@ -35,10 +35,11 @@ Budget cap: $100 total.
 | tinker-009 | 2026-05-19 07:29 | local only #55/#56/#57/#58/#59 | live real-proposer AutoResearch loop | Tinker, Anthropic | passed | $4.00 | $16.79 | Baseline plus three 2-step `Qwen/Qwen3.5-9B` candidates using real Claude proposals. Batch size 4 regressed (-36.1%), learning rate `0.0005` improved (+49.2%) and was kept, LoRA rank 16 tied/slightly regressed (-0.1%). Local Tinker cost report: `$0.000238`; diary at `outputs/overnight/live-autoresearch-real-proposer/1779200780/research_diary.jsonl` in the local stack worktree. |
 | tinker-010 | 2026-05-19 07:31 | local only #55/#56/#57/#58/#59 | live paired learning-rate validation | Tinker | passed | $5.00 | $21.79 | Two 5-step direct Tinker runs compared `learning_rate=0.0001` vs `0.0005`. Final-batch scores: `0.08615` vs `0.08739`; step trace showed high small-dataset batch noise. Local Tinker cost report: `$0.000238` total; artifacts at `outputs/overnight/live-lr-pair-5step/1779200984` in the local stack worktree. |
 | stack-008 | 2026-05-19 07:33 | local only #55/#56/#57/#58/#59/#60 | unpublished stack with mean metrics | none | passed | $0.00 | $21.79 | PR #60 focused validation passed (`13 passed` and `55 passed` clusters). Local integrated stack with #60 passed compileall and broad non-live suite excluding live Tinker/HF with `200 passed, 7 skipped`. |
+| tinker-011 | 2026-05-19 07:34 | local only #55/#56/#57/#58/#59/#60 | live mean-metrics artifact validation | Tinker | passed | $2.50 | $24.29 | One 5-step `Qwen/Qwen3.5-9B` run after #60 confirmed `metrics.json` loss `11.902454127464443` exactly matches the mean of `metrics.jsonl`; `primary_metric=0.07750463517412384`. Local Tinker cost report: `$0.000119`; artifacts at `outputs/overnight/live-mean-metrics-validation/1779201242` in the local stack worktree. |
 
 ## Spend Ledger
 
-Current estimated cumulative spend: **$21.79 / $100.00**
+Current estimated cumulative spend: **$24.29 / $100.00**
 
 Notes:
 - Tinker billing may not be available through the local code, so per-run spend will be estimated conservatively from run type and observed duration unless a real cost is exposed.
