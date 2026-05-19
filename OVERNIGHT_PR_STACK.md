@@ -22,6 +22,7 @@ having to infer dependencies from GitHub.
    - #70 `codex/tinker-run-cost-estimate` -> #69
    - #72 `codex/autoresearch-estimated-spend-floor` -> #70
    - #79 `codex/tinker-hparam-aliases` -> #72
+   - #80 `codex/budget-skip-finite-metrics` -> #79
 3. Tinker runner chain:
    - #43 `codex/tinker-single-assistant-rendering` -> #35
    - #57 `codex/tinker-live-loss-metrics` -> #43
@@ -167,5 +168,9 @@ on top of #51.
   Mode B rerun completed with baseline + one candidate Tinker job, 10 streamed
   metric points, and run artifacts exposed before stopping at the `$2.24`
   software budget limit.
+- #80 fixes a follow-on artifact hygiene issue found in that live run:
+  budget-preflight skip metrics no longer serialize `Infinity`. The unpublished
+  composition branch includes #80 and still passes compileall plus the full
+  no-live Python suite (`255 passed, 9 skipped`).
 
 Current conservative live spend: `$78.64 / $100.00`.
