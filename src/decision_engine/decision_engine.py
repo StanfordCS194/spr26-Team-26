@@ -63,7 +63,10 @@ def run_decision_engine(
     """Top-level dispatcher. Runs task analysis → model selection → cost estimation → script generation."""
     task = analyze_task(config)
     budget = config["compute_budget"]
+    backend = "tinker_sft"
     model_id = find_base_model(task, budget)
+    if backend == "tinker_sft" and model_id is None:
+        model_id = _tinker_base_model_for_task(task)
     strategy = "fine-tune" if model_id else "pre-train"
     cost = estimate_training_cost(model_id, dataset, strategy)
 
@@ -74,7 +77,6 @@ def run_decision_engine(
         lora = None
         script_path = write_pretrain_script(task, dataset, config)
 
-    backend = "tinker_sft"
     return TrainingPlan(
         strategy=strategy,
         base_model=model_id,
@@ -88,6 +90,11 @@ def run_decision_engine(
         dataset_path=dataset["dataset"]["path"],
         dataset=dataset["dataset"],
     )
+
+
+def _tinker_base_model_for_task(task: TaskAnalysis) -> str:
+    """Return the SDK-native Tinker SFT base model for V1 plans."""
+    return _TASK_TO_BASE_MODEL.get(task["task_type"], DEFAULT_TINKER_MODEL)
 
 
 def estimate_autoresearch_run_cost(
