@@ -87,3 +87,4 @@ Operating rules:
 - 2026-05-19 08:15 PDT — Live Mode B partial validation passed with `SetFit/sst2`: DataGen retrieved 6 rows with source splits `train/train/validation/validation/test/test`; curation produced split counts 2/2/2 and valid trainable JSONL. No Tinker/LLM spend.
 - 2026-05-19 08:19 PDT — Draft PR #65 opened: Tinker heldout eval now forwards validation/test examples in bounded batches and aggregates loss with token weights when available. Validation cluster `81 passed, 3 skipped`; compileall and diff check passed.
 - 2026-05-19 08:20 PDT — Local unpublished stack including #65 passed compileall and broad non-live suite excluding live Tinker/HF retrieval (`208 passed, 7 skipped`).
+- 2026-05-19 08:23 PDT — Live #65 validation passed: 1-step Tinker run on the 22-row web DataGen dataset with split 17/2/3 and `batch_size=2` completed with heldout `val_loss=10.5183`, `test_loss=10.0684`.

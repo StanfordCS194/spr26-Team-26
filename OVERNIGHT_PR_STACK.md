@@ -68,5 +68,7 @@ Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
   heldout scalar from `0.0675` to `0.2300`.
 - Live Mode B partial with #64 pulled `SetFit/sst2` and verified curation
   preserves source split counts as 2/2/2.
+- Live #65 direct Tinker smoke completed on the 22-row web DataGen dataset with
+  split 17/2/3 and `batch_size=2`.
 
-Current conservative live spend: `$46.04 / $100.00`.
+Current conservative live spend: `$48.54 / $100.00`.
