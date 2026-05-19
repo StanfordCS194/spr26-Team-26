@@ -17,7 +17,13 @@ from src.tinker_api.sft_runner import (
 )
 
 
+def _env_truthy(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def test_live_tinker_chat_sft_smoke(tmp_path):
+    if _env_truthy("NO_SPEND"):
+        pytest.skip("NO_SPEND=1 disables live Tinker smoke tests")
     if os.getenv("RUN_LIVE_TINKER") != "1":
         pytest.skip("set RUN_LIVE_TINKER=1 to run the live Tinker smoke test")
     if not os.getenv("TINKER_API_KEY"):
