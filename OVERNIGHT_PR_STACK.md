@@ -19,6 +19,7 @@ having to infer dependencies from GitHub.
    - #63 `codex/autoresearch-dataset-splits` -> #61
    - #66 `codex/tinker-primary-metric-plan` -> #63
    - #69 `codex/autoresearch-budget-preflight` -> #66
+   - #70 `codex/tinker-run-cost-estimate` -> #69
 3. Tinker runner chain:
    - #43 `codex/tinker-single-assistant-rendering` -> #35
    - #57 `codex/tinker-live-loss-metrics` -> #43
@@ -41,6 +42,7 @@ having to infer dependencies from GitHub.
    - #49 `codex/spec-tinker-sdk-docs` -> #51
    - #55 `codex/autoresearch-budget-stop-graph-v2` -> #51
    - #56 `codex/mode-c-web-manager-boundary-v2` -> #51
+   - #71 `codex/full-stack-budget-contract` -> #51
    - #41 `codex/overnight-coordination` -> #35
 
 ## Review Notes
@@ -60,11 +62,11 @@ having to infer dependencies from GitHub.
 ## Latest Local Stack Validation
 
 Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
-#62, #63, #64, #65, #66, #67, #68, and #69 on top of #51.
+#62, #63, #64, #65, #66, #67, #68, #69, #70, and #71 on top of #51.
 
 - `python3 -m compileall src`
 - Full non-live suite with live Tinker/HF cases skipped by default:
-  `219 passed, 9 skipped`
+  `224 passed, 9 skipped`
 - Live #62 heldout smoke on the 22-row web DataGen dataset completed with
   split 17/2/3, saved checkpoints, `val_loss=3.5944`, and `test_loss=8.8181`.
 - Live full AutoResearch graph smoke with #62/#63 completed with split 17/2/3
@@ -89,5 +91,9 @@ Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
   for skipped runs, and labels budget skips separately from catastrophic model
   failures. The local stack caught and fixed an initial over-conservative use of
   plan-level `estimated_cost`.
+- #70 makes DecisionEngine populate `estimated_run_cost_usd` for bounded Tinker
+  runs. #71 updates the integration proof test so its fake budget/cost scale
+  remains compatible with the new preflight estimate while still proving the
+  budget boundary.
 
 Current conservative live spend: `$58.54 / $100.00`.
