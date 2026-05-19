@@ -778,6 +778,147 @@ def _make_state(**overrides):
     return base
 
 
+def _tinker_propose_state():
+    return _make_state(
+        plan={
+            "strategy": "fine-tune",
+            "base_model": "Qwen/Qwen3.5-9B",
+            "lora_config": {"rank": 8, "alpha": 16, "dropout": 0.05, "target_modules": []},
+            "estimated_cost": 1.0,
+            "estimated_time_min": 5,
+            "training_script_path": "outputs/scripts/train.py",
+            "eval_metric": "primary_metric",
+            "backend": "tinker_sft",
+            "dataset_path": "/tmp/train.jsonl",
+        },
+        config={
+            "data": False,
+            "prompt": "test",
+            "compute_budget": 10.0,
+            "training_procedure": {
+                "task_type": "text-classification",
+                "data_format": "jsonl",
+                "training_type": "SFT",
+                "base_model": "Qwen/Qwen3.5-9B",
+                "hyperparameters": {"learning_rate": 1e-4, "batch_size": 4},
+                "notes": "",
+            },
+        },
+        current_script="outputs/scripts/train.py",
+        current_config={"learning_rate": 1e-4, "batch_size": 4},
+    )
+
+
+def test_propose_node_auto_without_anthropic_key_uses_local_proposer(monkeypatch, tmp_path):
+    import src.autoresearch.autoresearch as ar
+    from src.tinker_api.sft_runner import SUPPORTED_TINKER_TUNABLES
+
+    config_path = tmp_path / "current.json"
+    TrainingConfig(
+        model_name="Qwen/Qwen3.5-9B",
+        learning_rate=1e-4,
+        batch_size=4,
+    ).save(config_path)
+    monkeypatch.setattr(ar, "_CONFIG_PATH", config_path)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("AUTORESEARCH_PROPOSER", raising=False)
+    monkeypatch.setattr(
+        ar.anthropic,
+        "Anthropic",
+        lambda: pytest.fail("Anthropic should not be constructed in auto mode without a key"),
+    )
+    monkeypatch.setattr(
+        ar,
+        "propose_hypothesis",
+        lambda *args, **kwargs: pytest.fail("Claude proposer should not run without a key"),
+    )
+
+    out = ar.propose_node(_tinker_propose_state())
+    patch = json.loads(out["current_patch"])
+    key, value = next(iter(patch.items()))
+
+    assert len(patch) == 1
+    assert key in SUPPORTED_TINKER_TUNABLES
+    assert out["current_script"] == "outputs/scripts/train.py"
+    assert out["last_description"]
+    before_config = TrainingConfig(
+        model_name="Qwen/Qwen3.5-9B",
+        learning_rate=1e-4,
+        batch_size=4,
+    ).to_dict()
+    patched_config = TrainingConfig.load(config_path).to_dict()
+    assert value != before_config[key]
+    if isinstance(value, (int, float)):
+        assert patched_config[key] == pytest.approx(value)
+    else:
+        assert patched_config[key] == value
+
+
+def test_propose_node_local_mode_produces_tinker_supported_patch(monkeypatch, tmp_path):
+    import src.autoresearch.autoresearch as ar
+    from src.tinker_api.sft_runner import SUPPORTED_TINKER_TUNABLES
+
+    config_path = tmp_path / "current.json"
+    TrainingConfig(
+        model_name="Qwen/Qwen3.5-9B",
+        learning_rate=1e-4,
+        batch_size=4,
+    ).save(config_path)
+    monkeypatch.setattr(ar, "_CONFIG_PATH", config_path)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-present")
+    monkeypatch.setenv("AUTORESEARCH_PROPOSER", "local")
+    monkeypatch.setattr(
+        ar,
+        "propose_hypothesis",
+        lambda *args, **kwargs: pytest.fail("Explicit local proposer should not call Claude"),
+    )
+
+    out = ar.propose_node(_tinker_propose_state())
+    patch = json.loads(out["current_patch"])
+
+    assert len(patch) == 1
+    assert set(patch).issubset(SUPPORTED_TINKER_TUNABLES)
+    key, value = next(iter(patch.items()))
+    before_config = TrainingConfig(
+        model_name="Qwen/Qwen3.5-9B",
+        learning_rate=1e-4,
+        batch_size=4,
+    ).to_dict()
+    assert value != before_config[key]
+    TrainingConfig.load(config_path).apply_patch(patch)
+
+
+def test_propose_node_explicit_claude_uses_propose_hypothesis(monkeypatch, tmp_path):
+    import src.autoresearch.autoresearch as ar
+
+    config_path = tmp_path / "current.json"
+    TrainingConfig(
+        model_name="Qwen/Qwen3.5-9B",
+        learning_rate=1e-4,
+        batch_size=4,
+    ).save(config_path)
+    calls = []
+    monkeypatch.setattr(ar, "_CONFIG_PATH", config_path)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("AUTORESEARCH_PROPOSER", "claude")
+
+    def fake_propose_hypothesis(*args, **kwargs):
+        calls.append((args, kwargs))
+        return {
+            "description": "Increase learning rate for a bounded candidate run.",
+            "patch": json.dumps({"learning_rate": 2e-4}),
+            "expected_effect": "Lower validation loss.",
+            "search_strategy": "local",
+        }
+
+    monkeypatch.setattr(ar, "propose_hypothesis", fake_propose_hypothesis)
+
+    out = ar.propose_node(_tinker_propose_state())
+
+    assert len(calls) == 1
+    assert json.loads(out["current_patch"]) == {"learning_rate": 2e-4}
+
+
 def test_continue_edge_ends_when_budget_exhausted():
     diary = [{"cost_usd": 60.0, "iteration": 1, "hypothesis": "", "patch": "",
               "metrics": {}, "decision": "KEPT", "notes": ""}]
@@ -913,6 +1054,7 @@ def test_autoresearch_graph_passes_plan_dataset_splits_to_tinker(monkeypatch, tm
         }
 
     monkeypatch.setattr(ar, "run_tinker_sft_experiment", fake_runner)
+    monkeypatch.setenv("AUTORESEARCH_PROPOSER", "claude")
     monkeypatch.setattr(
         ar,
         "propose_hypothesis",
