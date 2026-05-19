@@ -187,5 +187,10 @@ on top of #51.
   artifact-refresh issue: while a newer experiment directory exists but has not
   written files yet, live refresh can temporarily replace working artifact links
   with placeholder/missing files.
+- #83 fixes that artifact-refresh issue on top of #78. It keeps metrics/stage
+  refresh eager but switches downloadable artifacts only after the newer
+  experiment has manifest, metrics, metrics_log, and sample files. It composes
+  cleanly with #82 and the later unpublished stack; the composed no-live suite
+  passed with `253 passed, 6 skipped`.
 
 Current conservative live spend: `$81.14 / $100.00`.
