@@ -1,6 +1,6 @@
 # Overnight PR Stack
 
-Updated: 2026-05-19 09:25 PDT
+Updated: 2026-05-19 09:27 PDT
 
 Purpose: give reviewers a merge/review order for the draft PR stack without
 having to infer dependencies from GitHub.
@@ -40,6 +40,7 @@ having to infer dependencies from GitHub.
    - #64 `codex/curation-source-splits` -> #58
    - #67 `codex/hf-live-test-controls` -> #64
    - #68 `codex/hf-parser-free-text` -> #67
+   - #75 `codex/mode-c-structuring-leaf` -> #68
 5. Integration/docs:
    - #51 `codex/full-stack-contract-smoke` -> #48
    - #49 `codex/spec-tinker-sdk-docs` -> #51
@@ -113,5 +114,9 @@ Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
   targeted API/runtime tests, broad no-live branch tests with the old ungated
   HF retrieval file ignored (`176 passed, 7 skipped`), frontend lint, and
   frontend build.
+- #75 resolves the DataGen stack topology issue where #44 was a sibling of the
+  latest DataGen leaf chain. It merges the existing Mode C teacher-backed web
+  structuring work onto #68 and passed the broad no-live suite (`181 passed,
+  9 skipped`).
 
 Current conservative live spend: `$68.64 / $100.00`.
