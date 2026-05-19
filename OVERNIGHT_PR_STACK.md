@@ -424,5 +424,12 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   validation passed compileall, server API tests (`17 passed`), frontend
   lint/build, and a simulation browser smoke. Product UI composition through
   #109 passed server API tests (`22 passed`) plus frontend lint/build.
+- #92 was updated after audit to close the local/no-spend half of #88's API
+  task-type hint. The local Manager planner now accepts `task_type_hint`:
+  `classification -> text-classification`, `regression -> custom`, and
+  `fine-tuning -> prompt/data inference`. Branch validation passed Manager
+  tests (`25 passed, 1 skipped`). A throwaway #88 + updated #92 composition
+  resolved the expected Manager conflicts and passed Manager/API tests (`44
+  passed, 1 skipped`) plus a direct `NO_SPEND=1` fake-key check.
 
 Current conservative live spend: `$94.14 / $100.00`.
