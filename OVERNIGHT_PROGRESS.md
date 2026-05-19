@@ -75,3 +75,5 @@ Operating rules:
 - 2026-05-19 07:40 PDT — Draft PR #61 opened: AutoResearch now requires at least 1% relative improvement before keeping a candidate, while still allowing any positive improvement from a zero baseline.
 - 2026-05-19 07:41 PDT — Local unpublished stack with #55 through #61 passed compileall and the broad non-live suite (`202 passed, 7 skipped`).
 - 2026-05-19 07:44 PDT — Live #61 replay passed: starting from `learning_rate=0.0005`, deterministic `lora_rank: 8 -> 16` produced another +0.1% delta and was correctly reverted as no improvement.
+- 2026-05-19 07:48 PDT — Ran the actual DataGen graph in strict Mode C web mode with real Tavily crawl and required teacher structuring. It produced 22 curated chat/SFT rows with a 17/2/3 split and no validation issues.
+- 2026-05-19 07:51 PDT — Ran real AutoResearch/Tinker on the 22-row DataGen web graph dataset. Batch size 4 regressed, then `learning_rate=0.0005` improved the averaged proxy score by +59.9% and was kept.
