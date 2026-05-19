@@ -5,6 +5,7 @@ import pytest
 from src.decision_engine.decision_engine import (
     analyze_task,
     configure_lora,
+    estimate_autoresearch_run_cost,
     estimate_training_cost,
     find_base_model,
     run_decision_engine,
@@ -66,6 +67,44 @@ def test_estimate_training_cost_finetune_cheaper_than_pretrain():
     assert fine_tune_cost["confidence"] == "medium"
 
 
+def test_estimate_autoresearch_run_cost_scales_bounded_steps():
+    config = _make_config()
+    config["training_procedure"]["hyperparameters"]["max_steps"] = 5
+    dataset = _make_dataset(train_size=1000)
+    cost = estimate_training_cost("Qwen/Qwen3.5-9B", dataset, "fine-tune")
+
+    run_cost = estimate_autoresearch_run_cost(cost, config, dataset)
+
+    assert cost["estimated_usd"] == 1.12
+    assert run_cost == 0.0296
+
+
+def test_estimate_autoresearch_run_cost_uses_full_cost_when_unbounded():
+    config = _make_config()
+    dataset = _make_dataset(train_size=1000)
+    cost = estimate_training_cost("Qwen/Qwen3.5-9B", dataset, "fine-tune")
+
+    assert estimate_autoresearch_run_cost(cost, config, dataset) == cost["estimated_usd"]
+
+
+def test_estimate_autoresearch_run_cost_caps_at_full_cost():
+    config = _make_config()
+    config["training_procedure"]["hyperparameters"]["max_steps"] = 10_000
+    dataset = _make_dataset(train_size=42)
+    cost = estimate_training_cost("Qwen/Qwen3.5-9B", dataset, "fine-tune")
+
+    assert estimate_autoresearch_run_cost(cost, config, dataset) == cost["estimated_usd"]
+
+
+def test_estimate_autoresearch_run_cost_treats_invalid_max_steps_as_unbounded():
+    config = _make_config()
+    config["training_procedure"]["hyperparameters"]["max_steps"] = "many"
+    dataset = _make_dataset(train_size=1000)
+    cost = estimate_training_cost("Qwen/Qwen3.5-9B", dataset, "fine-tune")
+
+    assert estimate_autoresearch_run_cost(cost, config, dataset) == cost["estimated_usd"]
+
+
 def test_configure_lora_returns_valid_config():
     config = _make_config("text-classification")
     task = analyze_task(config)
@@ -108,5 +147,17 @@ def test_run_decision_engine_returns_training_plan(tmp_path, monkeypatch):
     assert plan["backend"] == "tinker_sft"
     assert os.path.exists(plan["training_script_path"])
     assert plan["estimated_cost"] > 0
+    assert plan["estimated_run_cost_usd"] == plan["estimated_cost"]
     assert plan["dataset_path"] == dataset["dataset"]["path"]
     assert plan["dataset"] == dataset["dataset"]
+
+
+def test_run_decision_engine_sets_bounded_run_cost(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    config = _make_config("text-classification", budget=50.0)
+    config["training_procedure"]["hyperparameters"]["max_steps"] = 5
+    dataset = _make_dataset(train_size=1000)
+
+    plan = run_decision_engine(config, dataset)
+
+    assert 0.0 < plan["estimated_run_cost_usd"] < plan["estimated_cost"]
