@@ -1,6 +1,6 @@
 # Overnight PR Stack
 
-Updated: 2026-05-19 08:14 PDT
+Updated: 2026-05-19 08:19 PDT
 
 Purpose: give reviewers a merge/review order for the draft PR stack without
 having to infer dependencies from GitHub.
@@ -22,6 +22,7 @@ having to infer dependencies from GitHub.
    - #57 `codex/tinker-live-loss-metrics` -> #43
    - #60 `codex/tinker-mean-final-metrics` -> #57
    - #62 `codex/tinker-heldout-eval` -> #60
+   - #65 `codex/tinker-heldout-batches` -> #62
 4. DataGen/Manager chain:
    - #40 `codex/datagen-integration` -> #35
    - #42 `codex/e2e-manager-datagen-tinker-boundary` -> #40
@@ -56,6 +57,8 @@ having to infer dependencies from GitHub.
 
 Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
 #62, #63, and #64 on top of #51.
+#65 has been opened on the Tinker runner chain and should be included in the
+next local stack smoke.
 
 - `python3 -m compileall src`
 - Broad non-live suite excluding live Tinker and live Hugging Face retrieval:
