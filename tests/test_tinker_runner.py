@@ -63,6 +63,20 @@ def test_record_to_conversation_rejects_malformed_record():
         record_to_conversation({"input": "No answer"})
 
 
+def test_record_to_conversation_requires_assistant_after_user():
+    from src.tinker_api.sft_runner import record_to_conversation
+
+    with pytest.raises(ValueError, match="assistant message after a user"):
+        record_to_conversation(
+            {
+                "messages": [
+                    {"role": "assistant", "content": "A"},
+                    {"role": "user", "content": "Q"},
+                ]
+            }
+        )
+
+
 def test_load_conversations_returns_empty_for_empty_jsonl(tmp_path):
     from src.tinker_api.sft_runner import load_conversations
 

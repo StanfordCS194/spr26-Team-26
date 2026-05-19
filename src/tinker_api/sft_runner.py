@@ -271,6 +271,8 @@ def record_to_conversation(record: Mapping[str, Any]) -> list[dict[str, str]]:
             raise ValueError("messages must contain at least one user message")
         if not any(message["role"] == "assistant" for message in normalized):
             raise ValueError("messages must contain at least one assistant message")
+        if not _has_assistant_target_after_user(normalized):
+            raise ValueError("messages must contain an assistant message after a user message")
         return normalized
 
     user_text = _first_text(record, _INPUT_KEYS)
@@ -338,6 +340,17 @@ def _split_conversations(
     if not train:
         train = conversations
     return _ConversationSplits(train=train, val=val, test=test)
+
+
+def _has_assistant_target_after_user(messages: Sequence[Mapping[str, str]]) -> bool:
+    seen_user = False
+    for message in messages:
+        role = message["role"]
+        if role == "user":
+            seen_user = True
+        elif role == "assistant" and seen_user:
+            return True
+    return False
 
 
 def resolve_renderer_name(model_name: str, model_info_module: Any | None = None) -> str:
