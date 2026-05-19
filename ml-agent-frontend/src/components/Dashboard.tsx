@@ -163,14 +163,16 @@ function CancelledArtifacts({ state, onReset }: Props) {
   };
   const results = [
     {
+      key: 'checkpoint-score',
       label: `Checkpoint ${shortMetricLabel(bestLabel)}`,
       value: formatPrimaryMetric(iterationMetricValue(bestIter), bestLabel),
     },
     {
+      key: 'latest-primary-score',
       label: latestLabel,
       value: formatPrimaryMetric(metricPointValue(lastMetric), latestLabel),
     },
-    { label: 'Budget Used', value: `$${state.costSpent.toFixed(2)}` },
+    { key: 'budget-used', label: 'Budget Used', value: `$${state.costSpent.toFixed(2)}` },
   ];
 
   return (
@@ -212,8 +214,8 @@ function CancelledArtifacts({ state, onReset }: Props) {
         gap: '12px',
         marginBottom: '1.5rem',
       }}>
-        {results.map(({ label, value }) => (
-          <div key={label} style={{
+        {results.map(({ key, label, value }) => (
+          <div key={key} style={{
             background: 'var(--bg-elevated)',
             border: '0.5px solid var(--border)',
             borderRadius: '6px',
@@ -247,7 +249,7 @@ function CancelledArtifacts({ state, onReset }: Props) {
             const href = resolveApiHref(file.downloadPath);
             return (
               <div
-                key={file.name}
+                key={file.downloadPath ?? file.path ?? file.name}
                 style={{ display: 'grid', gridTemplateColumns: '96px 1fr auto', gap: '0.75rem', alignItems: 'center' }}
               >
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{file.label}</span>

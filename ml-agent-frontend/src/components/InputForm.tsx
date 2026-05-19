@@ -7,6 +7,7 @@ interface Props {
 
 const MIN_BUDGET = 1;
 const MAX_BUDGET = 500;
+const DEFAULT_BUDGET = '50';
 
 const styles: Record<string, React.CSSProperties> = {
   wrapper: {
@@ -147,17 +148,18 @@ const styles: Record<string, React.CSSProperties> = {
 
 export default function InputForm({ onStart }: Props) {
   const [prompt, setPrompt] = useState('');
-  const [budget, setBudget] = useState(50);
+  const [budgetInput, setBudgetInput] = useState(DEFAULT_BUDGET);
   const [taskType, setTaskType] = useState<TaskType>('classification');
   const [dataPath, setDataPath] = useState('');
   const [error, setError] = useState('');
 
   const handleSubmit = () => {
+    const budget = Number(budgetInput);
     if (prompt.trim().length < 10) {
       setError('Prompt must be at least 10 characters.');
       return;
     }
-    if (budget < MIN_BUDGET || budget > MAX_BUDGET) {
+    if (!Number.isFinite(budget) || budget < MIN_BUDGET || budget > MAX_BUDGET) {
       setError(`Budget must be between $${MIN_BUDGET} and $${MAX_BUDGET}.`);
       return;
     }
@@ -167,7 +169,7 @@ export default function InputForm({ onStart }: Props) {
 
   const handleReset = () => {
     setPrompt('');
-    setBudget(50);
+    setBudgetInput(DEFAULT_BUDGET);
     setTaskType('classification');
     setDataPath('');
     setError('');
@@ -220,11 +222,11 @@ export default function InputForm({ onStart }: Props) {
                 id="budget"
                 type="number"
                 style={styles.input}
-                value={budget}
+                value={budgetInput}
                 min={MIN_BUDGET}
                 max={MAX_BUDGET}
                 step={0.5}
-                onChange={e => setBudget(Number(e.target.value))}
+                onChange={e => setBudgetInput(e.target.value)}
                 aria-label="Budget cap in dollars"
               />
             </div>

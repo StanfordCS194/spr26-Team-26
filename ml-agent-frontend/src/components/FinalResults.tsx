@@ -60,18 +60,20 @@ export default function FinalResults({ state, onReset }: Props) {
     URL.revokeObjectURL(url);
   };
 
-  const results: Array<{ label: string; value: string; tooltipKey: ResultTooltipKey }> = [
+  const results: Array<{ key: string; label: string; value: string; tooltipKey: ResultTooltipKey }> = [
     {
+      key: 'final-score',
       label: finalScoreLabel,
       value: formatPrimaryMetric(finalScoreValue, bestLabel),
       tooltipKey: 'score',
     },
     {
+      key: 'latest-primary-score',
       label: latestLabel,
       value: formatPrimaryMetric(metricPointValue(lastMetric), latestLabel),
       tooltipKey: 'score',
     },
-    { label: 'Budget Used', value: `$${state.costSpent.toFixed(2)}`, tooltipKey: 'Budget Used' },
+    { key: 'budget-used', label: 'Budget Used', value: `$${state.costSpent.toFixed(2)}`, tooltipKey: 'Budget Used' },
   ];
   const compactPath = (value?: string | null) => {
     if (!value) return '—';
@@ -119,10 +121,10 @@ export default function FinalResults({ state, onReset }: Props) {
         gap: '12px',
         marginBottom: '1.5rem',
       }}>
-        {results.map(({ label, value, tooltipKey }) => {
+        {results.map(({ key, label, value, tooltipKey }) => {
           const tip = RESULT_TOOLTIPS[tooltipKey];
           return (
-            <div key={label} style={{
+            <div key={key} style={{
               background: 'var(--bg-elevated)',
               border: '0.5px solid var(--border)',
               borderRadius: '6px',
@@ -161,7 +163,7 @@ export default function FinalResults({ state, onReset }: Props) {
               const href = resolveApiHref(file.downloadPath);
               return (
                 <div
-                  key={file.name}
+                  key={file.downloadPath ?? file.path ?? file.name}
                   style={{ display: 'grid', gridTemplateColumns: '96px 1fr auto', gap: '0.75rem', alignItems: 'center' }}
                 >
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{file.label}</span>

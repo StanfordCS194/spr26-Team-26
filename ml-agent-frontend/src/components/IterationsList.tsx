@@ -80,7 +80,7 @@ export default function IterationsList({ iterations }: Props) {
         >
           {iterations.map((iter, idx) => (
             <div
-              key={iter.id}
+              key={`${iter.id}:${idx}`}
               role="listitem"
               style={{
                 display: 'flex',
