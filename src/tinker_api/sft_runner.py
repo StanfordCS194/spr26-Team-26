@@ -3,9 +3,9 @@ SDK-native Tinker supervised fine-tuning runner.
 
 This module is intentionally lazy about importing ``tinker`` and
 ``tinker_cookbook`` so the regular unit suite can run without live SDK
-dependencies installed. Set ``TINKER_BACKEND=dry_run`` to exercise the same
-chat/SFT JSONL artifact contract without importing or constructing live Tinker
-SDK clients.
+dependencies installed. Set ``TINKER_BACKEND=dry_run`` or ``NO_SPEND=1`` to
+exercise the same chat/SFT JSONL artifact contract without importing or
+constructing live Tinker SDK clients.
 """
 
 from __future__ import annotations
@@ -34,6 +34,7 @@ DEFAULT_TINKER_MODEL = "Qwen/Qwen3.5-9B"
 DEFAULT_LIVE_SMOKE_STEPS = 5
 TINKER_BACKEND_ENV = "TINKER_BACKEND"
 TINKER_DRY_RUN_BACKEND = "dry_run"
+NO_SPEND_ENV = "NO_SPEND"
 QWEN35_9B_RENDERER = "qwen3_5_disable_thinking"
 SUPPORTED_TINKER_TUNABLES: frozenset[str] = frozenset(
     {"learning_rate", "batch_size", "max_seq_length", "lora_rank", "num_epochs"}
@@ -64,9 +65,9 @@ def run_tinker_sft_experiment(
 
     ``dataset`` may be a repo ``DatasetResult``, a JSONL path, or an in-memory
     sequence of JSON-like records. Metrics and manifest artifacts are written
-    under ``output_dir/run_id``. Set ``TINKER_BACKEND=dry_run`` to write the
-    same artifact contract with deterministic synthetic metrics and no live
-    Tinker client construction.
+    under ``output_dir/run_id``. Set ``TINKER_BACKEND=dry_run`` or
+    ``NO_SPEND=1`` to write the same artifact contract with deterministic
+    synthetic metrics and no live Tinker client construction.
     """
     cfg = _coerce_training_config(config)
     run_name = run_id or f"tinker-sft-{int(time.time())}-{uuid4().hex[:8]}"
@@ -443,8 +444,14 @@ def _load_tinker_deps() -> tuple[Any, Any, Any, Any, Any, Any]:
 
 
 def _use_dry_run_backend() -> bool:
+    if _env_flag_enabled(NO_SPEND_ENV):
+        return True
     backend = os.getenv(TINKER_BACKEND_ENV, "").strip().lower().replace("-", "_")
     return backend == TINKER_DRY_RUN_BACKEND
+
+
+def _env_flag_enabled(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _run_dry_run_sft_experiment(

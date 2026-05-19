@@ -207,6 +207,48 @@ def test_run_tinker_sft_experiment_dry_run_uses_real_dataset_without_sdk(
     assert sample["backend"] == "dry_run"
 
 
+def test_run_tinker_sft_experiment_no_spend_uses_dry_run_without_sdk(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("NO_SPEND", "1")
+    monkeypatch.delenv("TINKER_BACKEND", raising=False)
+    from src.tinker_api import sft_runner
+    from src.tinker_api.sft_runner import run_tinker_sft_experiment
+
+    class FailingServiceClient:
+        def create_lora_training_client(self, *args, **kwargs):
+            raise AssertionError("NO_SPEND should not construct live training clients")
+
+    monkeypatch.setattr(
+        sft_runner,
+        "_load_tinker_deps",
+        lambda: pytest.fail("NO_SPEND should not load Tinker SDK dependencies"),
+    )
+    data_path = _write_jsonl(
+        tmp_path / "train.jsonl",
+        [{"input": "Question", "output": "Answer"}],
+    )
+
+    result = run_tinker_sft_experiment(
+        TrainingConfig(model_name="Qwen/Qwen3.5-9B", batch_size=1),
+        str(data_path),
+        run_id="no-spend-dry-run",
+        max_steps=1,
+        output_dir=str(tmp_path / "experiments"),
+        service_client=FailingServiceClient(),
+    )
+
+    run_dir = tmp_path / "experiments" / "no-spend-dry-run"
+    manifest = _assert_strict_json_file(run_dir / "manifest.json")
+    sample = _assert_strict_json_file(run_dir / "sample.json")
+
+    assert result["status"] == "COMPLETED"
+    assert manifest["backend"] == "dry_run"
+    assert manifest["completed_steps"] == 1
+    assert sample["backend"] == "dry_run"
+
+
 def test_run_tinker_sft_experiment_dry_run_cancels_before_steps(
     tmp_path,
     monkeypatch,
