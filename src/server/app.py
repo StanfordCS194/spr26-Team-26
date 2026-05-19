@@ -229,6 +229,9 @@ def _iterations_from_diary(path: str | None) -> list[IterationView]:
         except json.JSONDecodeError:
             continue
 
+        if _is_budget_preflight_skip(row):
+            continue
+
         metrics = row.get("metrics") or {}
         iteration = int(row.get("iteration") or len(iterations) + 1)
         decision = row.get("decision") or "PENDING"
@@ -313,6 +316,15 @@ def _cost_from_diary(path: Path) -> float:
     return sum(float(row.get("cost_usd") or 0.0) for row in _jsonl_rows(path))
 
 
+def _is_budget_preflight_skip(row: dict[str, Any] | None) -> bool:
+    if not row:
+        return False
+    if row.get("budget_preflight_skipped") is True:
+        return True
+    note = str(row.get("notes") or row.get("reason") or "").lower()
+    return "budget preflight" in note and "skipped" in note
+
+
 def _experiment_dirs(record: _RunRecord) -> list[Path]:
     root = record.output_dir / "experiments"
     if not root.is_dir():
@@ -359,11 +371,16 @@ def _metric_point(row: dict[str, Any], iteration: int) -> MetricPoint | None:
 def _metrics_from_experiments(record: _RunRecord) -> list[MetricPoint]:
     points: list[MetricPoint] = []
     for run_dir in _experiment_dirs(record):
+        manifest = _read_json_if_exists(run_dir / "manifest.json")
+        if _is_budget_preflight_skip(manifest):
+            continue
         rows = _jsonl_rows(run_dir / "metrics.jsonl")
         if not rows:
             metrics = _read_json_if_exists(run_dir / "metrics.json")
             rows = [metrics] if metrics else []
         for row in rows:
+            if _is_budget_preflight_skip(row):
+                continue
             point = _metric_point(row, len(points) + 1)
             if point:
                 points.append(point)

@@ -65,6 +65,41 @@ def _write_tinker_artifacts(
     )
 
 
+def _write_budget_skip_artifacts(run_dir: Path, *, run_id: str) -> None:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    sentinel_metrics = {
+        "train_loss": 1_000_000_000.0,
+        "val_loss": 1_000_000_000.0,
+        "test_loss": 1_000_000_000.0,
+        "primary_metric": 0.0,
+    }
+    (run_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "status": "CANCELLED",
+                "budget_preflight_skipped": True,
+                "checkpoints": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "metrics.json").write_text(json.dumps(sentinel_metrics), encoding="utf-8")
+    (run_dir / "metrics.jsonl").write_text(
+        json.dumps(
+            {
+                "step": 0,
+                **sentinel_metrics,
+                "budget_preflight_skipped": True,
+                "reason": "estimated run cost exceeds remaining budget",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (run_dir / "sample.json").write_text(json.dumps({"text": ""}), encoding="utf-8")
+
+
 def _fake_model(tmp_path, *, total_cost=1.25, with_artifacts=False):
     diary_path = tmp_path / "diary.jsonl"
     diary_path.write_text(
@@ -257,7 +292,7 @@ def test_running_run_refreshes_logs_iterations_metrics_and_artifacts(tmp_path, m
     ready = threading.Event()
     release = threading.Event()
 
-    def fake_invoke(prompt, budget, data_path=None):
+    def fake_invoke(prompt, budget, data_path=None, **_kwargs):
         root = get_output_root()
         assert root is not None
 
@@ -333,6 +368,99 @@ def test_running_run_refreshes_logs_iterations_metrics_and_artifacts(tmp_path, m
     assert state["status"] == "complete"
     assert [metric["loss"] for metric in state["metrics"]] == [0.52, 0.4]
     assert [metric["accuracy"] for metric in state["metrics"]] == [0.61, 0.714]
+
+
+def test_running_run_hides_budget_skip_sentinel_metrics(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    ready = threading.Event()
+    release = threading.Event()
+
+    def fake_invoke(prompt, budget, data_path=None, **_kwargs):
+        root = get_output_root()
+        assert root is not None
+        diary_path = root / "logs" / "research_diary.jsonl"
+        diary_path.parent.mkdir(parents=True, exist_ok=True)
+        diary_path.write_text(
+            json.dumps(
+                {
+                    "iteration": 1,
+                    "hypothesis": "Increase learning rate",
+                    "patch": "- learning_rate: 0.0001\n+ learning_rate: 0.0002",
+                    "metrics": {"val_loss": 0.42, "primary_metric": 0.704},
+                    "decision": "REVERTED",
+                    "cost_usd": 1.12,
+                }
+            )
+            + "\n"
+            + json.dumps(
+                {
+                    "iteration": 2,
+                    "hypothesis": "Increase batch size",
+                    "patch": "- batch_size: 4\n+ batch_size: 5",
+                    "metrics": {
+                        "train_loss": 1_000_000_000.0,
+                        "val_loss": 1_000_000_000.0,
+                        "primary_metric": 0.0,
+                    },
+                    "decision": "REVERTED",
+                    "cost_usd": 0.0,
+                    "notes": "Skipped: budget preflight rejected the Tinker run",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        _write_tinker_artifacts(
+            root / "experiments" / "completed-run",
+            run_id="completed-run",
+            state_path="tinker://state/completed",
+            val_loss=0.42,
+            primary_metric=0.704,
+            metric_rows=[
+                {"step": 1, "val_loss": 0.6, "primary_metric": 0.625},
+                {"step": 2, "val_loss": 0.42, "primary_metric": 0.704},
+            ],
+        )
+        _write_budget_skip_artifacts(
+            root / "experiments" / "budget-skipped-run",
+            run_id="budget-skipped-run",
+        )
+        ready.set()
+        assert release.wait(timeout=5)
+        result = _fake_model(root, total_cost=1.12)
+        result["research_diary_path"] = str(diary_path)
+        return result
+
+    monkeypatch.setattr(server_app, "invoke_manager_graph", fake_invoke)
+    client = TestClient(server_app.app)
+
+    response = client.post(
+        "/api/runs",
+        json={
+            "prompt": "Fine tune while hiding budget skip sentinels",
+            "budget": 2,
+            "task_type": "fine-tuning",
+        },
+    )
+
+    assert response.status_code == 200
+    run_id = response.json()["run_id"]
+    assert ready.wait(timeout=5)
+
+    state = client.get(f"/api/runs/{run_id}").json()
+    assert [metric["loss"] for metric in state["metrics"]] == [0.6, 0.42]
+    assert [metric["accuracy"] for metric in state["metrics"]] == [0.625, 0.704]
+    assert [item["experiment"] for item in state["iterations"]] == [
+        "Increase learning rate"
+    ]
+
+    release.set()
+    state = _wait_for_status(client, run_id, "complete")
+    assert [metric["loss"] for metric in state["metrics"]] == [0.6, 0.42]
+    assert [metric["accuracy"] for metric in state["metrics"]] == [0.625, 0.704]
+    assert [item["experiment"] for item in state["iterations"]] == [
+        "Increase learning rate"
+    ]
 
 
 def test_running_run_keeps_previous_artifacts_when_newer_experiment_is_incomplete(
