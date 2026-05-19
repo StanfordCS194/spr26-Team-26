@@ -105,6 +105,7 @@ Budget cap: $100 total.
 | api-dry-001 | 2026-05-19 11:46 | local only composed stack through #95 | no-spend API product smoke | none | passed | $0.00 | $94.14 | `POST /api/runs` with local Manager reasoning, local AutoResearch proposer, synthetic offline DataGen, and `TINKER_BACKEND=dry_run` reached terminal `complete`. Result: 2 iterations, 11 metric points, `costSpent=2.24`, `termination_reason=budget_limit`, and all five artifact downloads returned 200. |
 | stack-051 | 2026-05-19 11:52 | #96 | Mode A text/data-contract guard | none | passed | $0.00 | $94.14 | Draft PR #96 keeps unlabeled local text source-only and aligns curation/Tinker chat ordering validation. Branch focused validation passed (`33 passed`); local composed focused validation after resolving the Tinker runner conflict passed (`44 passed`). |
 | stack-052 | 2026-05-19 11:55 | #97 | DecisionEngine Tinker-only plan contract | none | passed | $0.00 | $94.14 | Draft PR #97 keeps low-budget DecisionEngine plans on `strategy=fine-tune`/`backend=tinker_sft` with the default Tinker base model instead of generating an incoherent pretrain plan. Branch and composed focused DecisionEngine suites passed (`13 passed`). |
+| stack-053 | 2026-05-19 11:56 | local only composed stack through #97 | full no-live suite | none | passed | $0.00 | $94.14 | The unpublished composition stack through #96/#97 passed `285 passed, 8 skipped` with `ANTHROPIC_API_KEY`, `TINKER_API_KEY`, and `TAVILY_API_KEY` unset. |
 
 ## Spend Ledger
 
