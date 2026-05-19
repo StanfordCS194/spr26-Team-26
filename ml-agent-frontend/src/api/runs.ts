@@ -28,6 +28,37 @@ export function isBackendApiConfigured(): boolean {
   return getApiBaseUrl() !== null;
 }
 
+export function resolveApiHrefFromBase(
+  baseUrl: string | null,
+  downloadPath?: string | null
+): string | null {
+  if (!baseUrl || !downloadPath) return null;
+
+  if (/^https?:\/\//i.test(downloadPath)) {
+    return downloadPath;
+  }
+
+  const path = downloadPath.startsWith('/') ? downloadPath : `/${downloadPath}`;
+  if (path === baseUrl || path.startsWith(`${baseUrl}/`)) {
+    return path;
+  }
+
+  try {
+    const base = new URL(baseUrl);
+    if (path === base.pathname || path.startsWith(`${base.pathname}/`)) {
+      return `${base.origin}${path}`;
+    }
+  } catch {
+    // Relative API base, handled below.
+  }
+
+  return `${baseUrl}${path}`;
+}
+
+export function resolveApiHref(downloadPath?: string | null): string | null {
+  return resolveApiHrefFromBase(getApiBaseUrl(), downloadPath);
+}
+
 async function requestJson<T>(path: string, options?: RequestInit): Promise<T> {
   const baseUrl = getApiBaseUrl();
   if (!baseUrl) {

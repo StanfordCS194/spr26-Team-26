@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from '../api/runs';
+import { resolveApiHref } from '../api/runs';
 import type { TrainingState } from '../types';
 import Tooltip from './Tooltip';
 
@@ -25,7 +25,6 @@ const RESULT_TOOLTIPS: Record<string, { label: string; body: string }> = {
 export default function FinalResults({ state, onReset }: Props) {
   const lastMetric = state.metrics[state.metrics.length - 1];
   const bestIter = state.iterations.find(i => i.status === 'KEPT') ?? state.iterations[0];
-  const apiBaseUrl = getApiBaseUrl();
   const artifactFiles = state.artifacts?.files.filter(file => file.exists) ?? [];
   const checkpointEntries = Object.entries(state.artifacts?.checkpoints ?? {}).filter(([, value]) => value);
 
@@ -56,9 +55,6 @@ export default function FinalResults({ state, onReset }: Props) {
     { label: 'Val Accuracy', value: lastMetric ? `${(lastMetric.accuracy * 100).toFixed(1)}%` : '—' },
     { label: 'Total Cost', value: `$${state.costSpent.toFixed(2)}` },
   ];
-  const artifactHref = (downloadPath?: string | null) => (
-    apiBaseUrl && downloadPath ? `${apiBaseUrl}${downloadPath}` : null
-  );
   const compactPath = (value?: string | null) => {
     if (!value) return '—';
     if (value.length <= 72) return value;
@@ -144,7 +140,7 @@ export default function FinalResults({ state, onReset }: Props) {
               </div>
             )}
             {artifactFiles.map(file => {
-              const href = artifactHref(file.downloadPath);
+              const href = resolveApiHref(file.downloadPath);
               return (
                 <div
                   key={file.name}
