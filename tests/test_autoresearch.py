@@ -190,6 +190,36 @@ def test_flag_regression_at_boundary_is_not_triggered():
     assert flag_regression(delta, threshold=-0.01) is False
 
 
+def test_evaluate_node_compares_against_current_best(monkeypatch):
+    import src.autoresearch.autoresearch as ar
+
+    monkeypatch.setattr(
+        ar,
+        "run_evals",
+        lambda _model_path, _suite: {"scalar": 0.70, "metrics": {}, "critique": ""},
+    )
+    state = _make_state(
+        eval_suite={"primary_metric": "accuracy", "metrics": [], "test_split_path": "",
+                    "use_llm_grading": False},
+        baseline_score={"scalar": 0.50, "metrics": {}, "critique": ""},
+        best_score={"scalar": 0.80, "metrics": {}, "critique": ""},
+        last_result={
+            "job_id": "candidate",
+            "status": "COMPLETED",
+            "metrics": {"train_loss": 0.3, "val_loss": 0.4,
+                        "test_loss": 0.5, "primary_metric": 0.70},
+            "model_path": "candidate-model",
+            "cost_usd": 0.01,
+            "logs_path": "candidate.jsonl",
+        },
+    )
+
+    out = ar.evaluate_node(state)
+
+    assert out["last_delta"]["improved"] is False
+    assert out["last_delta"]["absolute"] == pytest.approx(-0.10)
+
+
 # ─── log_iteration ────────────────────────────────────────────────────────────
 
 def test_log_iteration_appends_to_diary(tmp_path, monkeypatch):
@@ -233,6 +263,40 @@ def test_log_iteration_returns_extended_diary(tmp_path, monkeypatch):
         result = log_iteration(existing, new_record)
         assert len(result) == 2
         assert result[-1]["iteration"] == 2
+    finally:
+        ar._DIARY_PATH = original_path
+
+
+def test_log_node_uses_pre_patch_config_for_kept_diff(tmp_path):
+    import src.autoresearch.autoresearch as ar
+
+    original_path = ar._DIARY_PATH
+    ar._DIARY_PATH = tmp_path / "diary.jsonl"
+    try:
+        state = _make_state(
+            eval_suite={"primary_metric": "accuracy", "metrics": [], "test_split_path": "",
+                        "use_llm_grading": False},
+            current_config={"learning_rate": 2e-4, "batch_size": 4},
+            current_patch=json.dumps({"learning_rate": 2e-4}),
+            original_content=json.dumps({"learning_rate": 1e-4, "batch_size": 4}),
+            last_description="Increase learning rate.",
+            last_delta={"absolute": 0.1, "relative_pct": 20.0, "improved": True},
+            last_result={
+                "job_id": "candidate",
+                "status": "COMPLETED",
+                "metrics": {"train_loss": 0.3, "val_loss": 0.4,
+                            "test_loss": 0.5, "primary_metric": 0.70},
+                "model_path": "candidate-model",
+                "cost_usd": 0.01,
+                "logs_path": "candidate.jsonl",
+            },
+        )
+
+        out = ar.log_node(state)
+
+        assert out["diary"][0]["decision"] == "KEPT"
+        assert "- learning_rate: 0.0001" in out["diary"][0]["patch"]
+        assert "+ learning_rate: 0.0002" in out["diary"][0]["patch"]
     finally:
         ar._DIARY_PATH = original_path
 

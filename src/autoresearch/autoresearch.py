@@ -364,7 +364,8 @@ def revert_and_continue_node(state: AutoResearchState) -> dict:
 def evaluate_node(state: AutoResearchState) -> dict:
     """LangGraph node. Calls run_evals(), compare_scores(), flag_regression(). Returns: { last_score, last_delta }."""
     last_score = run_evals(state["last_result"]["model_path"], state["eval_suite"])
-    last_delta = compare_scores(last_score, state["baseline_score"])
+    reference_score = state.get("best_score") or state["baseline_score"]
+    last_delta = compare_scores(last_score, reference_score)
     regressed = flag_regression(last_delta)
 
     log_event(
@@ -375,6 +376,7 @@ def evaluate_node(state: AutoResearchState) -> dict:
         + ("  ⚠ REGRESSION" if regressed else ""),
         metadata={
             "score": last_score,
+            "reference_score": reference_score,
             "delta": last_delta,
             "regression": regressed,
         },
@@ -456,7 +458,7 @@ def log_node(state: AutoResearchState) -> dict:
             else {"train_loss": 0.0, "val_loss": 0.0, "test_loss": 0.0, "primary_metric": 0.0}
         )
         patch_dict = json.loads(state.get("current_patch", "{}"))
-        diff = _patch_to_diff(patch_dict, state["current_config"])
+        diff = _patch_to_diff(patch_dict, _pre_patch_config_from_state(state))
         record: IterationRecord = {
             "iteration": iteration_number,
             "hypothesis": state.get("last_description", str(patch_dict)),
@@ -545,6 +547,18 @@ def continue_edge(state: AutoResearchState) -> Literal["propose", "__end__"]:
         return "__end__"
 
     return "propose"
+
+
+def _pre_patch_config_from_state(state: AutoResearchState) -> dict[str, Any]:
+    original_content = state.get("original_content")
+    if original_content:
+        try:
+            original_config = json.loads(original_content)
+        except json.JSONDecodeError:
+            original_config = None
+        if isinstance(original_config, dict):
+            return original_config
+    return state["current_config"]
 
 
 def _spent_usd_from_state(state: AutoResearchState) -> float:
