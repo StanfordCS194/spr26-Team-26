@@ -23,3 +23,4 @@
 - 2026-05-19 06:02 PDT — AutoResearch candidate acceptance should be monotonic against the current best score, not merely better than the original baseline. The diary should report the patch relative to the pre-patch config for auditability.
 - 2026-05-19 06:06 PDT — Treat LLM-generated hyperparameter patches as untrusted until validated by `TrainingConfig.apply_patch`; prompt constraints are guidance, runtime validation is the guardrail.
 - 2026-05-19 06:13 PDT — Keep the spec-site source of truth aligned with the stacked implementation branches. Since reviewers use the Vercel preview to understand intended behavior, stale REST-job language is treated as an implementation risk, not just documentation drift.
+- 2026-05-19 06:22 PDT — Keep the first frontend/backend bridge intentionally thin: start a run, poll state, and surface final Manager results. Live per-stage streaming should wait for run-scoped observability rather than fabricating precision.

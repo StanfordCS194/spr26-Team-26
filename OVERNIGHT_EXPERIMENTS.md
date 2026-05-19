@@ -14,6 +14,7 @@ Budget cap: $100 total.
 | datagen-004 | 2026-05-19 05:47 | #44/#40 | live web structuring validation | Anthropic | passed | $0.30 | $6.94 | One manual web excerpt -> teacher structuring -> 4 schema-valid chat/SFT rows. No Tavily/Tinker used. |
 | tinker-004 | 2026-05-19 05:58 | expanded stack #39/#45/#43/#40/#42/#44/#46 | live candidate-config graph smoke | Tinker | passed | $2.00 | $8.94 | Offline synthetic DataGen -> curation -> DecisionEngine -> AutoResearch baseline plus one deterministic proposal. Captured Tinker learning rates: `0.0001` then `0.0002`; both capped at 2 steps. Local Tinker cost report: `$0.000284`. |
 | docs-001 | 2026-05-19 06:13 | #49 | spec-site validation | none | passed | $0.00 | $8.94 | `npm run lint`, `npm run build`, and `git diff --check` passed after updating the Tinker/AutoResearch spec text and fixing the existing Sidebar lint issue. |
+| api-001 | 2026-05-19 06:22 | #50 | backend/frontend API validation | none | passed | $0.00 | $8.94 | FastAPI run bridge tests plus Manager tests passed (`15 passed, 1 skipped`); frontend `npm run lint` and `npm run build` passed. |
 
 ## Spend Ledger
 
