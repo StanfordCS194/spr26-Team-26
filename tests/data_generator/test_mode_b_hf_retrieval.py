@@ -180,10 +180,13 @@ def _live_hf_retrieval_enabled() -> bool:
         "1",
         "true",
         "yes",
+        "on",
     }
 
 
 def _require_live_hf_retrieval_opt_in() -> None:
+    if os.getenv("NO_SPEND", "").strip().lower() in {"1", "true", "yes", "on"}:
+        pytest.skip("NO_SPEND=1 disables live Hugging Face retrieval")
     if not _live_hf_retrieval_enabled():
         pytest.skip(
             f"set {RUN_LIVE_HF_RETRIEVAL_ENV}=1 to run live Hugging Face retrieval"
