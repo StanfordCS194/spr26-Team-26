@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import math
 import os
+from pathlib import Path
 from textwrap import dedent
 
+from src.runtime_context import get_output_root
 from src.types import (
     CostEstimate,
     DatasetResult,
@@ -193,8 +195,7 @@ def write_finetune_script(
     config: OrchestrationConfig,
 ) -> str:
     """Generates a complete LoRA fine-tuning train.py. Returns the path to the written script."""
-    os.makedirs("outputs/scripts", exist_ok=True)
-    path = "outputs/scripts/train.py"
+    path = _training_script_path()
     hp = config["training_procedure"]["hyperparameters"]
 
     script = dedent(f"""\
@@ -258,8 +259,7 @@ def write_pretrain_script(
     config: OrchestrationConfig,
 ) -> str:
     """Generates a from-scratch train.py for pre-training. Returns the path to the written script."""
-    os.makedirs("outputs/scripts", exist_ok=True)
-    path = "outputs/scripts/train.py"
+    path = _training_script_path()
     hp = config["training_procedure"]["hyperparameters"]
 
     script = dedent(f"""\
@@ -303,3 +303,14 @@ def write_pretrain_script(
     with open(path, "w") as f:
         f.write(script)
     return os.path.abspath(path)
+
+
+def _training_script_path() -> str:
+    root = get_output_root()
+    path = (
+        root / "scripts" / "train.py"
+        if root is not None
+        else Path("outputs/scripts/train.py")
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return str(path)

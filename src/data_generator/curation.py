@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from src.runtime_context import get_output_root
 from src.types import DatasetResult, StandardDataset, ValidationReport
 
 _INPUT_KEYS = ("input", "prompt", "question", "content", "text", "utterance")
@@ -53,7 +54,7 @@ def curate_handoff_to_dataset_result(
             issues.append(f"row {index}: {exc}")
 
     curated, split_counts = _apply_source_splits(curated_with_splits)
-    output_path = Path(output_dir) / filename
+    output_path = _curated_output_path(output_dir, filename)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w") as fh:
         for record in curated:
@@ -100,6 +101,13 @@ def curate_handoff_to_dataset_result(
         "quality_notes": quality_notes,
         "validation_report": validation_report,
     }
+
+
+def _curated_output_path(output_dir: str, filename: str) -> Path:
+    root = get_output_root()
+    if root is not None and output_dir == "outputs/datasets":
+        return root / "datasets" / filename
+    return Path(output_dir) / filename
 
 
 def curate_record(

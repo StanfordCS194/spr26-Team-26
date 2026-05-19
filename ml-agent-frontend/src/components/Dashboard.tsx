@@ -24,8 +24,22 @@ const headerStyle: React.CSSProperties = {
 };
 
 function StatusDot({ status }: { status: TrainingState['status'] }) {
-  const color = status === 'complete' ? 'var(--success)' : status === 'running' ? 'var(--accent)' : 'var(--text-muted)';
-  const label = status === 'complete' ? 'COMPLETE' : status === 'running' ? 'RUNNING' : 'IDLE';
+  const color =
+    status === 'complete'
+      ? 'var(--success)'
+      : status === 'failed'
+        ? 'var(--danger)'
+        : status === 'running'
+          ? 'var(--accent)'
+          : 'var(--text-muted)';
+  const label =
+    status === 'complete'
+      ? 'COMPLETE'
+      : status === 'failed'
+        ? 'FAILED'
+        : status === 'running'
+          ? 'RUNNING'
+          : 'IDLE';
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -118,6 +132,26 @@ export default function Dashboard({ state, onReset }: Props) {
 
         {/* Pipeline + budget */}
         <PipelineProgress stages={state.stages} costSpent={state.costSpent} budget={state.budget} />
+
+        {state.status === 'failed' && (
+          <section
+            style={{
+              background: 'var(--danger-dim)',
+              border: '0.5px solid var(--danger)',
+              borderRadius: 'var(--radius)',
+              padding: '0.875rem 1rem',
+              marginBottom: '1.5rem',
+            }}
+            role="alert"
+          >
+            <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--danger)', marginBottom: '0.25rem' }}>
+              Run failed
+            </p>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+              {state.error ?? 'The backend run ended before producing a model.'}
+            </p>
+          </section>
+        )}
 
         {/* 4 metric cards */}
         <MetricsGrid metrics={state.metrics} costSpent={state.costSpent} budget={state.budget} />

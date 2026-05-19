@@ -20,6 +20,7 @@ import anthropic
 
 from src.autoresearch.config import TrainingConfig
 from src.observability.observability import log_event
+from src.runtime_context import resolve_output_path
 from src.tinker_api.sft_runner import (
     DEFAULT_LIVE_SMOKE_STEPS,
     DEFAULT_TINKER_MODEL,
@@ -55,6 +56,18 @@ _MAX_ITERATIONS = 20  # hard cap on total iterations regardless of improvement
 _MIN_RELATIVE_IMPROVEMENT_PCT = 1.0
 _MIN_ABSOLUTE_IMPROVEMENT = 1e-9
 _EXPERIMENT_CACHE: dict[str, ExperimentResult] = {}
+
+
+def _diary_path() -> Path:
+    return resolve_output_path(_DIARY_PATH, "logs", "research_diary.jsonl")
+
+
+def _config_path() -> Path:
+    return resolve_output_path(_CONFIG_PATH, "configs", "current.json")
+
+
+def _experiments_output_dir() -> Path:
+    return resolve_output_path(Path("outputs/experiments"), "experiments")
 
 
 def _patch_to_diff(patch_dict: dict, current_config: dict) -> str:
@@ -159,7 +172,7 @@ def invoke_autoresearch_graph(
         "metrics": final_state["best_score"],
         "cost": cost_breakdown,
         "n_iterations": final_state["iteration"],
-        "research_diary_path": str(_DIARY_PATH),
+        "research_diary_path": str(_diary_path()),
     }
 
 
@@ -259,7 +272,7 @@ def propose_node(state: AutoResearchState) -> dict:
     )
 
     # Bug fix: patch the config JSON, not the training script (.py files are not patchable).
-    original_content = apply_patch(str(_CONFIG_PATH), hypothesis["patch"])
+    original_content = apply_patch(str(_config_path()), hypothesis["patch"])
 
     log_event(
         AgentName.AUTORESEARCH,
@@ -312,7 +325,7 @@ def run_node(state: AutoResearchState) -> dict:
 
 def revert_and_continue_node(state: AutoResearchState) -> dict:
     """LangGraph node (early stop path). Reverts the patch before normal logging."""
-    revert_patch(str(_CONFIG_PATH), state["original_content"])
+    revert_patch(str(_config_path()), state["original_content"])
 
     budget_skipped = _last_result_was_budget_skipped(state)
     reason = (
@@ -394,7 +407,7 @@ def keep_node(state: AutoResearchState) -> dict:
 
 def revert_node(state: AutoResearchState) -> dict:
     """LangGraph node. Calls revert_patch(). Increments no_improve_streak. Returns: { current_script, no_improve_streak }."""
-    revert_patch(str(_CONFIG_PATH), state["original_content"])
+    revert_patch(str(_config_path()), state["original_content"])
 
     new_streak = state["no_improve_streak"] + 1
     log_event(
@@ -808,12 +821,13 @@ def _training_config_from_state(
 
 
 def _write_current_config(config: TrainingConfig) -> None:
-    config.save(_CONFIG_PATH)
+    config.save(_config_path())
 
 
 def _training_config_from_plan(plan: TrainingPlan) -> TrainingConfig:
-    if _CONFIG_PATH.exists():
-        data = TrainingConfig.load(_CONFIG_PATH).to_dict()
+    config_path = _config_path()
+    if config_path.exists():
+        data = TrainingConfig.load(config_path).to_dict()
     else:
         data = {"model_name": plan.get("base_model") or DEFAULT_TINKER_MODEL}
     data["model_name"] = plan.get("base_model") or data.get("model_name") or DEFAULT_TINKER_MODEL
@@ -980,6 +994,7 @@ def _run_tinker_experiment_for_state(
             reason=skip_reason,
             estimated_cost=estimated_cost,
             remaining_budget=remaining_budget,
+            output_dir=str(_experiments_output_dir()),
         )
 
     cost_manager = state.get("cost_manager")
@@ -994,6 +1009,7 @@ def _run_tinker_experiment_for_state(
             _dataset_result_from_plan(state["plan"]),
             run_id=run_id,
             max_steps=_max_steps_from_state(state),
+            output_dir=str(_experiments_output_dir()),
         )
     finally:
         if cost_manager is not None and hasattr(cost_manager, "stop"):
@@ -1052,6 +1068,7 @@ def submit_experiment(
         _training_config_from_plan(plan),
         _dataset_result_from_plan(plan),
         max_steps=DEFAULT_LIVE_SMOKE_STEPS,
+        output_dir=str(_experiments_output_dir()),
     )
     _EXPERIMENT_CACHE[result["job_id"]] = result
     return result["job_id"]
@@ -1063,7 +1080,7 @@ def wait_for_experiment(job_id: str, timeout_min: int) -> ExperimentResult:
     if job_id in _EXPERIMENT_CACHE:
         return _EXPERIMENT_CACHE[job_id]
 
-    run_dir = Path("outputs/experiments") / job_id
+    run_dir = _experiments_output_dir() / job_id
     metrics_path = run_dir / "metrics.json"
     if not metrics_path.exists():
         raise TimeoutError(f"Tinker run {job_id} has no metrics artifact")
@@ -1152,8 +1169,9 @@ def decide_keep_or_revert(delta: ScoreDelta) -> Literal["KEEP", "REVERT"]:
 
 def log_iteration(diary: ResearchDiary, record: IterationRecord) -> ResearchDiary:
     """Appends an IterationRecord to the research diary and writes to disk as JSONL."""
-    _DIARY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(_DIARY_PATH, "a") as f:
+    diary_path = _diary_path()
+    diary_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(diary_path, "a") as f:
         f.write(json.dumps(record) + "\n")
     return [*diary, record]
 
