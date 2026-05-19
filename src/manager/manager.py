@@ -228,11 +228,24 @@ def _handoff_to_dataset_result(handoff: dict) -> DatasetResult:
         "val_size": val_n,
         "test_size": test_n,
     }
-    validation_report: ValidationReport = {
-        "passed": n > 0,
-        "issues": [] if n > 0 else ["DataGen returned 0 records"],
-        "sample_accuracy_estimate": 0.9 if n > 0 else 0.0,
-    }
+    handoff_validation = handoff.get("validation_report")
+    if isinstance(handoff_validation, dict):
+        issues = list(handoff_validation.get("issues", []))
+        if n == 0 and "DataGen returned 0 records" not in issues:
+            issues.append("DataGen returned 0 records")
+        validation_report: ValidationReport = {
+            "passed": bool(handoff_validation.get("passed")) and n > 0,
+            "issues": issues,
+            "sample_accuracy_estimate": float(
+                handoff_validation.get("sample_accuracy_estimate", 0.0)
+            ),
+        }
+    else:
+        validation_report = {
+            "passed": n > 0,
+            "issues": [] if n > 0 else ["DataGen returned 0 records"],
+            "sample_accuracy_estimate": 0.9 if n > 0 else 0.0,
+        }
     return DatasetResult(
         dataset=dataset,
         mode_used=mode,

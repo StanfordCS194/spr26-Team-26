@@ -1,107 +1,103 @@
+"""Mode C acquisition: no user data, so synthesize chat/SFT data.
+
+The public ``acquire_web_data`` name is kept for compatibility with the
+original graph/spec wording. The implementation follows the newer Mode C
+shape: infer a data schema, generate synthetic examples, standardize them, and
+return validation signals alongside the raw records.
+"""
+
 from __future__ import annotations
 
 from typing import Any, Mapping
 
-from src.types import RawData
+from src.data_generator.synthetic import (
+    DEFAULT_SYNTHETIC_EXAMPLES,
+    DEFAULT_TEACHER_MODEL,
+    SyntheticGenerationResult,
+    build_mode_c_dataset,
+    determine_data_schema,
+    generate_synthetic_data,
+    infer_schema_without_teacher,
+    morph_to_standard,
+    plan_synthetic_generation,
+    scrape_web,
+    validate_synthetic_records,
+)
+from src.types import OrchestrationConfig, RawData
 
 
-def acquire_web_data(query: str, config: Mapping[str, Any] | None = None) -> RawData:
-    """Generate a small synthetic chat/SFT dataset for Mode C.
-
-    The MVP spec makes web scraping a fallback and synthetic generation the
-    primary no-data path. This deterministic teacher gives the downstream
-    Tinker SFT runner valid user/assistant examples without requiring a live
-    LLM call during tests or demos.
-    """
-    clean_query = " ".join(str(query or "generic task").split())
-    task_type = _task_type(config)
-    records = _classification_records(clean_query, task_type)
-    records.extend(_instruction_records(clean_query, task_type))
-    return {
-        "records": records,
-        "format_meta": {
-            "modality": "text",
-            "file_type": "synthetic_chat_jsonl",
-            "encoding": "utf-8",
-        },
-    }
+def acquire_synthetic_dataset(
+    config: OrchestrationConfig | Mapping[str, Any],
+    *,
+    teacher_client: Any = None,
+    teacher_model: str = DEFAULT_TEACHER_MODEL,
+    n_examples: int | None = None,
+) -> SyntheticGenerationResult:
+    """Build the full Mode C synthetic dataset bundle."""
+    return build_mode_c_dataset(
+        config,
+        teacher_client=teacher_client,
+        teacher_model=teacher_model,
+        n_examples=n_examples,
+    )
 
 
-def _task_type(config: Mapping[str, Any] | None) -> str:
-    if not config:
-        return "custom"
-    procedure = config.get("training_procedure", {})
-    if isinstance(procedure, Mapping):
-        return str(procedure.get("task_type") or "custom")
-    return "custom"
+def acquire_web_data(
+    query: str,
+    config: Mapping[str, Any] | None = None,
+    *,
+    teacher_client: Any = None,
+    n_examples: int | None = None,
+) -> RawData:
+    """Compatibility wrapper for the Mode C no-data acquisition path."""
+    mode_config = _config_with_prompt(query, config)
+    result = acquire_synthetic_dataset(
+        mode_config,
+        teacher_client=teacher_client,
+        n_examples=n_examples,
+    )
+    return result.raw_data
 
 
-def _classification_records(query: str, task_type: str) -> list[dict[str, Any]]:
-    labels = ("relevant", "not_relevant")
-    snippets = [
-        (f"This text directly asks for help with {query}.", labels[0]),
-        (f"A user wants examples and evaluation criteria for {query}.", labels[0]),
-        (f"The request describes inputs, outputs, and constraints for {query}.", labels[0]),
-        ("This text is about an unrelated calendar reminder.", labels[1]),
-        ("The message discusses lunch plans and does not mention the task.", labels[1]),
-        ("A generic weather note with no training objective.", labels[1]),
-    ]
-    records: list[dict[str, Any]] = []
-    for index, (text, label) in enumerate(snippets):
-        records.append(
-            {
-                "source": "mode_c_synthetic",
-                "task_type": task_type,
-                "synthetic": True,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": (
-                            "Classify the text for the requested ML task. "
-                            f"Task: {query}\nText: {text}\nLabels: relevant, not_relevant"
-                        ),
-                    },
-                    {"role": "assistant", "content": label},
-                ],
-                "input": text,
-                "output": label,
-                "id": f"mode-c-classification-{index}",
-            }
-        )
-    return records
+def _config_with_prompt(
+    query: str,
+    config: Mapping[str, Any] | None,
+) -> Mapping[str, Any]:
+    clean_query = " ".join(str(query or "generic ML task").split()) or "generic ML task"
+    if config is None:
+        return {
+            "data": False,
+            "prompt": clean_query,
+            "compute_budget": 0.0,
+            "training_procedure": {
+                "task_type": "custom",
+                "data_format": "chat JSONL",
+                "training_type": "SFT",
+                "base_model": None,
+                "hyperparameters": {
+                    "synthetic_examples": DEFAULT_SYNTHETIC_EXAMPLES,
+                },
+                "notes": "Mode C synthetic fallback",
+            },
+        }
+
+    merged = dict(config)
+    merged["prompt"] = clean_query or str(config.get("prompt") or "generic ML task")
+    return merged
 
 
-def _instruction_records(query: str, task_type: str) -> list[dict[str, Any]]:
-    examples = [
-        (
-            f"Write a concise training example for this task: {query}",
-            f"Input: an example related to {query}\nOutput: relevant",
-        ),
-        (
-            f"Name one likely quality check for data about {query}.",
-            "Check that each record has a clear input and a target answer.",
-        ),
-        (
-            f"Summarize the target behavior for a model trained on {query}.",
-            "The model should follow the task instruction and produce the expected label or answer.",
-        ),
-        (
-            f"Create a negative example for {query}.",
-            "Input: unrelated personal scheduling text\nOutput: not_relevant",
-        ),
-    ]
-    records: list[dict[str, Any]] = []
-    for index, (prompt, answer) in enumerate(examples):
-        records.append(
-            {
-                "source": "mode_c_synthetic",
-                "task_type": task_type,
-                "synthetic": True,
-                "messages": [
-                    {"role": "user", "content": prompt},
-                    {"role": "assistant", "content": answer},
-                ],
-                "id": f"mode-c-instruction-{index}",
-            }
-        )
-    return records
+__all__ = [
+    "DEFAULT_SYNTHETIC_EXAMPLES",
+    "DEFAULT_TEACHER_MODEL",
+    "SyntheticGenerationResult",
+    "acquire_synthetic_dataset",
+    "acquire_web_data",
+    "build_mode_c_dataset",
+    "determine_data_schema",
+    "generate_synthetic_data",
+    "infer_schema_without_teacher",
+    "morph_to_standard",
+    "plan_synthetic_generation",
+    "scrape_web",
+    "validate_synthetic_records",
+]

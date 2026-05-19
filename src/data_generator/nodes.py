@@ -4,7 +4,7 @@ from pathlib import Path
 
 from src.data_generator.mode_a import load_raw_data
 from src.data_generator.mode_b import build_explicit_hf_candidates, fetch_hf_datasets, parse_explicit_hf_dataset_ids
-from src.data_generator.mode_c import acquire_web_data
+from src.data_generator.mode_c import acquire_synthetic_dataset
 from src.types import DataGenState
 
 
@@ -52,9 +52,12 @@ def acquire_hf_data_node(state: DataGenState) -> dict:
 
 def acquire_web_data_node(state: DataGenState) -> dict:
     """Acquisition backbone for Mode C synthetic chat/SFT data."""
-    query = str(state["config"].get("prompt", "")).strip() or "generic task"
-    raw = acquire_web_data(query, state["config"])
-    return {"raw_data": raw}
+    result = acquire_synthetic_dataset(state["config"])
+    return {
+        "schema": result.schema,
+        "raw_data": result.raw_data,
+        "validation_report": result.validation_report,
+    }
 
 
 def handoff_structure_data_node(state: DataGenState) -> dict:
@@ -66,6 +69,8 @@ def handoff_structure_data_node(state: DataGenState) -> dict:
             "verification_level": "strict",
             "mode_used": state.get("mode", "A"),
             "raw_data": state.get("raw_data"),
+            "schema": state.get("schema"),
+            "validation_report": state.get("validation_report"),
             "config": state.get("config"),
         }
     }
