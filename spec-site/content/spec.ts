@@ -38,7 +38,7 @@ export type FeatureSpec = {
 export const systemArchitecture = {
   overview: `The system is a linear pipeline with one autonomous feedback loop. The user provides a single prompt and a budget. The Manager reasons about the task and emits a config object that every other agent reads from. Control then flows through three sequential stages — data, decisions, training — with the Cost Manager running as a background watchdog throughout.
 
-LangGraph is used for the three stateful, multi-step agent processes: the Manager (linear graph with one Claude call), the Data Generator (conditional routing graph), and the AutoResearch loop (cyclic graph). The Decision Engine, Cost Manager, Observability module, and Tinker API wrapper are plain Python — they have no branching agent logic that would benefit from a graph runtime.
+LangGraph is used for the three stateful, multi-step agent processes: the Manager (linear graph with configurable local or Claude reasoning), the Data Generator (conditional routing graph), and the AutoResearch loop (cyclic graph with local or Claude proposal modes). The Decision Engine, Cost Manager, Observability module, and Tinker SDK helpers are plain Python — they have no branching agent logic that would benefit from a graph runtime.
 
 LangGraph gives us: (1) built-in checkpointing so a long AutoResearch run can resume after a crash, (2) a typed state object (TypedDict) that makes inter-node data flow explicit and auditable, and (3) conditional edges that make the Mode A/B/C and KEEP/REVERT branching readable and testable.`,
   flowDiagram: `
@@ -144,11 +144,11 @@ export const features: FeatureSpec[] = [
       "Central orchestrator. Takes the user's raw prompt and budget, reasons about the task, queries for optional data, and emits the OrchestrationConfig JSON consumed by every downstream agent.",
     architecture: `The Manager is implemented as a LangGraph StateGraph(ManagerState). It is the only agent the user interacts with directly and runs entirely locally — no GPU required.
 
-Why LangGraph here: the Manager makes a Claude API call whose output determines what happens next (does the task need fine-tuning or pre-training? does the user have data?). Modeling this as a graph makes the state transitions explicit, checkpointable, and easy to extend with human-in-the-loop pauses later.
+Why LangGraph here: the Manager reasoning node determines what happens next (what task is being trained, what data format is expected, and whether the user supplied data). In live mode it can use Claude; in local/no-spend mode it uses a deterministic planner. Modeling this as a graph makes the state transitions explicit, checkpointable, and easy to extend with human-in-the-loop pauses later.
 
 Graph nodes (4 nodes, linear with no cycles):
   1. query_data_node — asks the user if they have existing data; writes has_data + data_path into ManagerState
-  2. reason_node — calls Claude API with the prompt; writes task_reasoning into ManagerState
+  2. reason_node — calls reason_about_task() with local/Claude mode selection; writes task_reasoning into ManagerState
   3. build_config_node — assembles OrchestrationConfig from ManagerState fields; writes config
   4. orchestrate_node — calls the downstream pipeline (DataGen → DecisionEngine → AutoResearch) using the config from state; writes result into ManagerState
 
@@ -169,7 +169,7 @@ Graph nodes and edges:
   query_data_node          calls: query_user_for_data()
     │  writes: has_data, data_path
     ▼
-  reason_node              calls: reason_about_task()  [Claude API]
+  reason_node              calls: reason_about_task()  [local/Claude]
     │  writes: task_reasoning
     ▼
   build_config_node        calls: build_orchestration_config(), log_decision()
@@ -240,7 +240,7 @@ invoke_manager_graph(prompt, budget, data_path?) → TrainedModel
       {
         name: "reason_about_task",
         signature: "reason_about_task(prompt: str, budget: float, has_data: bool) -> TaskReasoning",
-        description: "Helper (called inside reason_node). Calls the Claude API to infer task type, data format, training type, base model, and starting hyperparameters.",
+        description: "Helper called inside reason_node. Uses MANAGER_REASONER=auto/local/claude; NO_SPEND forces local deterministic planning. Infers task type, data format, training type, base model, and starting hyperparameters.",
         params: [
           { name: "prompt", type: "str", description: "Raw user task description." },
           { name: "budget", type: "float", description: "Budget cap in USD." },
@@ -491,7 +491,7 @@ Graph nodes and edges:
       {
         name: "determine_data_schema",
         signature: "determine_data_schema(config: OrchestrationConfig) -> DataSchema",
-        description: "Uses the Claude API to infer the input/output schema for synthetic data generation from the OrchestrationConfig training_procedure.",
+        description: "Infers the input/output schema for synthetic data generation from the OrchestrationConfig training_procedure. Live teacher-assisted schema inference is optional; no-spend/offline runs use deterministic schema defaults.",
         params: [
           { name: "config", type: "OrchestrationConfig", description: "Orchestration config with training_procedure details." },
         ],
@@ -504,7 +504,7 @@ Graph nodes and edges:
         params: [
           { name: "schema", type: "DataSchema", description: "Input/output schema from determine_data_schema." },
           { name: "n_examples", type: "int", description: "Number of examples to generate." },
-          { name: "teacher_model", type: "str", description: "Claude model ID for the LLM teacher. Defaults to Haiku for cost efficiency.", optional: true },
+          { name: "teacher_model", type: "str", description: "Optional Claude model ID for the live LLM teacher. Disabled in no-spend/offline runs.", optional: true },
         ],
         returns: { type: "RawData", description: "Generated examples as RawData, ready for morph_to_standard." },
       },
@@ -541,15 +541,13 @@ Graph nodes and edges:
       "Analyzes the task and budget to choose a training strategy, select a base model, configure LoRA, and produce the TrainingPlan handed to AutoResearch.",
     architecture: `The Decision Engine is a pure decision function — no LLM calls, no side effects beyond writing the compatibility train.py artifact. It takes the OrchestrationConfig + DatasetResult and produces a TrainingPlan.
 
-The key decision is fine-tune vs. pre-train. The engine checks whether a suitable pretrained model exists on HuggingFace and whether fine-tuning it would fit within the budget. If both are true, it takes the fine-tune path (Case A). Otherwise it writes a model from scratch (Case B).
+The active V1 decision is the SDK-native Tinker chat/SFT path. The engine chooses a base model, estimates full-plan and bounded-run cost, configures LoRA, writes a compatibility train.py artifact, and emits backend="tinker_sft" plus dataset_path. If budget is too small, the plan still stays on Tinker SFT and AutoResearch's budget preflight skips or stops launches; it does not switch to pre-training from scratch.
 
-Case A — Fine-tune with LoRA:
+V1 path — Tinker chat/SFT with LoRA:
 Find the best pretrained base model → estimate the cost of fine-tuning it → configure LoRA parameters appropriate for the model architecture → generate a compatibility train.py artifact and emit backend="tinker_sft" with dataset_path for the SDK-native runner.
 
-Case B — Pre-train from scratch:
-Generate both model.py (architecture definition) and train.py (training loop) targeting the task type. The architecture is sized to fit within the remaining budget.
-
-In both cases the output is a TrainingPlan. For Tinker SFT v1, AutoResearch uses backend="tinker_sft", base_model, lora_config, and dataset_path directly; training_script_path remains compatibility baggage for older paths and generated artifacts.`,
+Compatibility-only note:
+Older code and specs may mention write_pretrain_script(), but full pre-training is out of scope for V1. For the active path, AutoResearch uses backend="tinker_sft", base_model, lora_config, estimated_run_cost_usd, and dataset_path directly; training_script_path remains compatibility baggage for older paths and generated artifacts.`,
     flowDiagram: `
 run_decision_engine(config, dataset)
   │
@@ -562,15 +560,14 @@ run_decision_engine(config, dataset)
   ├─► estimate_training_cost(model_id, dataset, strategy)
   │     └─► CostEstimate  { estimated_usd, estimated_time_min }
   │
-  ├─[model found AND cost fits budget]──────── CASE A: Fine-tune
-  │   ├─► configure_lora(base_model, task)
-  │   │     └─► LoRAConfig  { rank, alpha, dropout, target_modules }
-  │   └─► write_finetune_script(base_model, dataset, lora, config)
-  │         └─► train.py path
+  ├─► configure_lora(base_model, task)
+  │     └─► LoRAConfig  { rank, alpha, dropout, target_modules }
   │
-  └─[no model OR cost too high]────────────── CASE B: Pre-train
-      └─► write_pretrain_script(task, dataset, config)
-            └─► train.py path
+  ├─► write_finetune_script(base_model, dataset, lora, config)
+  │     └─► compatibility train.py path
+  │
+  ├─► estimate bounded Tinker run cost
+  │     └─► estimated_run_cost_usd
 
   └─► TrainingPlan  { backend, dataset_path, base_model, lora_config, training_script_path }
     `,
@@ -596,22 +593,22 @@ run_decision_engine(config, dataset)
       },
       {
         name: "find_base_model",
-        signature: "find_base_model(task: TaskAnalysis, budget: float) -> str | None",
-        description: "Searches HuggingFace Hub for the best pretrained base model matching the task type and budget constraints. Returns the model ID or None if pre-training is required.",
+        signature: "find_base_model(task: TaskAnalysis, budget: float) -> str",
+        description: "Searches HuggingFace Hub for the best pretrained base model matching the task type and budget constraints. For Tinker SFT V1, falls back to the supported default base model rather than switching to pre-training.",
         params: [
           { name: "task", type: "TaskAnalysis", description: "Output of analyze_task." },
           { name: "budget", type: "float", description: "Remaining budget in USD." },
         ],
-        returns: { type: "str | None", description: "HuggingFace model ID (e.g. 'bert-base-uncased') or None." },
+        returns: { type: "str", description: "HuggingFace/Tinker model ID, defaulting to the supported Tinker chat/SFT base model when needed." },
       },
       {
         name: "estimate_training_cost",
-        signature: "estimate_training_cost(model_id: str | None, dataset: DatasetResult, strategy: str) -> CostEstimate",
-        description: "Estimates GPU-hours and USD cost for a training run based on model size, dataset size, and strategy (fine-tune or pre-train).",
+        signature: "estimate_training_cost(model_id: str, dataset: DatasetResult, strategy: str) -> CostEstimate",
+        description: "Estimates GPU-hours and USD cost for the Tinker SFT plan and bounded AutoResearch launches.",
         params: [
-          { name: "model_id", type: "str | None", description: "HuggingFace model ID, or None for pre-train." },
+          { name: "model_id", type: "str", description: "HuggingFace/Tinker model ID." },
           { name: "dataset", type: "DatasetResult", description: "Dataset result (used for num_examples and input length)." },
-          { name: "strategy", type: "str", description: "'fine-tune' or 'pre-train'." },
+          { name: "strategy", type: "str", description: "'fine-tune' / Tinker SFT for the active V1 path." },
         ],
         returns: { type: "CostEstimate", description: "{ estimated_usd: float, estimated_gpu_hours: float, estimated_time_min: int, confidence: 'low'|'medium'|'high' }." },
       },
@@ -628,7 +625,7 @@ run_decision_engine(config, dataset)
       {
         name: "write_finetune_script",
         signature: "write_finetune_script(base_model: str, dataset: DatasetResult, lora: LoRAConfig, config: OrchestrationConfig) -> str",
-        description: "Generates a complete train.py fine-tuning script with LoRA, standard logging hooks, and checkpoint saves. Returns the path to the written script.",
+        description: "Generates a compatibility train.py fine-tuning artifact with LoRA. The SDK-native Tinker runner is the execution path; the script path is preserved for older callers and inspection.",
         params: [
           { name: "base_model", type: "str", description: "HuggingFace model ID." },
           { name: "dataset", type: "DatasetResult", description: "Dataset result used to set data paths in the script." },
@@ -640,7 +637,7 @@ run_decision_engine(config, dataset)
       {
         name: "write_pretrain_script",
         signature: "write_pretrain_script(task: TaskAnalysis, dataset: DatasetResult, config: OrchestrationConfig) -> str",
-        description: "Generates a from-scratch model.py + train.py for novel architecture pre-training. Returns the path to the written script.",
+        description: "Compatibility-only legacy helper for older pre-training experiments. Full pre-training is out of scope for Tinker chat/SFT V1 and is not selected by the active DecisionEngine path.",
         params: [
           { name: "task", type: "TaskAnalysis", description: "Task analysis output." },
           { name: "dataset", type: "DatasetResult", description: "Dataset result." },
@@ -695,7 +692,7 @@ Graph nodes and edges:
     │                    sets baseline_score + best_score
     ▼
   propose_node  ◄────────────────────────────────────┐
-    │           propose_hypothesis()  [Claude API]   │
+    │           proposer [local/Claude]              │
     │           apply_patch(config JSON) → current_patch + original_content
     ▼                                                 │
   run_node               run_tinker_sft_experiment()  │
@@ -767,7 +764,7 @@ Graph nodes and edges:
       {
         name: "propose_node",
         signature: "propose_node(state: AutoResearchState) -> dict",
-        description: "LangGraph node. Calls propose_hypothesis() with the research diary and current config. Applies a validated JSON config patch and saves original_content for revert.",
+        description: "LangGraph node. Calls the configured proposer with the research diary and current config. AUTORESEARCH_PROPOSER=auto uses local mode without credentials or under NO_SPEND, and can use Claude when explicitly/live configured. Applies a validated JSON config patch and saves original_content for revert.",
         params: [{ name: "state", type: "AutoResearchState", description: "Current loop state." }],
         returns: { type: "dict", description: "Partial state update: { current_script, current_patch, original_content, last_description }." },
       },
@@ -838,7 +835,7 @@ Graph nodes and edges:
       {
         name: "propose_hypothesis",
         signature: "propose_hypothesis(current_config: dict, diary: ResearchDiary, task: TaskAnalysis) -> Hypothesis",
-        description: "Calls the Claude API with the research diary and current config to generate a single testable hypothesis as a code/config diff. Uses random search over bounded ranges, local perturbations around the current best, and playbook heuristics.",
+        description: "Live Claude proposer for generating a single testable hypothesis as a code/config diff. The default AutoResearch path can use a deterministic local proposer under no-key/no-spend settings; both modes restrict Tinker V1 search to supported tunables.",
         params: [
           { name: "current_config", type: "dict", description: "Current training hyperparameters and architecture settings." },
           { name: "diary", type: "ResearchDiary", description: "All past iterations and their outcomes." },
@@ -1308,7 +1305,7 @@ export const sharedTypes: TypeDef[] = [
       { name: "budget", type: "float", description: "Hard budget cap in USD." },
       { name: "data_path", type: "str | None", description: "Path to user-provided data, or None." },
       { name: "has_data", type: "bool", description: "Set by query_data_node." },
-      { name: "task_reasoning", type: "TaskReasoning", description: "Set by reason_node after Claude API call." },
+      { name: "task_reasoning", type: "TaskReasoning", description: "Set by reason_node after local or Claude task reasoning." },
       { name: "config", type: "OrchestrationConfig", description: "Set by build_config_node. Passed to all downstream agents." },
       { name: "result", type: "TrainedModel | None", description: "Set by orchestrate_node. Final output." },
     ],
@@ -1369,8 +1366,8 @@ export const sharedTypes: TypeDef[] = [
     fields: [
       { name: "task_type", type: "str", description: "e.g. 'text-classification', 'seq2seq', 'custom'." },
       { name: "data_format", type: "str", description: "Expected format for training data." },
-      { name: "training_type", type: "str", description: "'SFT', 'RL', or 'pre-train'." },
-      { name: "base_model", type: "str | None", description: "HuggingFace model ID or None for pre-train." },
+      { name: "training_type", type: "str", description: "'SFT' for the active Tinker chat/SFT V1 path." },
+      { name: "base_model", type: "str | None", description: "HuggingFace/Tinker model ID for the SFT base model." },
       { name: "hyperparameters", type: "dict", description: "Starting lr, batch_size, epochs, etc." },
       { name: "notes", type: "str", description: "Free-text notes from manager reasoning." },
     ],
@@ -1400,8 +1397,8 @@ export const sharedTypes: TypeDef[] = [
     name: "TrainingPlan",
     description: "Return type of run_decision_engine.",
     fields: [
-      { name: "strategy", type: "str", description: "'fine-tune' | 'pre-train'." },
-      { name: "base_model", type: "str | None", description: "HuggingFace model ID or None." },
+      { name: "strategy", type: "str", description: "'fine-tune' for the active Tinker chat/SFT V1 path." },
+      { name: "base_model", type: "str", description: "HuggingFace/Tinker model ID used by the Tinker SFT runner." },
       { name: "lora_config", type: "LoRAConfig | None", description: "LoRA settings if fine-tuning." },
       { name: "estimated_cost", type: "float", description: "Estimated USD for full training run." },
       { name: "estimated_time_min", type: "int", description: "Estimated wall-clock minutes." },
@@ -1439,7 +1436,7 @@ export const sharedTypes: TypeDef[] = [
     fields: [
       { name: "data_gen_usd", type: "float", description: "Cost of data generation (API calls, downloads)." },
       { name: "training_usd", type: "float", description: "Cost of GPU training time on Tinker." },
-      { name: "llm_calls_usd", type: "float", description: "Cost of Claude API calls during AutoResearch." },
+      { name: "llm_calls_usd", type: "float", description: "Cost of optional Claude API calls during AutoResearch." },
       { name: "total_usd", type: "float", description: "Total spend." },
       { name: "termination_reason", type: "str", description: "'budget_limit' | 'training_complete' | 'error'." },
     ],
