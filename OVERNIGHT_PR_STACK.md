@@ -357,5 +357,14 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   #94, #95, #101, #104, and related guard branches. Full no-live suite with
   live credentials unset and `UV_NO_NETWORK=1` passed (`318 passed, 8 skipped, 5
   warnings`).
+- #86 was updated after a product UI smoke exposed budget-preflight sentinel
+  metrics leaking into the dashboard as `1e9` loss. The API now filters
+  budget-preflight skipped experiment/diary rows from user-facing metric and
+  iteration views while leaving the strict artifacts intact on disk.
+- Local product UI composition of the no-spend backend stack plus #105 frontend
+  and updated #86 passed a browser smoke: FastAPI+Vite completed a `NO_SPEND=1`
+  run, the dashboard displayed real final metrics, all five artifact endpoints
+  returned 200, frontend build passed, and the full no-live Python suite passed
+  (`319 passed, 8 skipped, 5 warnings`).
 
 Current conservative live spend: `$94.14 / $100.00`.
