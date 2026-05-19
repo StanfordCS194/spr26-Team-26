@@ -40,6 +40,7 @@ having to infer dependencies from GitHub.
    - #74 `codex/api-run-output-isolation` -> #50
    - #76 `codex/frontend-dataset-source` -> #74
    - #77 `codex/api-run-artifacts` -> #76
+   - #82 `codex/api-artifact-download-path` -> #77
    - #78 `codex/api-progress-cancel` -> #77
    - #52 `codex/preserve-chat-messages-curation` -> #40
    - #58 `codex/curation-small-splits` -> #52
@@ -176,5 +177,8 @@ on top of #51.
 - #81 applies the same strict-artifact principle inside the Tinker runner for
   non-finite SDK training/heldout losses. The unpublished composition branch
   includes #81 and passes the full no-live Python suite (`257 passed, 9 skipped`).
+- #82 fixes API-provided artifact download links to match the mounted FastAPI
+  route. The unpublished composition branch includes #82 and still passes API
+  tests plus the full no-live Python suite (`257 passed, 9 skipped`).
 
 Current conservative live spend: `$78.64 / $100.00`.
