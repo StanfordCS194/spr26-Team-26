@@ -142,8 +142,8 @@ def test_create_run_completes_with_manager_result(tmp_path, monkeypatch):
     calls = []
     roots = []
 
-    def fake_invoke(prompt, budget, data_path=None):
-        calls.append((prompt, budget, data_path))
+    def fake_invoke(prompt, budget, data_path=None, task_type_hint=None):
+        calls.append((prompt, budget, data_path, task_type_hint))
         root = get_output_root()
         assert root is not None
         roots.append(root)
@@ -187,7 +187,7 @@ def test_create_run_completes_with_manager_result(tmp_path, monkeypatch):
     state = _wait_for_status(client, run_id, "complete")
 
     assert calls == [
-        ("Fine tune a small chat assistant on support tickets", 25.0, None)
+        ("Fine tune a small chat assistant on support tickets", 25.0, None, "fine-tuning")
     ]
     assert len(roots) == 1
     assert roots[0] == Path("outputs/api-runs") / run_id
@@ -204,7 +204,7 @@ def test_create_run_completes_with_manager_result(tmp_path, monkeypatch):
 def test_create_run_surfaces_artifacts_and_allowlisted_downloads(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
-    def fake_invoke(prompt, budget, data_path=None):
+    def fake_invoke(prompt, budget, data_path=None, task_type_hint=None):
         root = get_output_root()
         assert root is not None
         return _fake_model(root, total_cost=0.5, with_artifacts=True)
@@ -253,7 +253,7 @@ def test_running_run_refreshes_logs_iterations_metrics_and_artifacts(tmp_path, m
     ready = threading.Event()
     release = threading.Event()
 
-    def fake_invoke(prompt, budget, data_path=None):
+    def fake_invoke(prompt, budget, data_path=None, task_type_hint=None):
         root = get_output_root()
         assert root is not None
 
@@ -332,7 +332,7 @@ def test_running_run_keeps_previous_artifacts_when_newer_experiment_is_incomplet
     incomplete_ready = threading.Event()
     release = threading.Event()
 
-    def fake_invoke(prompt, budget, data_path=None):
+    def fake_invoke(prompt, budget, data_path=None, task_type_hint=None):
         root = get_output_root()
         assert root is not None
         _write_tinker_artifacts(
@@ -402,7 +402,7 @@ def test_running_run_switches_artifacts_after_newer_experiment_completes(
     second_ready = threading.Event()
     release = threading.Event()
 
-    def fake_invoke(prompt, budget, data_path=None):
+    def fake_invoke(prompt, budget, data_path=None, task_type_hint=None):
         root = get_output_root()
         assert root is not None
         _write_tinker_artifacts(
@@ -463,7 +463,7 @@ def test_cancel_running_run_stops_at_safe_boundary(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     entered = threading.Event()
 
-    def fake_invoke(prompt, budget, data_path=None):
+    def fake_invoke(prompt, budget, data_path=None, task_type_hint=None):
         root = get_output_root()
         assert root is not None
 
@@ -512,7 +512,7 @@ def test_cancel_missing_run_returns_404():
 def test_cancel_completed_run_is_idempotent(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
-    def fake_invoke(prompt, budget, data_path=None):
+    def fake_invoke(prompt, budget, data_path=None, task_type_hint=None):
         root = get_output_root()
         assert root is not None
         return _fake_model(root, total_cost=0.5)
@@ -542,8 +542,8 @@ def test_create_run_passes_existing_local_data_path(tmp_path, monkeypatch):
     data_path.write_text('{"input":"great","output":"positive"}\n', encoding="utf-8")
     calls = []
 
-    def fake_invoke(prompt, budget, data_path=None):
-        calls.append((prompt, budget, data_path))
+    def fake_invoke(prompt, budget, data_path=None, task_type_hint=None):
+        calls.append((prompt, budget, data_path, task_type_hint))
         root = get_output_root()
         assert root is not None
         return _fake_model(root, total_cost=0.25)
@@ -564,6 +564,7 @@ def test_create_run_passes_existing_local_data_path(tmp_path, monkeypatch):
     assert response.status_code == 200
     state = _wait_for_status(client, response.json()["run_id"], "complete")
     assert calls[0][2] == str(data_path.resolve())
+    assert calls[0][3] == "fine-tuning"
     assert state["dataPath"] == str(data_path.resolve())
     assert any("Dataset source:" in item["message"] for item in state["logs"])
 
@@ -580,8 +581,8 @@ def test_create_run_accepts_hugging_face_data_sources(tmp_path, monkeypatch, sub
     monkeypatch.chdir(tmp_path)
     calls = []
 
-    def fake_invoke(prompt, budget, data_path=None):
-        calls.append((prompt, budget, data_path))
+    def fake_invoke(prompt, budget, data_path=None, task_type_hint=None):
+        calls.append((prompt, budget, data_path, task_type_hint))
         root = get_output_root()
         assert root is not None
         return _fake_model(root, total_cost=0.2)
@@ -602,13 +603,14 @@ def test_create_run_accepts_hugging_face_data_sources(tmp_path, monkeypatch, sub
     assert response.status_code == 200
     state = _wait_for_status(client, response.json()["run_id"], "complete")
     assert calls[0][2] == expected
+    assert calls[0][3] == "classification"
     assert state["dataPath"] == expected
 
 
 def test_create_run_surfaces_manager_failure(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
-    def fail_invoke(prompt, budget, data_path=None):
+    def fail_invoke(prompt, budget, data_path=None, task_type_hint=None):
         assert get_output_root() is not None
         raise RuntimeError("DataGen did not produce a trainable dataset")
 
@@ -633,7 +635,7 @@ def test_create_run_surfaces_manager_failure(tmp_path, monkeypatch):
 def test_missing_data_path_is_rejected_before_background_run(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
-    def fail_invoke(prompt, budget, data_path=None):
+    def fail_invoke(prompt, budget, data_path=None, task_type_hint=None):
         raise AssertionError("manager should not be called for missing data_path")
 
     monkeypatch.setattr(server_app, "invoke_manager_graph", fail_invoke)
@@ -656,7 +658,7 @@ def test_missing_data_path_is_rejected_before_background_run(tmp_path, monkeypat
 def test_missing_relative_data_path_is_not_treated_as_hf_source(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
-    def fail_invoke(prompt, budget, data_path=None):
+    def fail_invoke(prompt, budget, data_path=None, task_type_hint=None):
         raise AssertionError("manager should not be called for missing data_path")
 
     monkeypatch.setattr(server_app, "invoke_manager_graph", fail_invoke)
@@ -679,7 +681,7 @@ def test_missing_relative_data_path_is_not_treated_as_hf_source(tmp_path, monkey
 def test_unsupported_remote_data_path_is_rejected(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
-    def fail_invoke(prompt, budget, data_path=None):
+    def fail_invoke(prompt, budget, data_path=None, task_type_hint=None):
         raise AssertionError("manager should not be called for unsupported data_path")
 
     monkeypatch.setattr(server_app, "invoke_manager_graph", fail_invoke)

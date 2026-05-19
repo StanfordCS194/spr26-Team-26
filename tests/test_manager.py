@@ -80,6 +80,24 @@ def test_reason_about_task_returns_task_reasoning():
     assert "learning_rate" in result["hyperparameters"]
 
 
+def test_reason_about_task_includes_task_type_hint():
+    mock_response = MagicMock()
+    mock_response.content = [MagicMock(text=json.dumps(MOCK_REASONING))]
+
+    with patch("anthropic.Anthropic") as MockClient:
+        client = MockClient.return_value
+        client.messages.create.return_value = mock_response
+        reason_about_task(
+            "predict support ticket resolution time",
+            12.5,
+            True,
+            task_type_hint="regression",
+        )
+
+    payload = client.messages.create.call_args.kwargs["messages"][0]["content"]
+    assert "Requested UI task type: regression" in payload
+
+
 def test_query_data_node_uses_programmatic_data_path_without_input(tmp_path, monkeypatch):
     data_path = tmp_path / "train.jsonl"
     data_path.write_text('{"input":"x","output":"y"}\n', encoding="utf-8")

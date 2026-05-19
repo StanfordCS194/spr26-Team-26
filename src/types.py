@@ -6,7 +6,7 @@ See spec-site/content/spec.ts for the canonical definitions.
 
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 
 # ENUMS
@@ -255,6 +255,7 @@ class ManagerState(TypedDict):
     budget: float
     data_path: str | None
     has_data: bool
+    task_type_hint: NotRequired[str | None]
     task_reasoning: TaskReasoning | None
     config: OrchestrationConfig | None
     result: TrainedModel | None

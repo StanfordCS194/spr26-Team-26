@@ -53,6 +53,8 @@ def invoke_manager_graph(
     prompt: str,
     budget: float,
     data_path: str | None = None,
+    *,
+    task_type_hint: str | None = None,
 ) -> TrainedModel:
     """Main entry point for the entire system. Builds and invokes the Manager graph."""
     graph = build_manager_graph()
@@ -61,6 +63,7 @@ def invoke_manager_graph(
         "budget": budget,
         "data_path": data_path,
         "has_data": data_path is not None,
+        "task_type_hint": task_type_hint,
         "task_reasoning": None,
         "config": None,
         "result": None,
@@ -99,7 +102,12 @@ def query_data_node(state: ManagerState) -> dict:
 def reason_node(state: ManagerState) -> dict:
     """LangGraph node. Calls reason_about_task() via Claude API. Returns: { task_reasoning }."""
     raise_if_cancelled()
-    reasoning = reason_about_task(state["prompt"], state["budget"], state["has_data"])
+    reasoning = reason_about_task(
+        state["prompt"],
+        state["budget"],
+        state["has_data"],
+        task_type_hint=state.get("task_type_hint"),
+    )
     raise_if_cancelled()
     return {"task_reasoning": reasoning}
 
@@ -210,10 +218,17 @@ def _decision_log_path() -> Path:
     return Path(os.environ.get("DECISIONS_LOG", LOG_PATH))
 
 
-def reason_about_task(prompt: str, budget: float, has_data: bool) -> TaskReasoning:
+def reason_about_task(
+    prompt: str,
+    budget: float,
+    has_data: bool,
+    *,
+    task_type_hint: str | None = None,
+) -> TaskReasoning:
     """Calls Claude API to infer task type, training type, base model, and starting hyperparams."""
     import anthropic
 
+    hint = _normalize_task_type_hint(task_type_hint)
     client = anthropic.Anthropic()
     system = (
         "You are an ML infrastructure planner. Given a task description and budget, "
@@ -224,6 +239,10 @@ def reason_about_task(prompt: str, budget: float, has_data: bool) -> TaskReasoni
         "  suggested_base_model: str or null (HuggingFace model ID, e.g. 'bert-base-uncased')\n"
         "  hyperparameters: dict with keys learning_rate, batch_size, epochs, max_seq_len\n"
         "  notes: str (one sentence reasoning summary)\n"
+        "If a requested UI task type is provided, treat it as an operator hint: "
+        "classification usually maps to text-classification, regression may be "
+        "a custom supervised task, and fine-tuning means infer the concrete task "
+        "from the objective and data.\n"
         "Respond with raw JSON only. No markdown, no explanation."
     )
     user_msg = (
@@ -231,6 +250,8 @@ def reason_about_task(prompt: str, budget: float, has_data: bool) -> TaskReasoni
         f"Budget: ${budget:.2f}\n"
         f"User has existing data: {has_data}"
     )
+    if hint:
+        user_msg += f"\nRequested UI task type: {hint}"
     message = client.messages.create(
         model="claude-haiku-4-5",
         max_tokens=512,
@@ -238,6 +259,13 @@ def reason_about_task(prompt: str, budget: float, has_data: bool) -> TaskReasoni
         messages=[{"role": "user", "content": user_msg}],
     )
     return json.loads(message.content[0].text)
+
+
+def _normalize_task_type_hint(task_type_hint: str | None) -> str | None:
+    if task_type_hint is None:
+        return None
+    value = str(task_type_hint).strip().lower()
+    return value if value in {"classification", "regression", "fine-tuning"} else None
 
 
 def _handoff_to_dataset_result(handoff: dict) -> DatasetResult:
