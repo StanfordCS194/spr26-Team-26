@@ -433,7 +433,7 @@ def test_autoresearch_baseline_preflight_skips_unaffordable_run(monkeypatch, tmp
     state = _autoresearch_state(str(data_path))
     state["config"]["compute_budget"] = 0.01
     state["cost_manager"] = CostManager(0.01)
-    state["plan"]["estimated_cost"] = 1.0
+    state["plan"]["estimated_run_cost_usd"] = 1.0
 
     result = ar.baseline_node(state)
     run_dir = Path(result["baseline_result"]["model_path"])

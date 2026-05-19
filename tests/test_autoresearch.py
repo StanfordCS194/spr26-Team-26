@@ -439,6 +439,7 @@ def test_run_node_preflight_skips_unaffordable_candidate(monkeypatch, tmp_path):
             "eval_metric": "primary_metric",
             "backend": "tinker_sft",
             "dataset_path": str(tmp_path / "train.jsonl"),
+            "estimated_run_cost_usd": 2.0,
         },
         config={
             "compute_budget": 1.0,
