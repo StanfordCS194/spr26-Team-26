@@ -56,10 +56,14 @@ Budget cap: $100 total.
 | stack-018 | 2026-05-19 08:27 | local only #55-#66 stack | unpublished full-stack non-live validation | none | passed | $0.00 | $48.54 | Merged #66 into the local unpublished integration stack. Compileall passed and broad non-live suite excluding live Tinker/HF retrieval passed `208 passed, 7 skipped`. |
 | hf-002 | 2026-05-19 08:40 | #67 | live HF retrieval harness validation | Hugging Face public dataset pull | passed | $0.00 | $48.54 | Draft PR #67 opened. A tiny opt-in run with `LIVE_HF_SMALL_DATASET_COUNT=1` and `DATA_GENERATOR_MAX_ROWS_PER_DATASET=3` first exposed, then validated, the row-cap remainder fix: `1 passed, 5 deselected`; local focused suite passed `21 passed, 3 skipped`. |
 | stack-019 | 2026-05-19 08:43 | local only #55-#67 stack | unpublished full-stack non-live validation | none | passed | $0.00 | $48.54 | Merged #67 into the local unpublished integration stack. Broad non-live suite with live Tinker excluded passed `212 passed, 9 skipped`; the previously ignored live HF file now runs local checks and skips live cases by default. |
+| tinker-018 | 2026-05-19 08:44 | local only #67 stack | live Mode B AutoResearch/Tinker validation | Tinker, Hugging Face public dataset pull | passed with parser bug found | $5.00 | $53.54 | `SetFit/sst2`, split 2/2/2, baseline plus one 2-step candidate. Candidate kept, but free-text `Mode B/Tinker` note produced bogus HF candidate `B/Tinker` and one dropped curation row. Artifacts at `outputs/overnight/live-mode-b-autoresearch-tinker/live-mode-b-autoresearch-1779204537`. |
+| hf-003 | 2026-05-19 08:46 | #68 | live HF parser validation | Hugging Face public dataset pull | passed | $0.00 | $53.54 | No-Tinker live validation with the same `Mode B/Tinker` note selected only `SetFit/sst2`, curated 6 rows, preserved split 2/2/2, and had no validation issues. |
+| stack-020 | 2026-05-19 08:48 | local only #55-#68 stack | unpublished full-stack non-live validation | none | passed | $0.00 | $53.54 | Merged #68 into the local unpublished integration stack. Broad non-live suite with live Tinker excluded passed `214 passed, 9 skipped`. |
+| tinker-019 | 2026-05-19 08:50 | local only #68 stack | corrected live Mode B AutoResearch/Tinker validation | Tinker, Hugging Face public dataset pull | passed | $5.00 | $58.54 | Corrected rerun selected only `SetFit/sst2`, curation split 2/2/2 with no issues, baseline scalar `0.0553`, and deterministic `learning_rate=5e-4` candidate was kept with `primary_metric=0.6042608793696045`. Artifacts at `outputs/overnight/live-mode-b-autoresearch-tinker/live-mode-b-autoresearch-1779204814`. |
 
 ## Spend Ledger
 
-Current estimated cumulative spend: **$48.54 / $100.00**
+Current estimated cumulative spend: **$58.54 / $100.00**
 
 Notes:
 - Tinker billing may not be available through the local code, so per-run spend will be estimated conservatively from run type and observed duration unless a real cost is exposed.

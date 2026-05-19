@@ -1,6 +1,6 @@
 # Overnight PR Stack
 
-Updated: 2026-05-19 08:43 PDT
+Updated: 2026-05-19 08:50 PDT
 
 Purpose: give reviewers a merge/review order for the draft PR stack without
 having to infer dependencies from GitHub.
@@ -34,6 +34,7 @@ having to infer dependencies from GitHub.
    - #58 `codex/curation-small-splits` -> #52
    - #64 `codex/curation-source-splits` -> #58
    - #67 `codex/hf-live-test-controls` -> #64
+   - #68 `codex/hf-parser-free-text` -> #67
 5. Integration/docs:
    - #51 `codex/full-stack-contract-smoke` -> #48
    - #49 `codex/spec-tinker-sdk-docs` -> #51
@@ -58,7 +59,7 @@ having to infer dependencies from GitHub.
 ## Latest Local Stack Validation
 
 Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
-#62, #63, #64, #65, #66, and #67 on top of #51.
+#62, #63, #64, #65, #66, #67, and #68 on top of #51.
 
 - `python3 -m compileall src`
 - Broad non-live suite excluding live Tinker and live Hugging Face retrieval:
@@ -78,5 +79,9 @@ Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
   smoke passed with one dataset and a three-row cap.
 - Local stack after adding #67 passed the broad non-live suite with only live
   Tinker excluded: `212 passed, 9 skipped`.
+- #68 fixed the free-text HF parser false positive found by the live Mode B
+  run. Local stack with #68 passed `214 passed, 9 skipped`; corrected live
+  Mode B/Tinker rerun selected only `SetFit/sst2`, had no curation issues, and
+  kept the `learning_rate=5e-4` candidate.
 
-Current conservative live spend: `$48.54 / $100.00`.
+Current conservative live spend: `$58.54 / $100.00`.

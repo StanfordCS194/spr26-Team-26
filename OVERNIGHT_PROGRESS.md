@@ -92,3 +92,7 @@ Operating rules:
 - 2026-05-19 08:27 PDT — Local unpublished stack including #66 passed compileall and the broad non-live suite excluding live Tinker/HF retrieval (`208 passed, 7 skipped`).
 - 2026-05-19 08:40 PDT — Draft PR #67 opened: Mode B live Hugging Face retrieval tests are now explicit opt-in, small live caps are configurable, and row-cap distribution preserves remainders across dataset splits. Tiny live HF probe passed with 1 dataset / 3 rows; no paid spend.
 - 2026-05-19 08:43 PDT — Local unpublished stack including #67 passed broad non-live suite with only live Tinker excluded (`212 passed, 9 skipped`).
+- 2026-05-19 08:44 PDT — Live Mode B -> AutoResearch -> Tinker smoke on `SetFit/sst2` exposed a parser false positive: free-text `Mode B/Tinker` notes were treated as bogus HF dataset `B/Tinker`, creating one dropped curation row.
+- 2026-05-19 08:46 PDT — Draft PR #68 opened: Mode B parser now accepts bare `org/dataset` only from structured source fields and requires explicit `hf://...` or Hugging Face URLs in free text. No-Tinker live validation selected only `SetFit/sst2` and curated 6 rows with no issues.
+- 2026-05-19 08:48 PDT — Local unpublished stack including #68 passed broad non-live suite with only live Tinker excluded (`214 passed, 9 skipped`).
+- 2026-05-19 08:50 PDT — Corrected live Mode B -> AutoResearch -> Tinker rerun passed: only `SetFit/sst2`, curation split 2/2/2 with no issues, candidate `learning_rate=5e-4` kept with `primary_metric=0.6043`.
