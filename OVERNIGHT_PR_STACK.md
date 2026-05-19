@@ -1,6 +1,6 @@
 # Overnight PR Stack
 
-Updated: 2026-05-19 14:46 PDT
+Updated: 2026-05-19 14:50 PDT
 
 Purpose: give reviewers a merge/review order for the draft PR stack without
 having to infer dependencies from GitHub.
@@ -436,6 +436,11 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   report/debug/source-report downloads when present, with path escape and
   unknown-key tests. Branch validation passed compileall and no-network server
   API tests (`20 passed`).
+- #112 is a new UI-only sibling draft PR on #110 for completed-run honesty.
+  It fixes no-iteration final-score fallbacks, opens real diary artifacts when
+  available, labels client-only JSON exports as run snapshots, changes the
+  fake iteration denominator to a metric-point count, and marks simulation logs
+  as simulated. Branch validation passed frontend lint/build and browser smoke.
 - #92 was updated after audit to close the local/no-spend half of #88's API
   task-type hint. The local Manager planner now accepts `task_type_hint`:
   `classification -> text-classification`, `regression -> custom`, and
