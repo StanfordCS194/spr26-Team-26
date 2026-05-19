@@ -5,10 +5,11 @@ Budget cap: $100 total.
 | ID | Time PDT | Branch/PR | Kind | Live Services | Status | Estimated Spend | Cumulative Spend | Notes |
 | --- | --- | --- | --- | --- | --- | ---: | ---: | --- |
 | setup-001 | 2026-05-19 05:20 | local | credential sanity | none | complete | $0.00 | $0.00 | Keys present without printing values. |
+| tinker-001 | 2026-05-19 05:24 | #40/#35 | live 5-step smoke | Tinker | passed | $2.50 | $2.50 | `Qwen/Qwen3.5-9B`, 5 steps, pytest live smoke passed in 60.92s. Artifacts were written under pytest tmpdir. |
 
 ## Spend Ledger
 
-Current estimated cumulative spend: **$0.00 / $100.00**
+Current estimated cumulative spend: **$2.50 / $100.00**
 
 Notes:
 - Tinker billing may not be available through the local code, so per-run spend will be estimated conservatively from run type and observed duration unless a real cost is exposed.
