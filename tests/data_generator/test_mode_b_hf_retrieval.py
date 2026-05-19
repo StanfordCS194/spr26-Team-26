@@ -3,8 +3,11 @@ from __future__ import annotations
 import json
 import os
 import sys
+import types
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -44,6 +47,9 @@ FIXTURE_RUN_DIR = (
 TARGET_LIVE_DATASET_COUNT = 50
 MIN_EXAMPLES_PER_RETRIEVED_DATASET = 3
 MAX_EXAMPLES_PER_PREVIEW_DATASET = 6
+RUN_LIVE_HF_RETRIEVAL_ENV = "RUN_LIVE_HF_RETRIEVAL"
+LIVE_HF_DATASET_COUNT_ENV = "LIVE_HF_DATASET_COUNT"
+LIVE_HF_SMALL_DATASET_COUNT_ENV = "LIVE_HF_SMALL_DATASET_COUNT"
 
 # Seed list ensures we always request known valid public datasets first.
 LIVE_HF_DATASET_SEEDS = [
@@ -167,6 +173,34 @@ def _request_live_hf_dataset_ids(target_count: int) -> list[str]:
         return requested
 
     return requested
+
+
+def _live_hf_retrieval_enabled() -> bool:
+    return os.getenv(RUN_LIVE_HF_RETRIEVAL_ENV, "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+
+
+def _require_live_hf_retrieval_opt_in() -> None:
+    if not _live_hf_retrieval_enabled():
+        pytest.skip(
+            f"set {RUN_LIVE_HF_RETRIEVAL_ENV}=1 to run live Hugging Face retrieval"
+        )
+
+
+def _read_dataset_count_env(env_name: str, default: int) -> int:
+    raw = os.getenv(env_name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise AssertionError(f"{env_name} must be an integer, got {raw!r}") from exc
+    if value <= 0:
+        raise AssertionError(f"{env_name} must be positive, got {value}")
+    return value
 
 
 def _collect_fixture_labeled_examples(
@@ -433,6 +467,7 @@ def _run_live_hf_retrieval_test(
     output_dir: Path,
     artifact_filename: str,
 ) -> None:
+    _require_live_hf_retrieval_opt_in()
     assert EXAMPLE_REPORT_PATH.exists(), f"Missing example report: {EXAMPLE_REPORT_PATH}"
 
     report = json.loads(EXAMPLE_REPORT_PATH.read_text(encoding="utf-8"))
@@ -524,7 +559,10 @@ def _run_live_hf_retrieval_test(
         f"[run] Sources with >={MIN_EXAMPLES_PER_RETRIEVED_DATASET} examples: "
         f"{len(sources_with_multiple)} / {len(success_by_source)}"
     )
-    min_expected_success_sources = max(5, target_dataset_count // 2)
+    min_expected_success_sources = min(
+        target_dataset_count,
+        max(1, target_dataset_count // 2),
+    )
     assert len(success_by_source) >= min_expected_success_sources, (
         f"Expected at least {min_expected_success_sources} datasets to return usable rows "
         f"in {target_dataset_count}-dataset run, got {len(success_by_source)}."
@@ -550,11 +588,93 @@ def _run_live_hf_retrieval_test(
     _write_subagent2_artifacts(handoff, output_dir)
 
 
-def test_hf_retreival(monkeypatch, tmp_path: Path) -> None:
+def test_request_live_hf_dataset_ids_uses_seed_subset() -> None:
+    requested = _request_live_hf_dataset_ids(3)
+
+    assert requested == LIVE_HF_DATASET_SEEDS[:3]
+
+
+def test_request_live_hf_dataset_ids_extends_from_hub_listing(monkeypatch) -> None:
+    class FakeHfApi:
+        def list_datasets(self, *, author: str, limit: int):
+            del limit
+            if author == "SetFit":
+                return [
+                    types.SimpleNamespace(id="SetFit/sst2"),
+                    types.SimpleNamespace(id="SetFit/emotion"),
+                    types.SimpleNamespace(id="SetFit/ag_news"),
+                ]
+            return []
+
+    fake_hub = types.SimpleNamespace(HfApi=FakeHfApi)
+    monkeypatch.setitem(sys.modules, "huggingface_hub", fake_hub)
+
+    requested = _request_live_hf_dataset_ids(len(LIVE_HF_DATASET_SEEDS) + 2)
+
+    assert requested[: len(LIVE_HF_DATASET_SEEDS)] == LIVE_HF_DATASET_SEEDS
+    assert requested[-2:] == ["SetFit/emotion", "SetFit/ag_news"]
+
+
+def test_hf_row_limit_distributes_remainder_across_splits(monkeypatch) -> None:
+    from src.data_generator.mode_b import _fetch_with_hf_datasets
+
+    class FakeSplit:
+        features = None
+
+        def __init__(self, prefix: str, count: int):
+            self.rows = [
+                {"text": f"{prefix} row {idx}", "label": f"{prefix}-label"}
+                for idx in range(count)
+            ]
+
+        def __len__(self) -> int:
+            return len(self.rows)
+
+        def select(self, indices):
+            return [self.rows[idx] for idx in indices]
+
+    fake_dataset = {
+        "train": FakeSplit("train", 10),
+        "validation": FakeSplit("validation", 10),
+    }
+
+    fake_datasets = types.SimpleNamespace(
+        load_dataset=lambda _dataset_id: fake_dataset,
+        get_dataset_config_names=lambda _dataset_id: [],
+    )
+    monkeypatch.setitem(sys.modules, "datasets", fake_datasets)
+
+    records = _fetch_with_hf_datasets("fake/two-split", max_rows_per_dataset=3)
+
+    assert len(records) == 3
+    assert [record["split"] for record in records] == [
+        "train",
+        "train",
+        "validation",
+    ]
+
+
+def test_live_hf_retrieval_requires_explicit_opt_in(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.delenv(RUN_LIVE_HF_RETRIEVAL_ENV, raising=False)
+
+    with pytest.raises(pytest.skip.Exception):
+        _run_live_hf_retrieval_test(
+            monkeypatch,
+            tmp_path,
+            target_dataset_count=1,
+            output_dir=tmp_path / "out",
+            artifact_filename="skipped.json",
+        )
+
+
+def test_hf_retrieval_50_datasets(monkeypatch, tmp_path: Path) -> None:
     _run_live_hf_retrieval_test(
         monkeypatch,
         tmp_path,
-        target_dataset_count=TARGET_LIVE_DATASET_COUNT,
+        target_dataset_count=_read_dataset_count_env(
+            LIVE_HF_DATASET_COUNT_ENV,
+            TARGET_LIVE_DATASET_COUNT,
+        ),
         output_dir=OUTPUT_DIR,
         artifact_filename="mode_b_handoff_from_report.json",
     )
@@ -564,7 +684,10 @@ def test_hf_retrieval_10_datasets(monkeypatch, tmp_path: Path) -> None:
     _run_live_hf_retrieval_test(
         monkeypatch,
         tmp_path,
-        target_dataset_count=10,
+        target_dataset_count=_read_dataset_count_env(
+            LIVE_HF_SMALL_DATASET_COUNT_ENV,
+            10,
+        ),
         output_dir=SMALL_OUTPUT_DIR,
         artifact_filename="mode_b_handoff_from_report_10_datasets.json",
     )
