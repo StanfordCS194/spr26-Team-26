@@ -335,5 +335,13 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   `VITE_USE_SIMULATION=1` is set; the README documents default backend dev,
   alternate API bases, and explicit static demo mode. Frontend lint and three
   build modes passed.
+- #94 was updated again so `NO_SPEND=1` alone selects the Tinker dry-run
+  backend. This closes the SDK-native SFT runner gap that the low-level
+  `tinker_api.py` guard did not cover.
+- #104 now includes the latest #94 runner guard in its stack and asserts the
+  three API dry-run smokes do not set `TINKER_BACKEND`; `NO_SPEND=1` is the only
+  Tinker dry-run selector. Focused branch validation passed (`52 passed`), and
+  the local no-spend guard composition passed the full no-live suite (`309
+  passed, 8 skipped`).
 
 Current conservative live spend: `$94.14 / $100.00`.
