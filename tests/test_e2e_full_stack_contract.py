@@ -11,7 +11,7 @@ def test_manager_to_real_autoresearch_graph_with_fake_tinker_offline(
     tmp_path,
     monkeypatch,
 ):
-    fake_run_cost = 0.75
+    fake_run_cost = 1.20
     fake_budget = fake_run_cost * 2
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("DATA_GENERATOR_SYNTHETIC_OFFLINE", "1")
