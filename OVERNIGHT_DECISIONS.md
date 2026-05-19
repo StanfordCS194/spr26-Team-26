@@ -21,3 +21,4 @@
 - 2026-05-19 05:53 PDT — Treat AutoResearch proposal application as two coordinated artifacts: persist the JSON patch for audit/revert, but pass the pending patch into the SDK-native Tinker run directly from graph state.
 - 2026-05-19 05:56 PDT — Keep empty or failed DataGen outputs from entering DecisionEngine/AutoResearch. The Manager boundary should explain untrainable data before the failure reaches Tinker.
 - 2026-05-19 06:02 PDT — AutoResearch candidate acceptance should be monotonic against the current best score, not merely better than the original baseline. The diary should report the patch relative to the pre-patch config for auditability.
+- 2026-05-19 06:06 PDT — Treat LLM-generated hyperparameter patches as untrusted until validated by `TrainingConfig.apply_patch`; prompt constraints are guidance, runtime validation is the guardrail.
