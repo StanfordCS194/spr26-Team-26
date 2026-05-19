@@ -279,5 +279,9 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   and both curation and the Tinker runner reject chat records with no assistant
   target after a user. It is stacked on #90 and composes with the local stack
   after preserving later Tinker runner split/heldout/dry-run behavior.
+- #97 fixes a DecisionEngine contract mismatch on top of #79. Low-budget plans
+  no longer switch to `strategy="pre-train"` while keeping `backend="tinker_sft"`;
+  they stay on the supported Tinker SFT path and let budget preflight handle
+  affordability.
 
 Current conservative live spend: `$94.14 / $100.00`.
