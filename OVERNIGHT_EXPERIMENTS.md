@@ -38,10 +38,11 @@ Budget cap: $100 total.
 | tinker-011 | 2026-05-19 07:34 | local only #55/#56/#57/#58/#59/#60 | live mean-metrics artifact validation | Tinker | passed | $2.50 | $24.29 | One 5-step `Qwen/Qwen3.5-9B` run after #60 confirmed `metrics.json` loss `11.902454127464443` exactly matches the mean of `metrics.jsonl`; `primary_metric=0.07750463517412384`. Local Tinker cost report: `$0.000119`; artifacts at `outputs/overnight/live-mean-metrics-validation/1779201242` in the local stack worktree. |
 | tinker-012 | 2026-05-19 07:39 | local only #55/#56/#57/#58/#59/#60 | live real-proposer loop with mean metrics | Tinker, Anthropic | passed with new issue found | $6.00 | $30.29 | Baseline plus three 3-step `Qwen/Qwen3.5-9B` candidates. Batch size 4 regressed (-44.4%), learning rate `0.0005` improved (+39.3%) and was kept, LoRA rank 16 improved only +0.1% and was kept, exposing the need for a material-improvement threshold. Local Tinker cost report: `$0.00036`; diary at `outputs/overnight/live-autoresearch-mean-metrics/1779201373/research_diary.jsonl`. |
 | stack-009 | 2026-05-19 07:41 | local only #55/#56/#57/#58/#59/#60/#61 | unpublished stack with material improvement threshold | none | passed | $0.00 | $30.29 | PR #61 focused validation passed (`31 passed` and `67 passed` clusters). Local integrated stack with #61 passed compileall and broad non-live suite excluding live Tinker/HF with `202 passed, 7 skipped`. |
+| tinker-013 | 2026-05-19 07:44 | local only #55/#56/#57/#58/#59/#60/#61 | live material-threshold replay | Tinker | passed | $3.00 | $33.29 | Baseline plus one deterministic 3-step `lora_rank: 8 -> 16` candidate starting from `learning_rate=0.0005`. Candidate delta was +0.1% and was correctly `REVERTED`; final `n_iterations=1`. Local Tinker cost report: `$0.000144`; diary at `outputs/overnight/live-material-threshold-replay/1779201721/research_diary.jsonl`. |
 
 ## Spend Ledger
 
-Current estimated cumulative spend: **$30.29 / $100.00**
+Current estimated cumulative spend: **$33.29 / $100.00**
 
 Notes:
 - Tinker billing may not be available through the local code, so per-run spend will be estimated conservatively from run type and observed duration unless a real cost is exposed.

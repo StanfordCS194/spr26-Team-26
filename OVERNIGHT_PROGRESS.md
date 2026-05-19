@@ -74,3 +74,4 @@ Operating rules:
 - 2026-05-19 07:39 PDT — Ran a real-proposer AutoResearch loop with #60 averaged metrics: batch-size increase regressed, `learning_rate=0.0005` improved +39.3%, and `lora_rank=16` only improved +0.1%, exposing that AutoResearch needed a material-improvement threshold.
 - 2026-05-19 07:40 PDT — Draft PR #61 opened: AutoResearch now requires at least 1% relative improvement before keeping a candidate, while still allowing any positive improvement from a zero baseline.
 - 2026-05-19 07:41 PDT — Local unpublished stack with #55 through #61 passed compileall and the broad non-live suite (`202 passed, 7 skipped`).
+- 2026-05-19 07:44 PDT — Live #61 replay passed: starting from `learning_rate=0.0005`, deterministic `lora_rank: 8 -> 16` produced another +0.1% delta and was correctly reverted as no improvement.
