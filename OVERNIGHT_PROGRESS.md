@@ -32,3 +32,4 @@ Operating rules:
 - 2026-05-19 05:43 PDT — Draft PR #39 updated by worker: CostManager now has in-process spend accounting and AutoResearch records baseline/iteration Tinker costs into it.
 - 2026-05-19 05:45 PDT — Draft PR #43 opened: Tinker SFT runner now uses `LAST_ASSISTANT_MESSAGE` per assistant target, eliminating the live cookbook renderer warning. Live 2-step Tinker smoke passed.
 - 2026-05-19 05:48 PDT — Draft PR #44 opened: Mode C web sources can now be teacher-structured into schema-valid chat/SFT rows, while raw/unstructured web pages remain invalid for training.
+- 2026-05-19 05:49 PDT — Local full-stack merge smoke passed: #39 + #43 + #40 + #42 + #44 merged cleanly, then non-live suite passed with `181 passed, 4 skipped`.
