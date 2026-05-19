@@ -132,6 +132,163 @@ def test_run_tinker_sft_experiment_writes_artifacts(tmp_path, monkeypatch):
     }
 
 
+def test_run_tinker_sft_experiment_dry_run_uses_real_dataset_without_sdk(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("TINKER_BACKEND", "dry_run")
+    from src.tinker_api import sft_runner
+    from src.tinker_api.sft_runner import run_tinker_sft_experiment
+
+    def fail_load_tinker_deps():
+        raise AssertionError("dry_run should not import Tinker SDK dependencies")
+
+    class FailingServiceClient:
+        def create_lora_training_client(self, *args, **kwargs):
+            raise AssertionError("dry_run should not construct live training clients")
+
+    monkeypatch.setattr(sft_runner, "_load_tinker_deps", fail_load_tinker_deps)
+    data_path = _write_jsonl(
+        tmp_path / "train.jsonl",
+        [
+            {"input": "train one", "output": "alpha"},
+            {
+                "messages": [
+                    {"role": "user", "content": "train two"},
+                    {"role": "assistant", "content": "beta"},
+                ]
+            },
+            {"input": "validation", "output": "gamma"},
+            {"input": "test", "output": "delta"},
+        ],
+    )
+    dataset_result = {
+        "dataset": {
+            "path": str(data_path),
+            "train_size": 2,
+            "val_size": 1,
+            "test_size": 1,
+        },
+        "next_agent": "decision_engine",
+    }
+
+    result = run_tinker_sft_experiment(
+        TrainingConfig(model_name="Qwen/Qwen3.5-9B", batch_size=2),
+        dataset_result,
+        run_id="dry-run",
+        max_steps=3,
+        output_dir=str(tmp_path / "experiments"),
+        service_client=FailingServiceClient(),
+    )
+
+    run_dir = tmp_path / "experiments" / "dry-run"
+    metrics = _assert_strict_json_file(run_dir / "metrics.json")
+    manifest = _assert_strict_json_file(run_dir / "manifest.json")
+    sample = _assert_strict_json_file(run_dir / "sample.json")
+    rows = [
+        _strict_json(line)
+        for line in (run_dir / "metrics.jsonl").read_text().splitlines()
+        if line.strip()
+    ]
+
+    assert result["status"] == "COMPLETED"
+    assert manifest["backend"] == "dry_run"
+    assert manifest["split_examples"] == {"train": 2, "val": 1, "test": 1}
+    assert manifest["training_examples"] == 2
+    assert manifest["completed_steps"] == 3
+    assert manifest["checkpoints"]["state_path"].startswith("dry-run://state/")
+    assert manifest["heldout_eval"]["val_loss"] is not None
+    assert manifest["heldout_eval"]["test_loss"] is not None
+    assert len(rows) == 3
+    assert [row["step"] for row in rows] == [1, 2, 3]
+    assert all(math.isfinite(row["train_loss"]) for row in rows)
+    assert all(math.isfinite(metrics[key]) for key in metrics)
+    assert sample["text"] == "alpha"
+    assert sample["backend"] == "dry_run"
+
+
+def test_run_tinker_sft_experiment_dry_run_cancels_before_steps(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("TINKER_BACKEND", "dry_run")
+    from src.tinker_api import sft_runner, tinker_api
+    from src.tinker_api.sft_runner import run_tinker_sft_experiment
+
+    monkeypatch.setattr(
+        sft_runner,
+        "_load_tinker_deps",
+        lambda: pytest.fail("dry_run should not load Tinker SDK dependencies"),
+    )
+    data_path = _write_jsonl(
+        tmp_path / "train.jsonl",
+        [{"input": "Question", "output": "Answer"}],
+    )
+    tinker_api.cancel_job("dry-cancel-before-run")
+
+    result = run_tinker_sft_experiment(
+        TrainingConfig(model_name="Qwen/Qwen3.5-9B", batch_size=1),
+        str(data_path),
+        run_id="dry-cancel-before-run",
+        max_steps=2,
+        output_dir=str(tmp_path / "experiments"),
+    )
+
+    run_dir = tmp_path / "experiments" / "dry-cancel-before-run"
+    metrics = _assert_strict_json_file(run_dir / "metrics.json")
+    manifest = _assert_strict_json_file(run_dir / "manifest.json")
+
+    assert result["status"] == "CANCELLED"
+    assert manifest["status"] == "CANCELLED"
+    assert manifest["completed_steps"] == 0
+    assert (run_dir / "metrics.jsonl").exists()
+    assert (run_dir / "metrics.jsonl").read_text() == ""
+    assert (run_dir / "sample.json").exists()
+    assert all(math.isfinite(metrics[key]) for key in metrics)
+
+
+def test_run_tinker_sft_experiment_dry_run_cancels_between_steps(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("TINKER_BACKEND", "dry_run")
+    from src.tinker_api import sft_runner, tinker_api
+    from src.tinker_api.sft_runner import run_tinker_sft_experiment
+
+    original_record_tokens = tinker_api.record_tokens
+
+    def cancel_after_first_step(job_id: str, n_tokens: int) -> None:
+        original_record_tokens(job_id, n_tokens)
+        tinker_api.cancel_job(job_id)
+
+    monkeypatch.setattr(sft_runner, "record_tokens", cancel_after_first_step)
+    data_path = _write_jsonl(
+        tmp_path / "train.jsonl",
+        [{"input": "Question", "output": "Answer"}],
+    )
+
+    result = run_tinker_sft_experiment(
+        TrainingConfig(model_name="Qwen/Qwen3.5-9B", batch_size=1),
+        str(data_path),
+        run_id="dry-cancel-between-steps",
+        max_steps=3,
+        output_dir=str(tmp_path / "experiments"),
+    )
+
+    run_dir = tmp_path / "experiments" / "dry-cancel-between-steps"
+    manifest = _assert_strict_json_file(run_dir / "manifest.json")
+    rows = [
+        _strict_json(line)
+        for line in (run_dir / "metrics.jsonl").read_text().splitlines()
+        if line.strip()
+    ]
+
+    assert result["status"] == "CANCELLED"
+    assert manifest["status"] == "CANCELLED"
+    assert manifest["completed_steps"] == 1
+    assert len(rows) == 1
+
+
 def test_run_tinker_sft_experiment_writes_strict_json_for_nonfinite_training_loss(
     tmp_path,
     monkeypatch,
@@ -525,6 +682,105 @@ def test_autoresearch_run_node_calls_tinker_runner(monkeypatch, tmp_path):
     assert captured["max_steps"] == 5
     assert captured["dataset"]["dataset"]["path"] == str(data_path)
     assert captured["config"].model_name == "Qwen/Qwen3.5-9B"
+
+
+def test_autoresearch_graph_uses_dry_run_tinker_backend_without_sdk(
+    monkeypatch,
+    tmp_path,
+):
+    pytest.importorskip("langgraph", reason="langgraph not installed")
+
+    import src.autoresearch.autoresearch as ar
+    import src.tinker_api.sft_runner as sft_runner
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("TINKER_BACKEND", "dry_run")
+    monkeypatch.setenv("AUTORESEARCH_PROPOSER", "claude")
+    monkeypatch.delenv("TINKER_API_KEY", raising=False)
+
+    data_path = _write_jsonl(
+        tmp_path / "train.jsonl",
+        [
+            {"input": "question one", "output": "answer one"},
+            {"input": "question two", "output": "answer two"},
+        ],
+    )
+    config_path = tmp_path / "configs" / "current.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        json.dumps(
+            {
+                "model_name": "Qwen/Qwen3.5-9B",
+                "learning_rate": 1e-4,
+                "batch_size": 1,
+                "max_steps": 1,
+            }
+        )
+    )
+
+    monkeypatch.setattr(ar, "_CONFIG_PATH", config_path)
+    monkeypatch.setattr(
+        ar,
+        "_DIARY_PATH",
+        tmp_path / "outputs" / "logs" / "diary.jsonl",
+    )
+    monkeypatch.setattr(ar, "_MAX_ITERATIONS", 1)
+
+    def fail_if_live_sdk_loads():
+        raise AssertionError("dry-run graph should not load Tinker SDK dependencies")
+
+    monkeypatch.setattr(sft_runner, "_load_tinker_deps", fail_if_live_sdk_loads)
+
+    proposed_allowed_params = []
+
+    def fake_propose_hypothesis(current_config, diary, task, allowed_params=None):
+        proposed_allowed_params.append(allowed_params)
+        return {
+            "description": "Nudge learning_rate upward for a dry-run graph smoke.",
+            "patch": json.dumps({"learning_rate": 2e-4}),
+            "expected_effect": "Dry-run loss should remain finite.",
+            "search_strategy": "local",
+        }
+
+    monkeypatch.setattr(ar, "propose_hypothesis", fake_propose_hypothesis)
+    plan = _autoresearch_state(str(data_path))["plan"]
+    config = _autoresearch_state(str(data_path))["config"]
+    config["compute_budget"] = 10.0
+    config["training_procedure"]["hyperparameters"] = {
+        "learning_rate": 1e-4,
+        "batch_size": 1,
+        "max_steps": 1,
+    }
+
+    trained_model = ar.invoke_autoresearch_graph(plan, config, cost_manager=None)
+
+    experiment_dirs = sorted((tmp_path / "outputs" / "experiments").iterdir())
+    manifests = [
+        _assert_strict_json_file(experiment_dir / "manifest.json")
+        for experiment_dir in experiment_dirs
+    ]
+    diary_path = tmp_path / "outputs" / "logs" / "diary.jsonl"
+    diary_rows = [
+        _strict_json(line)
+        for line in diary_path.read_text().splitlines()
+        if line.strip()
+    ]
+
+    assert len(experiment_dirs) == 2
+    assert {manifest["backend"] for manifest in manifests} == {"dry_run"}
+    assert all(manifest["completed_steps"] == 1 for manifest in manifests)
+    assert all(
+        (experiment_dir / "metrics.json").exists()
+        for experiment_dir in experiment_dirs
+    )
+    assert all(
+        (experiment_dir / "sample.json").exists()
+        for experiment_dir in experiment_dirs
+    )
+    assert len(diary_rows) == 1
+    assert trained_model["n_iterations"] == 1
+    assert trained_model["metrics"]["scalar"] > 0
+    assert proposed_allowed_params == [sorted(sft_runner.SUPPORTED_TINKER_TUNABLES)]
 
 
 def _write_jsonl(path: Path, rows: list[dict]) -> Path:
