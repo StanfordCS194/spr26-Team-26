@@ -319,6 +319,8 @@ def _assert_live_tinker_call_blocked(api, call, reason):
     ("env_name", "env_value", "reason"),
     [
         ("NO_SPEND", "1", "NO_SPEND=1"),
+        ("NO_SPEND", "true", "NO_SPEND=1"),
+        ("NO_SPEND", "on", "NO_SPEND=1"),
         ("TINKER_BACKEND", "dry_run", "TINKER_BACKEND=dry_run"),
     ],
 )
@@ -388,6 +390,7 @@ def test_no_spend_guards_block_sdk_helpers_before_construction_or_use(
     ("env_name", "env_value"),
     [
         ("NO_SPEND", "1"),
+        ("NO_SPEND", "true"),
         ("TINKER_BACKEND", "dry_run"),
     ],
 )
