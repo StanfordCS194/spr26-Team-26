@@ -25,21 +25,26 @@ def _write_tinker_artifacts(
     test_loss: float = 0.33,
     primary_metric: float = 0.775,
     sample_text: str = "sample completion",
+    backend: str | None = None,
+    budget_preflight_skipped: bool = False,
+    termination_reason: str | None = None,
 ) -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
     checkpoints = {"state_path": state_path}
     if sampler_path:
         checkpoints["sampler_path"] = sampler_path
-    (run_dir / "manifest.json").write_text(
-        json.dumps(
-            {
-                "run_id": run_id,
-                "status": "COMPLETED",
-                "checkpoints": checkpoints,
-            }
-        ),
-        encoding="utf-8",
-    )
+    manifest = {
+        "run_id": run_id,
+        "status": "COMPLETED",
+        "checkpoints": checkpoints,
+    }
+    if backend:
+        manifest["backend"] = backend
+    if budget_preflight_skipped:
+        manifest["budget_preflight_skipped"] = True
+    if termination_reason:
+        manifest["cost"] = {"termination_reason": termination_reason}
+    (run_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     (run_dir / "metrics.json").write_text(
         json.dumps(
             {
@@ -57,6 +62,50 @@ def _write_tinker_artifacts(
     )
     (run_dir / "sample.json").write_text(
         json.dumps({"text": sample_text}),
+        encoding="utf-8",
+    )
+
+
+def _write_data_generator_debug_artifacts(
+    root: Path,
+    *,
+    mode_used: str = "C",
+    mode_c_fallback: str | None = "synthetic",
+) -> None:
+    artifact_dir = root / "data_generator" / "artifacts"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    debug_path = artifact_dir / "debug_context.json"
+    manifest_path = artifact_dir / "artifact_manifest.json"
+    debug_path.write_text(
+        json.dumps(
+            {
+                "mode_used": mode_used,
+                "mode_c_fallback": mode_c_fallback,
+                "source_metadata": {
+                    "mode": mode_used,
+                    "mode_c_fallback": mode_c_fallback,
+                },
+                "raw_data": {
+                    "format_meta": {
+                        "mode_c_backend": "synthetic",
+                        "mode_c_fallback": mode_c_fallback,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "mode_used": mode_used,
+                "files": {"debug_context": str(debug_path)},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (root / "data_generator" / "latest_run.json").write_text(
+        json.dumps({"mode_used": mode_used, "manifest_path": str(manifest_path)}),
         encoding="utf-8",
     )
 
@@ -234,6 +283,9 @@ def test_create_run_surfaces_artifacts_and_allowlisted_downloads(tmp_path, monke
     assert artifacts["checkpoints"]["state_path"] == "tinker://state/abc"
     assert artifacts["metrics"]["val_loss"] == 0.29
     assert artifacts["sample"]["text"] == "sample completion"
+    assert state["provenance"]["trainingBackend"] == "tinker"
+    assert state["provenance"]["spendMode"] == "live"
+    assert "Tinker" in state["provenance"]["liveServices"]
 
     files = {item["name"]: item for item in artifacts["files"]}
     assert files["manifest"]["exists"] is True
@@ -250,6 +302,54 @@ def test_create_run_surfaces_artifacts_and_allowlisted_downloads(tmp_path, monke
 
     missing_response = client.get(f"/api/runs/{run_id}/artifacts/not-real")
     assert missing_response.status_code == 404
+
+
+def test_run_state_surfaces_provenance_from_manifests(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    def fake_invoke(prompt, budget, data_path=None):
+        root = get_output_root()
+        assert root is not None
+        run_dir = root / "experiments" / "dry-skip"
+        _write_tinker_artifacts(
+            run_dir,
+            run_id="dry-skip",
+            state_path="dry-run://state/abc",
+            backend="dry_run",
+            budget_preflight_skipped=True,
+            termination_reason="budget_limit",
+        )
+        _write_data_generator_debug_artifacts(root, mode_used="C", mode_c_fallback="synthetic")
+        result = _fake_model(root, total_cost=0.0)
+        result["weights_path"] = str(run_dir)
+        result["cost"]["termination_reason"] = "budget_limit"
+        return result
+
+    monkeypatch.setattr(server_app, "invoke_manager_graph", fake_invoke)
+    client = TestClient(server_app.app)
+
+    response = client.post(
+        "/api/runs",
+        json={
+            "prompt": "Fine tune a dry-run support assistant",
+            "budget": 25,
+            "task_type": "fine-tuning",
+        },
+    )
+
+    assert response.status_code == 200
+    state = _wait_for_status(client, response.json()["run_id"], "complete")
+
+    provenance = state["provenance"]
+    assert provenance["spendMode"] == "budget_skipped"
+    assert provenance["trainingBackend"] == "dry_run"
+    assert provenance["dataMode"] == "C"
+    assert provenance["modeCFallback"] == "synthetic"
+    assert provenance["budgetPreflightSkipped"] is True
+    assert provenance["budgetSkipReason"] == "budget_limit"
+    assert provenance["liveServices"] == []
+    assert any(item.endswith("manifest.json") for item in provenance["evidence"])
+    assert any(item.endswith("debug_context.json") for item in provenance["evidence"])
 
 
 def test_running_run_refreshes_logs_iterations_metrics_and_artifacts(tmp_path, monkeypatch):

@@ -11,6 +11,16 @@ const STAGE_LABELS = [
 ];
 
 const STAGE_DURATIONS = [1200, 1800, 1500, 3000, 3000, 1200]; // ms
+const SIMULATION_PROVENANCE = {
+  spendMode: 'simulation',
+  trainingBackend: 'simulation',
+  dataMode: null,
+  modeCFallback: null,
+  budgetPreflightSkipped: false,
+  budgetSkipReason: null,
+  liveServices: [],
+  evidence: [],
+};
 
 function makeStages(): PipelineStage[] {
   return STAGE_LABELS.map((label, i) => ({ id: i, label, status: 'pending' as const }));
@@ -113,6 +123,7 @@ export function useTrainingSimulation() {
     stages: makeStages(),
     artifacts: null,
     result: null,
+    provenance: null,
   });
 
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -151,6 +162,7 @@ export function useTrainingSimulation() {
       stages: makeStages(),
       artifacts: null,
       result: null,
+      provenance: SIMULATION_PROVENANCE,
     });
 
     let cursor = 0; // ms elapsed
@@ -253,7 +265,7 @@ export function useTrainingSimulation() {
 
     // Mark complete
     schedule(() => {
-      setState(prev => ({ ...prev, status: 'complete', stage: 5 }));
+      setState(prev => ({ ...prev, status: 'complete', stage: 5, provenance: SIMULATION_PROVENANCE }));
     }, cursor + 100);
   }, [schedule, appendLog]);
 
@@ -273,6 +285,7 @@ export function useTrainingSimulation() {
       stages: makeStages(),
       artifacts: null,
       result: null,
+      provenance: null,
     });
   }, []);
 

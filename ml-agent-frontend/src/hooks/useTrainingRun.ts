@@ -16,6 +16,7 @@ function makeInitialState(): TrainingState {
     logs: [],
     stages: [],
     artifacts: null,
+    provenance: null,
     result: null,
     error: null,
   };
@@ -47,6 +48,7 @@ function makeStartingState(
       { id: 5, label: 'Finalization', status: 'pending' },
     ],
     artifacts: null,
+    provenance: null,
     result: null,
     error: null,
   };
@@ -70,6 +72,7 @@ function stateFromBackend(next: BackendRunState): TrainingState {
     logs: next.logs,
     stages: next.stages,
     artifacts: next.artifacts ?? null,
+    provenance: next.provenance ?? null,
     result: next.result ?? null,
     error: next.error,
     runId: next.run_id,

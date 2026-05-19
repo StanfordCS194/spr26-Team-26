@@ -36,6 +36,7 @@ from src.server.schemas import (
     MetricPoint,
     PipelineStage,
     RunArtifactsView,
+    RunProvenanceView,
     RunCreated,
     RunRequest,
     RunState,
@@ -471,6 +472,10 @@ def _read_json_if_exists(path: Path | None) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+def _env_flag_enabled(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _resolve_reported_path(record: _RunRecord, value: Any) -> Path | None:
     if not isinstance(value, str) or not value.strip():
         return None
@@ -563,6 +568,125 @@ def _artifacts_from_result(record: _RunRecord, result: dict[str, Any]) -> RunArt
     )
 
 
+def _latest_tinker_manifest(record: _RunRecord) -> tuple[dict[str, Any] | None, Path | None]:
+    path = record.artifact_paths.get("manifest")
+    if path is None:
+        run_dir = _latest_artifact_experiment_dir(record) or _latest_experiment_dir(record)
+        path = run_dir / "manifest.json" if run_dir else None
+    return _read_json_if_exists(path), path
+
+
+def _latest_data_generator_debug(record: _RunRecord) -> tuple[dict[str, Any] | None, Path | None]:
+    latest = _read_json_if_exists(record.output_dir / "data_generator" / "latest_run.json")
+    if not latest:
+        return None, None
+
+    manifest_path = _resolve_reported_path(record, latest.get("manifest_path"))
+    manifest = _read_json_if_exists(manifest_path)
+    files = manifest.get("files", {}) if manifest else {}
+    debug_path = _resolve_reported_path(record, files.get("debug_context"))
+    return _read_json_if_exists(debug_path), debug_path
+
+
+def _training_backend_from_manifest(manifest: dict[str, Any] | None) -> str | None:
+    if not manifest:
+        return None
+    backend = manifest.get("backend") or manifest.get("training_backend")
+    if isinstance(backend, str) and backend.strip():
+        return backend.strip()
+
+    checkpoints = manifest.get("checkpoints")
+    if isinstance(checkpoints, dict):
+        values = [str(value) for value in checkpoints.values() if value]
+        if any(value.startswith("dry-run://") for value in values):
+            return "dry_run"
+        if any(value.startswith("tinker://") for value in values):
+            return "tinker"
+    return None
+
+
+def _data_format_meta(debug: dict[str, Any] | None) -> dict[str, Any]:
+    if not debug:
+        return {}
+    raw_data = debug.get("raw_data")
+    if not isinstance(raw_data, dict):
+        return {}
+    format_meta = raw_data.get("format_meta")
+    return format_meta if isinstance(format_meta, dict) else {}
+
+
+def _provenance_for_record(record: _RunRecord) -> RunProvenanceView:
+    manifest, manifest_path = _latest_tinker_manifest(record)
+    data_debug, data_debug_path = _latest_data_generator_debug(record)
+
+    training_backend = _training_backend_from_manifest(manifest)
+    data_mode = None
+    mode_c_fallback = None
+    if data_debug:
+        data_mode = data_debug.get("mode_used")
+        mode_c_fallback = data_debug.get("mode_c_fallback")
+        source_metadata = data_debug.get("source_metadata")
+        if mode_c_fallback is None and isinstance(source_metadata, dict):
+            mode_c_fallback = source_metadata.get("mode_c_fallback")
+
+    budget_preflight_skipped = bool(manifest and manifest.get("budget_preflight_skipped"))
+    cost = record.result.get("cost") if isinstance(record.result, dict) else None
+    manifest_cost = manifest.get("cost") if isinstance(manifest, dict) else None
+    budget_skip_reason = None
+    if isinstance(manifest_cost, dict):
+        budget_skip_reason = manifest_cost.get("termination_reason")
+    if not budget_skip_reason and isinstance(cost, dict):
+        budget_skip_reason = cost.get("termination_reason")
+    if budget_skip_reason != "budget_limit":
+        budget_skip_reason = None
+
+    no_spend = _env_flag_enabled("NO_SPEND")
+    backend_key = (training_backend or "").replace("-", "_").lower()
+    configured_backend = os.getenv("TINKER_BACKEND", "").strip().replace("-", "_").lower()
+
+    live_services: list[str] = []
+    if not no_spend and backend_key == "tinker":
+        live_services.append("Tinker")
+
+    format_meta = _data_format_meta(data_debug)
+    if not no_spend and format_meta.get("search_backend"):
+        live_services.append(str(format_meta["search_backend"]))
+    if not no_spend and format_meta.get("teacher_used"):
+        live_services.append("Teacher LLM")
+
+    evidence: list[str] = []
+    if _env_flag_enabled("NO_SPEND"):
+        evidence.append("env:NO_SPEND=1")
+    if configured_backend:
+        evidence.append(f"env:TINKER_BACKEND={configured_backend}")
+    if manifest_path and manifest_path.is_file():
+        evidence.append(str(manifest_path))
+    if data_debug_path and data_debug_path.is_file():
+        evidence.append(str(data_debug_path))
+
+    if no_spend:
+        spend_mode = "no_spend"
+    elif budget_preflight_skipped:
+        spend_mode = "budget_skipped"
+    elif backend_key == "dry_run" or configured_backend == "dry_run":
+        spend_mode = "dry_run"
+    elif live_services:
+        spend_mode = "live"
+    else:
+        spend_mode = "local"
+
+    return RunProvenanceView(
+        spendMode=spend_mode,
+        trainingBackend=training_backend,
+        dataMode=str(data_mode) if data_mode else None,
+        modeCFallback=str(mode_c_fallback) if mode_c_fallback else None,
+        budgetPreflightSkipped=budget_preflight_skipped,
+        budgetSkipReason=budget_skip_reason,
+        liveServices=list(dict.fromkeys(live_services)),
+        evidence=evidence,
+    )
+
+
 def _store_manager_result(record: _RunRecord, result: dict[str, Any]) -> None:
     record.result = result
     record.status = "complete"
@@ -629,6 +753,7 @@ def _to_state(record: _RunRecord) -> RunState:
         logs=record.logs,
         stages=record.stages,
         artifacts=record.artifacts,
+        provenance=_provenance_for_record(record),
         result=record.result,
         error=record.error,
     )

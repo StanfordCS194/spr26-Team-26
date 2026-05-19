@@ -61,6 +61,17 @@ export interface RunArtifacts {
   files: ArtifactFile[];
 }
 
+export interface RunProvenance {
+  spendMode: string;
+  trainingBackend?: string | null;
+  dataMode?: string | null;
+  modeCFallback?: string | null;
+  budgetPreflightSkipped: boolean;
+  budgetSkipReason?: string | null;
+  liveServices: string[];
+  evidence: string[];
+}
+
 export interface TrainingState {
   status: RunStatus;
   stage: number;
@@ -74,6 +85,7 @@ export interface TrainingState {
   logs: LogEntry[];
   stages: PipelineStage[];
   artifacts?: RunArtifacts | null;
+  provenance?: RunProvenance | null;
   result?: Record<string, unknown> | null;
   error?: string | null;
   runId?: string;

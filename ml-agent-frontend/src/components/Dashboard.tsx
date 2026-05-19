@@ -73,6 +73,82 @@ function StatusDot({ status }: { status: TrainingState['status'] }) {
   );
 }
 
+function titleCaseToken(value: string) {
+  return value
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, char => char.toUpperCase());
+}
+
+function spendModeLabel(value?: string | null) {
+  switch (value) {
+    case 'no_spend':
+      return 'NO_SPEND';
+    case 'dry_run':
+      return 'Dry-run';
+    case 'budget_skipped':
+      return 'Budget skipped';
+    case 'live':
+      return 'Live services';
+    case 'local':
+      return 'Local';
+    default:
+      return value ? titleCaseToken(value) : null;
+  }
+}
+
+function backendLabel(value?: string | null) {
+  const normalized = value?.replace('-', '_').toLowerCase();
+  if (normalized === 'dry_run') return 'Tinker dry-run';
+  if (normalized === 'tinker') return 'Live Tinker';
+  return value ? titleCaseToken(value) : null;
+}
+
+function ProvenanceBadges({ state }: { state: TrainingState }) {
+  const provenance = state.provenance;
+  if (!provenance) return null;
+
+  const badges = Array.from(new Set([
+    spendModeLabel(provenance.spendMode),
+    backendLabel(provenance.trainingBackend),
+    provenance.dataMode ? `Mode ${provenance.dataMode}` : null,
+    provenance.modeCFallback ? `${titleCaseToken(provenance.modeCFallback)} fallback` : null,
+    provenance.budgetPreflightSkipped ? 'Budget skipped' : null,
+    provenance.liveServices.length > 0 ? `Live: ${provenance.liveServices.join(', ')}` : null,
+  ].filter((label): label is string => Boolean(label))));
+
+  if (badges.length === 0) return null;
+
+  return (
+    <div
+      aria-label="Run provenance"
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '0.4rem',
+        marginTop: '-0.75rem',
+        marginBottom: '1.25rem',
+      }}
+    >
+      {badges.map(label => (
+        <span
+          key={label}
+          style={{
+            fontSize: '11px',
+            color: 'var(--text-secondary)',
+            background: 'var(--bg-elevated)',
+            border: '0.5px solid var(--border)',
+            borderRadius: '4px',
+            padding: '2px 8px',
+            lineHeight: 1.6,
+          }}
+        >
+          {label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function CancelledArtifacts({ state, onReset }: Props) {
   const lastMetric = state.metrics[state.metrics.length - 1];
   const bestIter = state.iterations.find(i => i.status === 'KEPT') ?? state.iterations[0];
@@ -333,6 +409,8 @@ export default function Dashboard({ state, onReset, onCancel }: Props) {
             {state.taskType}
           </span>
         </div>
+
+        <ProvenanceBadges state={state} />
 
         {/* Pipeline + budget */}
         <PipelineProgress stages={state.stages} costSpent={state.costSpent} budget={state.budget} />

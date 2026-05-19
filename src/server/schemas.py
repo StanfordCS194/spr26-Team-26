@@ -69,6 +69,17 @@ class RunArtifactsView(BaseModel):
     files: list[ArtifactView] = Field(default_factory=list)
 
 
+class RunProvenanceView(BaseModel):
+    spendMode: str = "unknown"
+    trainingBackend: str | None = None
+    dataMode: str | None = None
+    modeCFallback: str | None = None
+    budgetPreflightSkipped: bool = False
+    budgetSkipReason: str | None = None
+    liveServices: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+
+
 class RunState(BaseModel):
     run_id: str
     status: Literal["running", "cancelling", "cancelled", "complete", "failed"]
@@ -83,5 +94,6 @@ class RunState(BaseModel):
     logs: list[LogEntryView]
     stages: list[PipelineStage]
     artifacts: RunArtifactsView | None = None
+    provenance: RunProvenanceView = Field(default_factory=RunProvenanceView)
     result: dict[str, Any] | None = None
     error: str | None = None
