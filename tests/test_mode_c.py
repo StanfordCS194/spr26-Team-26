@@ -158,6 +158,23 @@ def test_teacher_path_infers_schema_and_generates_batches(monkeypatch):
     assert all(call["model"] for call in teacher.messages.calls)
 
 
+def test_no_spend_disables_synthetic_teacher_even_when_client_supplied(monkeypatch):
+    monkeypatch.setenv("NO_SPEND", "1")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "present-but-should-not-be-used")
+    teacher = _FakeTeacher()
+
+    result = acquire_synthetic_dataset(
+        _config(synthetic_examples=12),
+        teacher_client=teacher,
+        n_examples=12,
+    )
+
+    assert teacher.messages.calls == []
+    assert result.raw_data["format_meta"]["teacher_available"] is False
+    assert result.raw_data["format_meta"]["teacher_used"] is False
+    assert result.validation_report["passed"] is True
+
+
 def test_validate_synthetic_records_reports_malformed_and_duplicate_rows(monkeypatch):
     monkeypatch.setenv("DATA_GENERATOR_SYNTHETIC_OFFLINE", "1")
     schema = infer_schema_without_teacher(_config())
@@ -285,6 +302,27 @@ def test_mode_c_offline_env_overrides_web_backend(monkeypatch):
     assert handoff["raw_data"]["format_meta"]["mode_c_backend"] == "synthetic"
 
 
+@pytest.mark.parametrize("flag_name", ["DATA_GENERATOR_OFFLINE", "NO_SPEND"])
+def test_mode_c_global_offline_flags_override_web_backend(monkeypatch, flag_name):
+    monkeypatch.setenv(flag_name, "1")
+    monkeypatch.setenv("DATA_GENERATOR_MODE_C_BACKEND", "web")
+    monkeypatch.setenv("TAVILY_API_KEY", "present-but-should-not-be-used")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "present-but-should-not-be-used")
+
+    from src.data_generator.mode_c import nodes as mode_c_nodes
+
+    def fail_search(_web_plan):
+        raise AssertionError(f"{flag_name}=1 should not call web search")
+
+    monkeypatch.setattr(mode_c_nodes, "search_web_sources", fail_search)
+
+    handoff = invoke_data_generator_graph(_config(synthetic_examples=8), data_path=None)
+
+    assert handoff["mode_c_fallback"] == "synthetic"
+    assert handoff["raw_data"]["format_meta"]["mode_c_backend"] == "synthetic"
+    assert handoff["validation_report"]["passed"] is True
+
+
 def test_mode_c_web_backend_fails_loudly_on_search_error(monkeypatch):
     monkeypatch.delenv("DATA_GENERATOR_SYNTHETIC_OFFLINE", raising=False)
     monkeypatch.setenv("DATA_GENERATOR_MODE_C_BACKEND", "web")
@@ -309,6 +347,34 @@ def test_scrape_web_fallback_uses_same_standard_contract(monkeypatch):
     assert len(raw["records"]) == 9
     assert raw["format_meta"]["quality_report"]["passed"] is True
     assert raw["format_meta"]["generation_plan"]
+
+
+def test_scrape_web_global_offline_skips_mode_c_web_pipeline(monkeypatch):
+    monkeypatch.setenv("DATA_GENERATOR_OFFLINE", "1")
+    schema = infer_schema_without_teacher(_config())
+
+    mock_llm = types.ModuleType("src.data_generator.mode_c.mock_llm")
+    search = types.ModuleType("src.data_generator.mode_c.search")
+    crawler = types.ModuleType("src.data_generator.mode_c.crawler")
+
+    mock_llm.mock_plan_web_acquisition = lambda _config: pytest.fail(
+        "offline scrape_web should not plan web acquisition"
+    )
+    search.search_web_sources = lambda _plan: pytest.fail(
+        "offline scrape_web should not search"
+    )
+    crawler.crawl_and_extract_pages = lambda _results, _plan: pytest.fail(
+        "offline scrape_web should not crawl"
+    )
+    monkeypatch.setitem(sys.modules, "src.data_generator.mode_c.mock_llm", mock_llm)
+    monkeypatch.setitem(sys.modules, "src.data_generator.mode_c.search", search)
+    monkeypatch.setitem(sys.modules, "src.data_generator.mode_c.crawler", crawler)
+
+    raw = scrape_web("support-ticket urgency examples", schema, max_examples=9)
+
+    assert len(raw["records"]) == 9
+    assert raw["format_meta"]["web_acquisition_used"] is False
+    assert raw["format_meta"]["web_acquisition_fallback"] == "deterministic_synthetic"
 
 
 def test_scrape_web_uses_mode_c_web_pipeline_when_available(monkeypatch):

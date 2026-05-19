@@ -214,6 +214,25 @@ def test_structure_web_sources_respects_synthetic_example_cap(monkeypatch):
     assert "at most 8 objects" in structuring_call["messages"][0]["content"]
 
 
+def test_structure_web_sources_no_spend_does_not_use_teacher(monkeypatch):
+    monkeypatch.setenv("NO_SPEND", "1")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "present-but-should-not-be-used")
+    teacher = _FakeTeacher()
+
+    result = structure_web_sources_for_sft(
+        _config(),
+        _pages(),
+        teacher_client=teacher,
+        max_records=4,
+    )
+
+    assert teacher.messages.calls == []
+    assert result.teacher_used is False
+    assert result.validation_report["passed"] is False
+    assert result.raw_data["format_meta"]["teacher_used"] is False
+    assert any("NO_SPEND=1" in issue for issue in result.validation_report["issues"])
+
+
 def test_structure_web_sources_prefers_web_structuring_cap(monkeypatch):
     monkeypatch.delenv("DATA_GENERATOR_SYNTHETIC_OFFLINE", raising=False)
     monkeypatch.setenv("DATA_GENERATOR_SYNTHETIC_EXAMPLES", "12")

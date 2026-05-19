@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 
+from src.data_generator.mode_c.offline import mode_c_offline
 from src.data_generator.mode_c.synthetic import build_mode_c_dataset
 from src.types import DataGenState
 
@@ -247,7 +248,7 @@ def _mode_c_synthetic_fallback_state(
 
 
 def _mode_c_backend(state: DataGenState | dict) -> str:
-    if os.getenv("DATA_GENERATOR_SYNTHETIC_OFFLINE") == "1":
+    if mode_c_offline():
         return "synthetic"
 
     selected = str(state.get("mode_c_backend") or "").strip().lower()

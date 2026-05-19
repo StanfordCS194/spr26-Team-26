@@ -8,6 +8,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Literal, Mapping, Sequence, TypedDict
 
+from src.data_generator.mode_c.offline import mode_c_offline
 from src.types import DataSchema, OrchestrationConfig, RawData, ValidationReport
 
 DEFAULT_TEACHER_MODEL = "claude-haiku-4-5-20251001"
@@ -392,7 +393,7 @@ def _scrape_with_mode_c_web_pipeline(
     schema: DataSchema,
     max_examples: int,
 ) -> RawData | None:
-    if os.getenv("DATA_GENERATOR_SYNTHETIC_OFFLINE") == "1":
+    if mode_c_offline():
         return None
 
     try:
@@ -823,7 +824,7 @@ def _target_examples(config: Mapping[str, Any]) -> int:
 
 
 def _should_use_teacher(teacher_client: Any) -> bool:
-    if os.getenv("DATA_GENERATOR_SYNTHETIC_OFFLINE") == "1":
+    if mode_c_offline():
         return False
     return teacher_client is not None or bool(os.getenv("ANTHROPIC_API_KEY"))
 

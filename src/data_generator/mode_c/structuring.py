@@ -7,6 +7,7 @@ import os
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
+from src.data_generator.mode_c.offline import mode_c_offline, mode_c_offline_reason
 from src.data_generator.mode_c.synthetic import (
     DEFAULT_TEACHER_MODEL,
     determine_data_schema,
@@ -49,6 +50,13 @@ def structure_web_sources_for_sft(
     source_pages = [page for page in pages if _page_excerpt(page)]
     if not source_pages:
         return _unstructured_result(schema, pages, "No usable web page excerpts to structure.")
+
+    if mode_c_offline():
+        return _unstructured_result(
+            schema,
+            pages,
+            f"Mode C web structuring disabled by {mode_c_offline_reason()}.",
+        )
 
     client = teacher_client or _optional_anthropic_client()
     if client is None:
@@ -301,6 +309,8 @@ def _coerce_teacher_records(records: Sequence[Any]) -> list[dict[str, Any]]:
 
 
 def _optional_anthropic_client() -> Any | None:
+    if mode_c_offline():
+        return None
     if not os.getenv("ANTHROPIC_API_KEY"):
         return None
     try:
