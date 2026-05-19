@@ -92,6 +92,66 @@ class _FakeMessages:
         return SimpleNamespace(content=[SimpleNamespace(text=json.dumps(payload))])
 
 
+class _RepairingTeacher:
+    def __init__(self):
+        self.messages = _RepairingMessages()
+
+
+class _RepairingMessages(_FakeMessages):
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        prompt = kwargs["messages"][0]["content"]
+        if "Infer a supervised fine-tuning data schema" in prompt:
+            payload = {
+                "input_format": "support ticket text",
+                "output_format": "one of: urgent, normal",
+                "input_description": "A support ticket.",
+                "output_description": "The urgency label.",
+                "example_pair": {
+                    "input": "The checkout service is down for all users.",
+                    "output": "urgent",
+                },
+            }
+            return SimpleNamespace(content=[SimpleNamespace(text=json.dumps(payload))])
+
+        if "Repair this teacher response into valid JSON" in prompt:
+            payload = [
+                {
+                    "input": "The checkout service is down for all users.",
+                    "output": "urgent",
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": "The checkout service is down for all users.",
+                        },
+                        {"role": "assistant", "content": "urgent"},
+                    ],
+                    "source_url": "https://example.com/urgency",
+                },
+                {
+                    "input": "A customer asks how to update a profile photo.",
+                    "output": "normal",
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": "A customer asks how to update a profile photo.",
+                        },
+                        {"role": "assistant", "content": "normal"},
+                    ],
+                    "source_url": "https://example.com/urgency",
+                }
+            ]
+            return SimpleNamespace(content=[SimpleNamespace(text=json.dumps(payload))])
+
+        bad_json = (
+            "[{\"input\": \"The checkout service is down\", "
+            "output: \"urgent\", "
+            "\"messages\": [{\"role\": \"user\", \"content\": \"The checkout service is down\"}, "
+            "{\"role\": \"assistant\", \"content\": \"urgent\"}]}]"
+        )
+        return SimpleNamespace(content=[SimpleNamespace(text=bad_json)])
+
+
 def test_structure_web_sources_with_teacher_returns_trainable_records(monkeypatch):
     monkeypatch.delenv("DATA_GENERATOR_SYNTHETIC_OFFLINE", raising=False)
     teacher = _FakeTeacher()
@@ -115,6 +175,27 @@ def test_structure_web_sources_with_teacher_returns_trainable_records(monkeypatc
     assert all(record["messages"] for record in result.raw_data["records"])
     assert result.raw_data["format_meta"]["requested_records"] == 4
     assert len(teacher.messages.calls) == 2
+
+
+def test_structure_web_sources_repairs_malformed_teacher_json(monkeypatch):
+    monkeypatch.delenv("DATA_GENERATOR_SYNTHETIC_OFFLINE", raising=False)
+    teacher = _RepairingTeacher()
+
+    result = structure_web_sources_for_sft(
+        _config(),
+        _pages(),
+        teacher_client=teacher,
+        max_records=4,
+    )
+
+    assert result.validation_report["passed"] is True
+    assert result.raw_data["format_meta"]["teacher_repair_used"] is True
+    assert len(result.raw_data["records"]) == 2
+    assert result.raw_data["records"][0]["output"] == "urgent"
+    assert len(teacher.messages.calls) == 3
+    repair_call = teacher.messages.calls[-1]
+    assert repair_call["temperature"] == 0
+    assert "at most 4 objects" in repair_call["messages"][0]["content"]
 
 
 def test_structure_web_sources_respects_synthetic_example_cap(monkeypatch):

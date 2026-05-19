@@ -60,27 +60,14 @@ def structure_web_sources_for_sft(
 
     target_records = _target_web_structuring_records(config, max_records)
     try:
-        message = client.messages.create(
-            model=teacher_model,
-            max_tokens=max(1600, min(target_records, len(source_pages) * 3) * 320),
-            temperature=0.4,
-            system=(
-                "You convert acquired public web source excerpts into supervised "
-                "fine-tuning examples. Return only valid JSON arrays."
-            ),
-            messages=[
-                {
-                    "role": "user",
-                    "content": _structuring_prompt(
-                        config,
-                        schema,
-                        source_pages,
-                        target_records,
-                    ),
-                }
-            ],
+        records, repair_used = _request_teacher_records(
+            client,
+            config,
+            schema,
+            source_pages,
+            teacher_model,
+            target_records,
         )
-        records = _coerce_teacher_records(_parse_json_array(_message_text(message)))
     except Exception as exc:
         if os.getenv("DATA_GENERATOR_WEB_STRUCTURING_STRICT") == "1":
             raise
@@ -96,6 +83,7 @@ def structure_web_sources_for_sft(
                 "schema": schema,
                 "teacher_model": teacher_model,
                 "teacher_used": True,
+                "teacher_repair_used": repair_used,
                 "source_record_count": len(source_pages),
                 "requested_records": target_records,
             },
@@ -142,6 +130,63 @@ def _target_web_structuring_records(
                     return _positive_int(value, DEFAULT_WEB_STRUCTURING_RECORDS)
 
     return DEFAULT_WEB_STRUCTURING_RECORDS
+
+
+def _request_teacher_records(
+    client: Any,
+    config: Mapping[str, Any],
+    schema: DataSchema,
+    source_pages: Sequence[Mapping[str, Any]],
+    teacher_model: str,
+    target_records: int,
+) -> tuple[list[dict[str, Any]], bool]:
+    max_tokens = max(1600, min(target_records, len(source_pages) * 3) * 320)
+    message = client.messages.create(
+        model=teacher_model,
+        max_tokens=max_tokens,
+        temperature=0.4,
+        system=(
+            "You convert acquired public web source excerpts into supervised "
+            "fine-tuning examples. Return only valid JSON arrays."
+        ),
+        messages=[
+            {
+                "role": "user",
+                "content": _structuring_prompt(
+                    config,
+                    schema,
+                    source_pages,
+                    target_records,
+                ),
+            }
+        ],
+    )
+    text = _message_text(message)
+    try:
+        return _coerce_teacher_records(_parse_json_array(text)), False
+    except Exception as parse_exc:
+        repaired = client.messages.create(
+            model=teacher_model,
+            max_tokens=max_tokens,
+            temperature=0,
+            system=(
+                "You repair JSON for a supervised fine-tuning data pipeline. "
+                "Return only a valid JSON array and no prose."
+            ),
+            messages=[
+                {
+                    "role": "user",
+                    "content": _repair_prompt(text, parse_exc, target_records),
+                }
+            ],
+        )
+        try:
+            return _coerce_teacher_records(_parse_json_array(_message_text(repaired))), True
+        except Exception as repair_exc:
+            raise ValueError(
+                "teacher response was not valid JSON and repair failed: "
+                f"{parse_exc}; repair error: {repair_exc}"
+            ) from repair_exc
 
 
 def _positive_int(value: Any, default: int) -> int:
@@ -266,10 +311,61 @@ def _optional_anthropic_client() -> Any | None:
 
 
 def _parse_json_array(text: str) -> list[Any]:
-    parsed = json.loads(_strip_fences(text))
+    stripped = _strip_fences(text)
+    try:
+        parsed = json.loads(stripped)
+    except json.JSONDecodeError:
+        parsed = json.loads(_extract_first_json_array(stripped))
     if not isinstance(parsed, list):
         raise ValueError("teacher response must be a JSON array")
     return parsed
+
+
+def _extract_first_json_array(text: str) -> str:
+    start: int | None = None
+    depth = 0
+    in_string = False
+    escaped = False
+    for index, char in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+
+        if char == '"':
+            in_string = True
+        elif char == "[":
+            if depth == 0:
+                start = index
+            depth += 1
+        elif char == "]" and depth:
+            depth -= 1
+            if depth == 0 and start is not None:
+                return text[start:index + 1]
+
+    return text
+
+
+def _repair_prompt(text: str, parse_error: Exception, max_records: int) -> str:
+    clipped = text[:20000]
+    return f"""Repair this teacher response into valid JSON.
+
+Original parse error:
+{parse_error}
+
+Requirements:
+- Return only a JSON array of at most {max_records} objects.
+- Every object must include "input", "output", and "messages".
+- "messages" must include at least one user message and one assistant message.
+- Use double-quoted JSON property names and string values.
+- Do not add markdown fences or explanation.
+
+Invalid response:
+{clipped}"""
 
 
 def _strip_fences(text: str) -> str:
