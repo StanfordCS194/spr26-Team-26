@@ -16,6 +16,7 @@ Budget cap: $100 total.
 | docs-001 | 2026-05-19 06:13 | #49 | spec-site validation | none | passed | $0.00 | $8.94 | `npm run lint`, `npm run build`, and `git diff --check` passed after updating the Tinker/AutoResearch spec text and fixing the existing Sidebar lint issue. |
 | api-001 | 2026-05-19 06:22 | #50 | backend/frontend API validation | none | passed | $0.00 | $8.94 | FastAPI run bridge tests plus Manager tests passed (`15 passed, 1 skipped`); frontend `npm run lint` and `npm run build` passed. |
 | stack-001 | 2026-05-19 06:26 | #51 | full-stack offline contract | none | passed | $0.00 | $8.94 | New Manager -> DataGen -> DecisionEngine -> real AutoResearch graph -> fake Tinker smoke passed; broad non-live suite passed with `192 passed, 4 skipped`. |
+| datagen-005 | 2026-05-19 06:29 | #52/#51 | chat-message curation contract | none | passed | $0.00 | $8.94 | DataGen preserves chat `messages` through curation; focused cluster passed `36 passed, 1 skipped`; updated #51 broad stack passed `193 passed, 4 skipped`. |
 
 ## Spend Ledger
 
