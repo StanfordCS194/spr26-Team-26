@@ -45,10 +45,11 @@ Budget cap: $100 total.
 | tinker-015 | 2026-05-19 08:03 | local only #55/#56/#57/#58/#59/#60/#61/#62 | live heldout eval validation | Tinker | passed | $2.50 | $41.04 | Direct runner smoke on the 22-row web DataGen `DatasetResult`: `Qwen/Qwen3.5-9B`, 2 steps, split 17 train / 2 val / 3 test. Real `TrainingClient.forward` heldout scoring wrote `val_loss=3.594405844807625`, `test_loss=8.81808090209961`, checkpoints saved, status completed. Artifacts at `outputs/overnight/live-heldout-eval/live-heldout-eval-1779202842`. |
 | stack-011 | 2026-05-19 08:08 | #63 | AutoResearch split propagation validation | none | passed | $0.00 | $41.04 | Draft PR #63 opened. DecisionEngine carries `dataset` metadata on `TrainingPlan`; AutoResearch uses it for eval setup and Tinker calls. Compiled graph fake-runner test proves baseline/candidate calls receive split counts; validation cluster passed `106 passed, 4 skipped`, plus compileall and diff check. |
 | stack-012 | 2026-05-19 08:10 | local only #55/#56/#57/#58/#59/#60/#61/#62/#63 | unpublished full-stack non-live validation | none | passed | $0.00 | $41.04 | Merged #63 into the local unpublished stack. Compileall passed and broad non-live suite excluding live Tinker/HF retrieval passed `206 passed, 7 skipped`. |
+| tinker-016 | 2026-05-19 08:11 | local only #55/#56/#57/#58/#59/#60/#61/#62/#63 | live AutoResearch heldout graph validation | Tinker | passed | $5.00 | $46.04 | Full AutoResearch graph with deterministic proposal on the 22-row web DataGen dataset. Baseline and candidate runner calls both received split 17/2/3; `Qwen/Qwen3.5-9B`, 2 steps each. Candidate `learning_rate=5e-4` improved heldout scalar from `0.0675` to `0.2300`. Local Tinker cost report: `$0.000202`; artifacts at `outputs/overnight/live-autoresearch-heldout-graph/1779203306`. |
 
 ## Spend Ledger
 
-Current estimated cumulative spend: **$41.04 / $100.00**
+Current estimated cumulative spend: **$46.04 / $100.00**
 
 Notes:
 - Tinker billing may not be available through the local code, so per-run spend will be estimated conservatively from run type and observed duration unless a real cost is exposed.
