@@ -14,17 +14,13 @@ Reference: https://docs.tinkerlabs.ai/sdk
 
 from __future__ import annotations
 
+import importlib
 import os
 from typing import Any
 
-try:
-    import tinker                        # pip install tinker
-    from tinker import types as tinker_types
-    _TINKER_AVAILABLE = True
-except ImportError:                      # graceful degradation in test / CI envs
-    tinker = None          # type: ignore[assignment]
-    tinker_types = None    # type: ignore[assignment]
-    _TINKER_AVAILABLE = False
+tinker: Any | None = None
+tinker_types: Any | None = None
+_TINKER_AVAILABLE: bool | None = None
 
 # ── Pricing constant ───────────────────────────────────────────────────────────
 _COST_PER_MILLION_TOKENS: float = 0.40   # USD
@@ -48,11 +44,26 @@ class TinkerAPIError(Exception):
 
 
 def _require_tinker() -> None:
-    if not _TINKER_AVAILABLE:
+    global tinker, tinker_types, _TINKER_AVAILABLE
+    if _TINKER_AVAILABLE is True:
+        return
+    if _TINKER_AVAILABLE is False:
         raise TinkerAPIError(
             "tinker package not installed — run: pip install tinker",
             status_code=0,
         )
+    try:
+        tinker = importlib.import_module("tinker")
+        tinker_types = importlib.import_module("tinker.types")
+        _TINKER_AVAILABLE = True
+    except ImportError as exc:           # graceful degradation in test / CI envs
+        tinker = None
+        tinker_types = None
+        _TINKER_AVAILABLE = False
+        raise TinkerAPIError(
+            "tinker package not installed — run: pip install tinker",
+            status_code=0,
+        ) from exc
 
 
 def _env_flag_enabled(name: str) -> bool:

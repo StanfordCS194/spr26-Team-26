@@ -4,6 +4,7 @@ All tests mock the `tinker` package so the suite runs without the SDK
 installed (CI / dev environments).
 """
 
+import builtins
 import sys
 import types as builtin_types
 from unittest.mock import MagicMock, patch
@@ -418,6 +419,28 @@ def test_no_spend_guards_allow_ledger_and_cancel_helpers(
 
     api.cancel_job("guarded-job")
     assert api.is_cancelled("guarded-job")
+
+
+def test_no_spend_guard_does_not_import_tinker_sdk(monkeypatch):
+    _remove_tinker_mock()
+    sys.modules.pop("src.tinker_api.tinker_api", None)
+    monkeypatch.setenv("NO_SPEND", "1")
+
+    real_import = builtins.__import__
+
+    def fail_tinker_import(name, *args, **kwargs):
+        if name == "tinker" or name.startswith("tinker."):
+            raise AssertionError("no-spend guard should not import tinker")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fail_tinker_import)
+
+    import importlib
+
+    api = importlib.import_module("src.tinker_api.tinker_api")
+    assert api._TINKER_AVAILABLE is None
+    _assert_live_tinker_call_blocked(api, api.create_service_client, "NO_SPEND=1")
+    assert api._TINKER_AVAILABLE is None
 
 
 # ---------------------------------------------------------------------------
