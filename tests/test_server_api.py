@@ -26,21 +26,21 @@ def _write_tinker_artifacts(
     primary_metric: float = 0.775,
     sample_text: str = "sample completion",
     metric_rows: list[dict] | None = None,
+    status: str = "COMPLETED",
+    error: str | None = None,
 ) -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
     checkpoints = {"state_path": state_path}
     if sampler_path:
         checkpoints["sampler_path"] = sampler_path
-    (run_dir / "manifest.json").write_text(
-        json.dumps(
-            {
-                "run_id": run_id,
-                "status": "COMPLETED",
-                "checkpoints": checkpoints,
-            }
-        ),
-        encoding="utf-8",
-    )
+    manifest = {
+        "run_id": run_id,
+        "status": status,
+        "checkpoints": checkpoints,
+    }
+    if error:
+        manifest["error"] = error
+    (run_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     (run_dir / "metrics.json").write_text(
         json.dumps(
             {
@@ -530,6 +530,65 @@ def test_budget_preflight_skip_is_not_reported_as_complete(tmp_path, monkeypatch
     manifest_response = client.get(f"/api/runs/{run_id}/artifacts/manifest")
     assert manifest_response.status_code == 200
     assert manifest_response.json()["budget_preflight_skipped"] is True
+
+
+@pytest.mark.parametrize(
+    ("manifest_status", "api_status", "log_type"),
+    [
+        ("FAILED", "failed", "error"),
+        ("CANCELLED", "cancelled", "warning"),
+    ],
+)
+def test_selected_training_artifact_terminal_status_controls_api_status(
+    tmp_path,
+    monkeypatch,
+    manifest_status,
+    api_status,
+    log_type,
+):
+    monkeypatch.chdir(tmp_path)
+
+    def fake_invoke(prompt, budget, data_path=None, **_kwargs):
+        root = get_output_root()
+        assert root is not None
+        run_dir = root / "experiments" / "terminal-artifact"
+        _write_tinker_artifacts(
+            run_dir,
+            run_id="terminal-artifact",
+            state_path="tinker://state/terminal",
+            status=manifest_status,
+            error="runner reported terminal artifact status",
+        )
+        result = _fake_model(root, total_cost=1.25)
+        result["weights_path"] = str(run_dir)
+        return result
+
+    monkeypatch.setattr(server_app, "invoke_manager_graph", fake_invoke)
+    client = TestClient(server_app.app)
+
+    response = client.post(
+        "/api/runs",
+        json={
+            "prompt": "Fine tune with a terminal artifact status",
+            "budget": 10,
+            "task_type": "fine-tuning",
+        },
+    )
+
+    assert response.status_code == 200
+    run_id = response.json()["run_id"]
+    state = _wait_for_status(client, run_id, api_status)
+
+    assert state["status"] == api_status
+    assert state["error"] == "runner reported terminal artifact status"
+    assert state["artifacts"]["modelPath"].endswith("experiments/terminal-artifact")
+    assert any(
+        item["type"] == log_type and "terminal artifact status" in item["message"]
+        for item in state["logs"]
+    )
+    manifest_response = client.get(f"/api/runs/{run_id}/artifacts/manifest")
+    assert manifest_response.status_code == 200
+    assert manifest_response.json()["status"] == manifest_status
 
 
 def test_running_run_keeps_previous_artifacts_when_newer_experiment_is_incomplete(

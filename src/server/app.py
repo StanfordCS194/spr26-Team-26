@@ -553,8 +553,30 @@ def _budget_preflight_skip_reason_from_result(
     return reason or "budget preflight skipped the Tinker launch"
 
 
+def _selected_training_terminal_state(
+    record: _RunRecord,
+    result: dict[str, Any],
+) -> tuple[str | None, str | None]:
+    model_path = _resolve_reported_path(record, result.get("weights_path"))
+    manifest = _read_json_if_exists(model_path / "manifest.json") if model_path else None
+    status = str((manifest or {}).get("status") or "").strip().upper()
+    if status not in {"FAILED", "CANCELLED"}:
+        return None, None
+
+    reason = str(
+        (manifest or {}).get("error")
+        or (manifest or {}).get("reason")
+        or (manifest or {}).get("status_reason")
+        or ""
+    ).strip()
+    if not reason:
+        reason = f"selected training artifact reported status {status}"
+    return status.lower(), reason
+
+
 def _store_manager_result(record: _RunRecord, result: dict[str, Any]) -> None:
     budget_skip_reason = _budget_preflight_skip_reason_from_result(record, result)
+    terminal_status, terminal_reason = _selected_training_terminal_state(record, result)
     record.result = result
     record.cost_spent = float((result.get("cost") or {}).get("total_usd") or 0.0)
     metric = _metric_from_result(result)
@@ -571,6 +593,15 @@ def _store_manager_result(record: _RunRecord, result: dict[str, Any]) -> None:
             "Manager",
             f"Training skipped by budget guard: {budget_skip_reason}",
             "warning",
+        )
+    elif terminal_status:
+        record.status = terminal_status
+        record.error = terminal_reason
+        _append_log(
+            record,
+            "Manager",
+            f"Training artifact ended with status {terminal_status}: {terminal_reason}",
+            "error" if terminal_status == "failed" else "warning",
         )
     else:
         record.status = "complete"
