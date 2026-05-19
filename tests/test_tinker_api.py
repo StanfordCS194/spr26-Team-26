@@ -12,6 +12,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
+_MISSING = object()
+
+
 # ---------------------------------------------------------------------------
 # Helpers — build a minimal fake tinker package
 # ---------------------------------------------------------------------------
@@ -53,16 +56,40 @@ def fresh_tinker_state(monkeypatch):
     monkeypatch.delenv("NO_SPEND", raising=False)
     monkeypatch.delenv("TINKER_BACKEND", raising=False)
 
+    parent_package = sys.modules.get("src.tinker_api")
+    previous_package_attr = (
+        getattr(parent_package, "tinker_api", _MISSING)
+        if parent_package is not None
+        else _MISSING
+    )
+    previous_modules = {
+        name: sys.modules.get(name, _MISSING)
+        for name in ("tinker", "tinker.types", "src.tinker_api.tinker_api")
+    }
+
     tinker_mod, types_mod = _make_tinker_mock()
     _install_tinker_mock(tinker_mod, types_mod)
 
     # Force re-import so the module picks up the mocked tinker
     sys.modules.pop("src.tinker_api.tinker_api", None)
+    if parent_package is not None and hasattr(parent_package, "tinker_api"):
+        delattr(parent_package, "tinker_api")
 
     yield tinker_mod, types_mod
 
     _remove_tinker_mock()
     sys.modules.pop("src.tinker_api.tinker_api", None)
+    for name, module in previous_modules.items():
+        if module is _MISSING:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = module
+    if parent_package is not None:
+        if previous_package_attr is _MISSING:
+            if hasattr(parent_package, "tinker_api"):
+                delattr(parent_package, "tinker_api")
+        else:
+            setattr(parent_package, "tinker_api", previous_package_attr)
 
 
 def _api():
