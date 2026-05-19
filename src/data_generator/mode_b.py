@@ -17,9 +17,12 @@ def parse_explicit_hf_dataset_ids(config: OrchestrationConfig, data_path: str | 
 
     tp = config.get("training_procedure", {})
     if isinstance(tp, dict):
-        for key in ("hf_dataset_ids", "hf_dataset_urls", "dataset_ids", "sources", "notes"):
+        for key in ("hf_dataset_ids", "hf_dataset_urls", "dataset_ids", "sources"):
             value = tp.get(key)
             raw_items.extend(_coerce_source_tokens(value))
+        notes = tp.get("notes")
+        if isinstance(notes, str):
+            raw_items.extend(_extract_hf_mentions(notes))
 
     # New orchestrator envelope format support.
     data_request = config.get("data_request")  # type: ignore[arg-type]
@@ -148,9 +151,9 @@ def _coerce_source_tokens(value: object) -> list[str]:
 
 def _extract_hf_mentions(value: str) -> list[str]:
     mentions: list[str] = []
-    for match in re.findall(r"huggingface\.co/datasets/([A-Za-z0-9._-]+/[A-Za-z0-9._-]+)", value):
+    for match in re.findall(r"hf://([A-Za-z0-9._-]+/[A-Za-z0-9._-]+)", value):
         mentions.append(match)
-    for match in re.findall(r"\b([A-Za-z0-9._-]+/[A-Za-z0-9._-]+)\b", value):
+    for match in re.findall(r"huggingface\.co/datasets/([A-Za-z0-9._-]+/[A-Za-z0-9._-]+)", value):
         mentions.append(match)
     return mentions
 
