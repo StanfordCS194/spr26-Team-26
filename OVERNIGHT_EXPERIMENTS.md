@@ -50,6 +50,7 @@ Budget cap: $100 total.
 | stack-014 | 2026-05-19 08:14 | local only #55/#56/#57/#58/#59/#60/#61/#62/#63/#64 | unpublished full-stack non-live validation | none | passed | $0.00 | $46.04 | Merged #64 into the local unpublished stack. Compileall passed and broad non-live suite excluding live Tinker/HF retrieval passed `207 passed, 7 skipped`. |
 | datagen-009 | 2026-05-19 08:15 | local only #64 stack | live Mode B source split partial | Hugging Face public dataset pull | passed | $0.00 | $46.04 | `SetFit/sst2` with `DATA_GENERATOR_MAX_ROWS_PER_DATASET=6` retrieved source splits `train, train, validation, validation, test, test`; curation wrote split counts 2 train / 2 val / 2 test and valid JSONL. Artifacts at `outputs/overnight/live-mode-b-source-splits`. |
 | stack-015 | 2026-05-19 08:19 | #65 | batched heldout eval validation | none | passed | $0.00 | $46.04 | Draft PR #65 opened. Tinker heldout eval now forwards val/test examples in batches and aggregates losses by token weights or example counts. Validation cluster passed `81 passed, 3 skipped`, plus compileall and diff check. |
+| stack-016 | 2026-05-19 08:20 | local only #55/#56/#57/#58/#59/#60/#61/#62/#63/#64/#65 | unpublished full-stack non-live validation | none | passed | $0.00 | $46.04 | Merged #65 into the local unpublished stack. Compileall passed and broad non-live suite excluding live Tinker/HF retrieval passed `208 passed, 7 skipped`. |
 
 ## Spend Ledger
 
