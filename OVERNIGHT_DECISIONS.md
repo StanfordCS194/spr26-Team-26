@@ -68,3 +68,4 @@
 - 2026-05-19 11:16 PDT — Keep docs/source-of-truth updates on the existing spec docs PR when they describe the same Tinker V1 contract, rather than creating another docs branch.
 - 2026-05-19 11:16 PDT — Treat backend artifact `downloadPath` values as API-rooted contract paths. The frontend helper should only prepend a host/base when needed, never blindly concatenate `/api` twice.
 - 2026-05-19 11:20 PDT — In Mode C, `DATA_GENERATOR_WEB_STRUCTURING=auto` means "prefer teacher-structured web data, but keep the no-data path trainable." `required` remains the mode for failing loudly when teacher-backed web structuring cannot produce valid SFT rows.
+- 2026-05-19 11:27 PDT — Eval-suite adaptation is a live LLM enhancement, not a mandatory loop invariant. Default `auto` should skip it without `ANTHROPIC_API_KEY`; `required` is the explicit mode for spending/credentialed adaptation during live experiments.

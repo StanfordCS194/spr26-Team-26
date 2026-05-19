@@ -248,5 +248,11 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
 - #49 now also updates root `README.md` and `Home.md` to describe the current
   Tinker chat/SFT V1 scope instead of stale image-classification, pretraining,
   and REST-job promises. Spec-site lint/build passed after the docs refresh.
+- #91 guards AutoResearch eval-suite adaptation so iteration 10 does not
+  unexpectedly require or spend Anthropic credits in default no-live runs.
+  `AUTORESEARCH_EVAL_ADAPTATION=auto` now adapts only when
+  `ANTHROPIC_API_KEY` is configured, `off` disables it, and `required` preserves
+  the explicit live path. Branch no-live suite passed (`168 passed, 4 skipped`);
+  composed stack through #91 passed (`264 passed, 6 skipped`).
 
 Current conservative live spend: `$94.14 / $100.00`.
