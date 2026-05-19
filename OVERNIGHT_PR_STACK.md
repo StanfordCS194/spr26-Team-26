@@ -18,6 +18,7 @@ having to infer dependencies from GitHub.
    - #61 `codex/autoresearch-min-improvement` -> #59
    - #63 `codex/autoresearch-dataset-splits` -> #61
    - #66 `codex/tinker-primary-metric-plan` -> #63
+   - #69 `codex/autoresearch-budget-preflight` -> #66
 3. Tinker runner chain:
    - #43 `codex/tinker-single-assistant-rendering` -> #35
    - #57 `codex/tinker-live-loss-metrics` -> #43
@@ -59,11 +60,11 @@ having to infer dependencies from GitHub.
 ## Latest Local Stack Validation
 
 Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
-#62, #63, #64, #65, #66, #67, and #68 on top of #51.
+#62, #63, #64, #65, #66, #67, #68, and #69 on top of #51.
 
 - `python3 -m compileall src`
-- Broad non-live suite excluding live Tinker and live Hugging Face retrieval:
-  `208 passed, 7 skipped`
+- Full non-live suite with live Tinker/HF cases skipped by default:
+  `219 passed, 9 skipped`
 - Live #62 heldout smoke on the 22-row web DataGen dataset completed with
   split 17/2/3, saved checkpoints, `val_loss=3.5944`, and `test_loss=8.8181`.
 - Live full AutoResearch graph smoke with #62/#63 completed with split 17/2/3
@@ -83,5 +84,10 @@ Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
   run. Local stack with #68 passed `214 passed, 9 skipped`; corrected live
   Mode B/Tinker rerun selected only `SetFit/sst2`, had no curation issues, and
   kept the `learning_rate=5e-4` candidate.
+- #69 added AutoResearch budget preflight before Tinker launch. It uses explicit
+  per-launch `estimated_run_cost_usd` when present, writes cancelled artifacts
+  for skipped runs, and labels budget skips separately from catastrophic model
+  failures. The local stack caught and fixed an initial over-conservative use of
+  plan-level `estimated_cost`.
 
 Current conservative live spend: `$58.54 / $100.00`.
