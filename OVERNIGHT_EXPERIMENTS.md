@@ -22,10 +22,13 @@ Budget cap: $100 total.
 | hf-001 | 2026-05-19 06:53 | #54/#51 | accidental broad HF retrieval start | Hugging Face public dataset pull | stopped | $0.00 | $8.94 | An overly broad pytest command entered the existing live HF retrieval suite. Stopped it once identified; no Tinker, Anthropic, or Tavily spend. |
 | stack-004 | 2026-05-19 06:54 | #51 temporary local merge | refreshed full-stack non-live validation | none | passed | $0.00 | $8.94 | Temporarily folded #53 and #54 into #51; `python3 -m compileall src`; non-live suite excluding live Tinker and live HF retrieval passed with `196 passed, 6 skipped`. This integration push was reset because it auto-marked leaf drafts as merged. |
 | hygiene-001 | 2026-05-19 06:58 | #55/#56/#51 | PR hygiene correction | none | complete | $0.00 | $8.94 | Reset #51 back to `680c5c5`; opened replacement drafts #55 and #56 so the leaf changes remain reviewable and unmerged; deleted obsolete remote heads for #53/#54. |
+| datagen-006 | 2026-05-19 07:04 | #51 stack | live web structuring partial | Tavily, Anthropic | passed | $0.35 | $9.29 | One Tavily query -> 3 results -> 2 crawled pages -> 6 Claude-structured chat/SFT rows -> curation passed. |
+| tinker-005 | 2026-05-19 07:07 | #51 stack/#43 | live web-data Tinker smoke | Tinker | passed with metric bug | $1.00 | $10.29 | 2-step `Qwen/Qwen3.5-9B` run on live web-structured JSONL completed and saved checkpoint/sample, but runner reported bogus zero loss. Local Tinker cost report: `$0.000047`. |
+| tinker-006 | 2026-05-19 07:13 | #57 | live loss metric validation | Tinker | passed | $0.50 | $10.79 | 1-step `Qwen/Qwen3.5-9B` validation after #57 fix reported real `train_loss=24.81933307647705`. Local Tinker cost report: `$0.000025`. |
 
 ## Spend Ledger
 
-Current estimated cumulative spend: **$8.94 / $100.00**
+Current estimated cumulative spend: **$10.79 / $100.00**
 
 Notes:
 - Tinker billing may not be available through the local code, so per-run spend will be estimated conservatively from run type and observed duration unless a real cost is exposed.
