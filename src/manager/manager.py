@@ -16,10 +16,8 @@ from src.types import (
     DatasetResult,
     ManagerState,
     OrchestrationConfig,
-    StandardDataset,
     TaskReasoning,
     TrainedModel,
-    ValidationReport,
 )
 
 LOG_PATH = os.environ.get("DECISIONS_LOG", "decisions.jsonl")
@@ -205,40 +203,9 @@ def _handoff_to_dataset_result(handoff: dict) -> DatasetResult:
 
     Persists records to outputs/datasets/train_data.jsonl and computes an 80/10/10 split.
     """
-    mode = handoff.get("mode_used", "C")
-    raw_data = handoff.get("raw_data") or {}
-    records: list = raw_data.get("records", []) if isinstance(raw_data, dict) else []
+    from src.data_generator.curation import curate_handoff_to_dataset_result
 
-    os.makedirs("outputs/datasets", exist_ok=True)
-    dataset_path = os.path.abspath("outputs/datasets/train_data.jsonl")
-    with open(dataset_path, "w") as fh:
-        for rec in records:
-            import json as _json
-            fh.write(_json.dumps(rec) + "\n")
-
-    n = len(records)
-    train_n = max(1, int(n * 0.8))
-    val_n   = max(1, int(n * 0.1))
-    test_n  = max(1, n - train_n - val_n)
-
-    dataset: StandardDataset = {
-        "path": dataset_path,
-        "format": "jsonl",
-        "train_size": train_n,
-        "val_size": val_n,
-        "test_size": test_n,
-    }
-    validation_report: ValidationReport = {
-        "passed": n > 0,
-        "issues": [] if n > 0 else ["DataGen returned 0 records"],
-        "sample_accuracy_estimate": 0.9 if n > 0 else 0.0,
-    }
-    return DatasetResult(
-        dataset=dataset,
-        mode_used=mode,
-        quality_notes=f"DataGen mode {mode}, {n} records",
-        validation_report=validation_report,
-    )
+    return curate_handoff_to_dataset_result(handoff)
 
 
 def build_orchestration_config(
