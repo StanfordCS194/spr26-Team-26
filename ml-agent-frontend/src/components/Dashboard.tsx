@@ -149,7 +149,9 @@ function ProvenanceBadges({ state }: { state: TrainingState }) {
   );
 }
 
-function CancelledArtifacts({ state, onReset }: Props) {
+function TerminalArtifacts({ state, onReset }: Props) {
+  const isFailed = state.status === 'failed';
+  const tone = isFailed ? 'var(--danger)' : 'var(--warning)';
   const lastMetric = state.metrics[state.metrics.length - 1];
   const bestIter = state.iterations.find(i => i.status === 'KEPT') ?? state.iterations[0];
   const artifactFiles = state.artifacts?.files.filter(file => file.exists) ?? [];
@@ -177,12 +179,12 @@ function CancelledArtifacts({ state, onReset }: Props) {
     <section
       style={{
         background: 'var(--bg-surface)',
-        border: '0.5px solid var(--warning)',
+        border: `0.5px solid ${tone}`,
         borderRadius: 'var(--radius)',
         padding: '1.5rem',
         marginBottom: '1.5rem',
       }}
-      aria-label="Cancelled run artifacts"
+      aria-label={isFailed ? 'Failed run artifacts' : 'Cancelled run artifacts'}
     >
       <div style={{ marginBottom: '1.25rem', textAlign: 'center' }}>
         <span style={{
@@ -192,17 +194,19 @@ function CancelledArtifacts({ state, onReset }: Props) {
           fontSize: '11px',
           fontWeight: 600,
           letterSpacing: '0.1em',
-          color: 'var(--warning)',
+          color: tone,
           background: 'var(--bg-elevated)',
-          border: '0.5px solid var(--warning)',
+          border: `0.5px solid ${tone}`,
           borderRadius: '4px',
           padding: '3px 10px',
           marginBottom: '0.75rem',
         }}>
-          CANCELLED RUN ARTIFACTS
+          {isFailed ? 'FAILED RUN ARTIFACTS' : 'CANCELLED RUN ARTIFACTS'}
         </span>
         <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-          This run was cancelled before completion. The latest checkpoint metrics and downloadable files are still available.
+          {isFailed
+            ? 'This run failed before completion. Any checkpoint metrics and downloadable files produced before failure are still available.'
+            : 'This run was cancelled before completion. The latest checkpoint metrics and downloadable files are still available.'}
         </p>
       </div>
 
@@ -303,6 +307,7 @@ function CancelledArtifacts({ state, onReset }: Props) {
 export default function Dashboard({ state, onReset, onCancel }: Props) {
   const canCancel = state.status === 'running' || state.status === 'cancelling';
   const hasCancelledArtifacts = state.status === 'cancelled' && Boolean(state.artifacts);
+  const hasTerminalArtifacts = (state.status === 'cancelled' || state.status === 'failed') && Boolean(state.artifacts);
 
   return (
     <div style={{ minHeight: '100vh' }}>
@@ -478,7 +483,7 @@ export default function Dashboard({ state, onReset, onCancel }: Props) {
         {state.status === 'complete' && (
           <FinalResults state={state} onReset={onReset} />
         )}
-        {hasCancelledArtifacts && <CancelledArtifacts state={state} onReset={onReset} onCancel={onCancel} />}
+        {hasTerminalArtifacts && <TerminalArtifacts state={state} onReset={onReset} onCancel={onCancel} />}
       </main>
     </div>
   );
