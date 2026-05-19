@@ -99,5 +99,7 @@ Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
 - #72 records launched Tinker runs at a conservative spend floor of
   `max(reported_cost_usd, estimated_run_cost_usd)`. Budget preflight skips
   still record zero because no SDK call happened.
+- Live #72 budget-floor validation completed with baseline + one candidate
+  Tinker run and stopped at the exact software budget `$2.24`.
 
-Current conservative live spend: `$58.54 / $100.00`.
+Current conservative live spend: `$63.54 / $100.00`.

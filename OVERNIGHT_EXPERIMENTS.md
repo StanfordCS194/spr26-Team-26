@@ -64,10 +64,11 @@ Budget cap: $100 total.
 | stack-022 | 2026-05-19 09:02 | #70/#71 / local only #55-#71 stack | bounded run estimate + integration contract | none | passed | $0.00 | $58.54 | Draft PR #70 opened to populate `estimated_run_cost_usd` from DecisionEngine and #71 opened to rescale the full-stack fake budget contract. Focused validation passed (`65 passed` for #70, `27 passed` for #71). Local unpublished stack with #55-#71 passed compileall and full non-live suite (`224 passed, 9 skipped`). |
 | stack-023 | 2026-05-19 09:03 | local only #55-#71 stack | no-spend budget preflight path | none | passed | $0.00 | $58.54 | Manager/DataGen/DecisionEngine/AutoResearch with synthetic offline data and `$0.50` budget refused Tinker before launch. Result: `n_iterations=0`, `termination_reason=budget_limit`, recorded spend `$0.00`, cancelled artifacts under `outputs/experiments/autoresearch-baseline-*`. |
 | stack-024 | 2026-05-19 09:06 | #72 / local only #55-#72 stack | estimated spend floor validation | none | passed | $0.00 | $58.54 | Draft PR #72 opened to account launched Tinker runs at `max(reported_cost_usd, estimated_run_cost_usd)` while preserving zero-cost budget skips. Focused branch validation passed (`77 passed`), broad branch suite passed (`162 passed, 5 skipped`), and local unpublished stack passed compileall plus full non-live suite (`225 passed, 9 skipped`). |
+| tinker-020 | 2026-05-19 09:08 | local only #55-#72 stack | live budget-floor AutoResearch validation | Tinker | passed | $5.00 | $63.54 | Offline synthetic DataGen, deterministic proposal, baseline plus one 2-step candidate on `Qwen/Qwen3.5-9B`. Candidate `learning_rate=5e-4` kept with scalar `0.9549`; estimated spend floor recorded `$2.24` and stopped the graph at `termination_reason=budget_limit`. Artifacts at `outputs/overnight/live-budget-floor/live-budget-floor-1779206833`; final weights path `outputs/experiments/autoresearch-iteration-0-77026125`. |
 
 ## Spend Ledger
 
-Current estimated cumulative spend: **$58.54 / $100.00**
+Current estimated cumulative spend: **$63.54 / $100.00**
 
 Notes:
 - Tinker billing may not be available through the local code, so per-run spend will be estimated conservatively from run type and observed duration unless a real cost is exposed.
