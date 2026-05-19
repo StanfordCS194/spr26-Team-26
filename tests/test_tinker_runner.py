@@ -979,6 +979,104 @@ def test_autoresearch_records_estimated_cost_floor(monkeypatch, tmp_path):
     assert state["cost_manager"].spent_usd == 1.0
     assert result["should_stop"] is False
 
+def test_autoresearch_graph_uses_dry_run_tinker_backend_without_sdk(
+    monkeypatch,
+    tmp_path,
+):
+    pytest.importorskip("langgraph", reason="langgraph not installed")
+
+    import src.autoresearch.autoresearch as ar
+    import src.tinker_api.sft_runner as sft_runner
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("TINKER_BACKEND", "dry_run")
+    monkeypatch.setenv("AUTORESEARCH_PROPOSER", "claude")
+    monkeypatch.delenv("TINKER_API_KEY", raising=False)
+
+    data_path = _write_jsonl(
+        tmp_path / "train.jsonl",
+        [
+            {"input": "question one", "output": "answer one"},
+            {"input": "question two", "output": "answer two"},
+        ],
+    )
+    config_path = tmp_path / "configs" / "current.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        json.dumps(
+            {
+                "model_name": "Qwen/Qwen3.5-9B",
+                "learning_rate": 1e-4,
+                "batch_size": 1,
+                "max_steps": 1,
+            }
+        )
+    )
+
+    monkeypatch.setattr(ar, "_CONFIG_PATH", config_path)
+    monkeypatch.setattr(
+        ar,
+        "_DIARY_PATH",
+        tmp_path / "outputs" / "logs" / "diary.jsonl",
+    )
+    monkeypatch.setattr(ar, "_MAX_ITERATIONS", 1)
+
+    def fail_if_live_sdk_loads():
+        raise AssertionError("dry-run graph should not load Tinker SDK dependencies")
+
+    monkeypatch.setattr(sft_runner, "_load_tinker_deps", fail_if_live_sdk_loads)
+
+    proposed_allowed_params = []
+
+    def fake_propose_hypothesis(current_config, diary, task, allowed_params=None):
+        proposed_allowed_params.append(allowed_params)
+        return {
+            "description": "Nudge learning_rate upward for a dry-run graph smoke.",
+            "patch": json.dumps({"learning_rate": 2e-4}),
+            "expected_effect": "Dry-run loss should remain finite.",
+            "search_strategy": "local",
+        }
+
+    monkeypatch.setattr(ar, "propose_hypothesis", fake_propose_hypothesis)
+    plan = _autoresearch_state(str(data_path))["plan"]
+    config = _autoresearch_state(str(data_path))["config"]
+    config["compute_budget"] = 10.0
+    config["training_procedure"]["hyperparameters"] = {
+        "learning_rate": 1e-4,
+        "batch_size": 1,
+        "max_steps": 1,
+    }
+
+    trained_model = ar.invoke_autoresearch_graph(plan, config, cost_manager=None)
+
+    experiment_dirs = sorted((tmp_path / "outputs" / "experiments").iterdir())
+    manifests = [
+        _assert_strict_json_file(experiment_dir / "manifest.json")
+        for experiment_dir in experiment_dirs
+    ]
+    diary_path = tmp_path / "outputs" / "logs" / "diary.jsonl"
+    diary_rows = [
+        _strict_json(line)
+        for line in diary_path.read_text().splitlines()
+        if line.strip()
+    ]
+
+    assert len(experiment_dirs) == 2
+    assert {manifest["backend"] for manifest in manifests} == {"dry_run"}
+    assert all(manifest["completed_steps"] == 1 for manifest in manifests)
+    assert all(
+        (experiment_dir / "metrics.json").exists()
+        for experiment_dir in experiment_dirs
+    )
+    assert all(
+        (experiment_dir / "sample.json").exists()
+        for experiment_dir in experiment_dirs
+    )
+    assert len(diary_rows) == 1
+    assert trained_model["n_iterations"] == 1
+    assert trained_model["metrics"]["scalar"] > 0
+    assert proposed_allowed_params == [sorted(sft_runner.SUPPORTED_TINKER_TUNABLES)]
+
 
 def _write_jsonl(path: Path, rows: list[dict]) -> Path:
     path.write_text("".join(json.dumps(row) + "\n" for row in rows))
