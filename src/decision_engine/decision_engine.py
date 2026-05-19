@@ -8,6 +8,7 @@ estimates cost, and writes the training script passed to AutoResearch.
 
 from __future__ import annotations
 
+import math
 import os
 from textwrap import dedent
 
@@ -79,6 +80,7 @@ def run_decision_engine(
         base_model=model_id,
         lora_config=lora,
         estimated_cost=cost["estimated_usd"],
+        estimated_run_cost_usd=estimate_autoresearch_run_cost(cost, config, dataset),
         estimated_time_min=cost["estimated_time_min"],
         training_script_path=script_path,
         eval_metric="primary_metric" if backend == "tinker_sft" else task["eval_metric"],
@@ -86,6 +88,38 @@ def run_decision_engine(
         dataset_path=dataset["dataset"]["path"],
         dataset=dataset["dataset"],
     )
+
+
+def estimate_autoresearch_run_cost(
+    cost: CostEstimate,
+    config: OrchestrationConfig,
+    dataset: DatasetResult,
+) -> float:
+    """Estimate one bounded AutoResearch Tinker launch from the full plan cost."""
+    total_cost = max(0.0, float(cost["estimated_usd"]))
+    if total_cost == 0.0:
+        return 0.0
+
+    hp = config["training_procedure"].get("hyperparameters", {})
+    max_steps = hp.get("max_steps")
+    if max_steps is None:
+        return round(total_cost, 4)
+
+    train_size = _positive_int(dataset["dataset"].get("train_size"), default=1)
+    batch_size = _positive_int(hp.get("batch_size"), default=16)
+    epochs = _positive_int(hp.get("num_epochs", hp.get("epochs")), default=3)
+    full_steps = max(1, math.ceil(train_size / batch_size) * epochs)
+    bounded_steps = _positive_int(max_steps, default=full_steps)
+    ratio = min(1.0, bounded_steps / full_steps)
+    return round(min(total_cost, max(0.01, total_cost * ratio)), 4)
+
+
+def _positive_int(value, *, default: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
 
 
 def analyze_task(config: OrchestrationConfig) -> TaskAnalysis:
