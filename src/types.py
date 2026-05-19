@@ -260,17 +260,23 @@ class ManagerState(TypedDict):
     result: TrainedModel | None
 
 
-class DataGenState(TypedDict):
+class DataGenState(TypedDict, total=False):
     config: OrchestrationConfig
     data_path: str | None
-    mode: str | None           # 'A' | 'B' | 'C'
+    mode: str | None
     raw_data: RawData | None
     hf_candidates: list[HFCandidate]
     selected_candidate: HFCandidate | None
-    schema: DataSchema | None
-    dataset: StandardDataset | None
-    validation_report: ValidationReport | None
+    schema: dict | None
+    dataset: dict | None
+    validation_report: dict | None
     handoff: dict | None
+
+    # Mode C web acquisition fields
+    web_plan: dict | None
+    web_search_results: list[dict]
+    web_pages: list[dict]
+    human_readable: str | None
 
 
 class AutoResearchState(TypedDict):

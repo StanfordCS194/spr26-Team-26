@@ -61,10 +61,12 @@ User
 │   Data Generator  [LangGraph]       │
 │   StateGraph(DataGenState)          │
 │                                     │
-│   route ──► mode_a ──► validate     │
-│         └─► mode_b_search           │◄── HuggingFace Hub API
-│               ├─► mode_b_download   │
-│               └─► mode_c ──────────►│◄── Claude API (teacher)
+│   Sub-agent 1: acquisition/routing  │
+│   route ──► mode_a / mode_b / mode_c│
+│         (HF + web/teacher retrieval)│
+│                 │ handoff payload   │
+│   Sub-agent 2: curation/validation  │
+│   structure_data + validate + split │
 └───────────────┬─────────────────────┘
                 │  DatasetResult  (in DataGenState)
                 ▼
@@ -282,63 +284,54 @@ invoke_manager_graph(prompt, budget, data_path?) → TrainedModel
     architecture: `The Data Generator is implemented as a LangGraph StateGraph(DataGenState). Its defining characteristic is three-way conditional routing — the right path depends on runtime information (does the user have data? does a HuggingFace dataset exist for this task?) that isn't knowable upfront. LangGraph conditional edges make this branching explicit and testable.
 
 Graph nodes and routing:
-  route_node — inspects state.data_path and dispatches to mode_a_node, or to mode_b_search_node (preferred), or directly to mode_c_node (if we already know search will fail).
-  mode_a_node — loads, detects, normalizes, and optionally augments user-provided data.
-  mode_b_search_node — searches HuggingFace Hub for a candidate dataset.
-  hf_found_edge — conditional edge: if a candidate was found, go to mode_b_download_node; otherwise fall through to mode_c_node.
-  mode_b_download_node — downloads and normalizes the HuggingFace dataset.
-  mode_c_node — generates synthetic data via Claude API (or scrapes web as fallback), then morphs to standard format.
-  validate_node — runs on every path before END; produces the ValidationReport in DatasetResult.
+  route_node — inspects state.data_path + explicit HF dataset IDs and sets state.mode ('A' | 'B' | 'C').
+  select_mode_edge — conditional edge: mode A -> acquire_user_data_node, mode B -> acquire_hf_data_node, mode C -> acquire_web_data_node.
+  select_curation_edge — conditional edge after acquisition: mode A/C -> handoff_structure_data_node, mode B -> handoff_validate_hf_node.
+  acquire_user_data_node — loads user-provided raw data.
+  acquire_hf_data_node — parses explicit HF IDs/URLs and fetches records from Hugging Face datasets.
+  acquire_web_data_node — fallback acquisition path for Mode C.
+  handoff_structure_data_node / handoff_validate_hf_node — emits the handoff payload for Data Curation sub-agent.
 
-All existing implementation functions (load_raw_data, search_huggingface, generate_synthetic_data, etc.) are called inside their respective node functions. Their signatures don't change — they remain plain functions that take explicit arguments.
+Mode B uses parse_explicit_hf_dataset_ids, build_explicit_hf_candidates, and fetch_hf_datasets inside acquire_hf_data_node.
 
-The external interface is invoke_data_generator_graph(config, data_path) — the orchestrate_node in the Manager graph calls this.`,
+The external interface is invoke_data_generator_graph(config, data_path) — the orchestrate_node in the Manager graph calls this and receives a handoff payload for sub-agent 2.`,
     flowDiagram: `
 build_data_generator_graph() → CompiledStateGraph[DataGenState]
 
 DataGenState = TypedDict:
   config, data_path, mode,
   raw_data, hf_candidates, selected_candidate,
-  schema, dataset, validation_report
+  schema, dataset, validation_report, handoff
 
 Graph nodes and edges:
   START
     │
     ▼
-  route_node               inspects data_path → sets mode
+  route_node               inspects data_path + explicit HF IDs → sets mode
     │
     ├─[mode == "A"]──────────────────────────────────────────────
     │   ▼
-    │   mode_a_node         load_raw_data → detect_format →
-    │                       normalize_and_clean → augment_with_synthetic?
+    │   acquire_user_data   load_raw_data
     │   │
-    │   └──────────────────────────────────────────► validate_node
+    │   └──────────────► select_curation_edge ─► structure_data
     │
     ├─[mode == "B"]──────────────────────────────────────────────
     │   ▼
-    │   mode_b_search_node  search_huggingface → rank_hf_candidates
-    │     │
-    │     ├─[hf_found_edge: candidate found]──────────────────
-    │     │   ▼
-    │     │   mode_b_download_node  download_hf_dataset →
-    │     │                         normalize_and_clean
-    │     │   └──────────────────────────────────► validate_node
-    │     │
-    │     └─[hf_found_edge: no candidate]────────────────────
-    │         ▼
-    │         mode_c_node  (see below)
+    │   acquire_hf_data     parse_explicit_hf_dataset_ids →
+    │                       build_explicit_hf_candidates →
+    │                       fetch_hf_datasets
+    │   │
+    │   └──────────────► select_curation_edge ─► validate_hf_data
     │
     └─[mode == "C"]──────────────────────────────────────────────
         ▼
-        mode_c_node        determine_data_schema  [Claude API]
-                           → generate_synthetic_data [Claude API]
-                             OR scrape_web (fallback)
-                           → morph_to_standard
-          └──────────────────────────────────────► validate_node
+        acquire_web_data    acquire_web_data(query)
+          │
+          └──────────────► select_curation_edge ─► structure_data
                                                       │
                                                       ▼
                                                     END
-                                    writes DatasetResult to state
+                                  writes handoff payload to state
     `,
     functions: [
       {
@@ -346,17 +339,17 @@ Graph nodes and edges:
         signature: "build_data_generator_graph() -> CompiledStateGraph[DataGenState]",
         description: "Constructs and compiles the Data Generator LangGraph StateGraph with all nodes and conditional edges. Called once at startup.",
         params: [],
-        returns: { type: "CompiledStateGraph[DataGenState]", description: "Compiled graph with nodes: route → mode_a/mode_b_search/mode_c → validate." },
+        returns: { type: "CompiledStateGraph[DataGenState]", description: "Compiled graph with nodes: route → acquire_user/acquire_hf/acquire_web → structure_data/validate_hf_data." },
       },
       {
         name: "invoke_data_generator_graph",
-        signature: "invoke_data_generator_graph(config: OrchestrationConfig, data_path: str | None) -> DatasetResult",
-        description: "Entry point called by the Manager's orchestrate_node. Invokes the compiled DataGen graph and returns the DatasetResult from final state.",
+        signature: "invoke_data_generator_graph(config: OrchestrationConfig, data_path: str | None) -> dict[str, Any]",
+        description: "Entry point called by the Manager's orchestrate_node. Invokes the compiled DataGen graph and returns the handoff payload from final state.",
         params: [
           { name: "config", type: "OrchestrationConfig", description: "Orchestration config from the Manager." },
           { name: "data_path", type: "str | None", description: "Path to user-provided raw data, or None." },
         ],
-        returns: { type: "DatasetResult", description: "Standardized dataset with split sizes, mode used, and quality notes." },
+        returns: { type: "dict[str, Any]", description: "Handoff payload for sub-agent 2 (target_subagent, action, verification_level, raw_data, config, ...)." },
       },
       {
         name: "route_node",
@@ -367,52 +360,52 @@ Graph nodes and edges:
       },
       {
         name: "select_mode_edge",
-        signature: "select_mode_edge(state: DataGenState) -> Literal['mode_a', 'mode_b_search', 'mode_c']",
+        signature: "select_mode_edge(state: DataGenState) -> Literal['acquire_user_data', 'acquire_hf_data', 'acquire_web_data']",
         description: "LangGraph conditional edge function. Reads state.mode and returns the name of the next node to execute.",
         params: [{ name: "state", type: "DataGenState", description: "Current graph state (mode must be set)." }],
-        returns: { type: "Literal['mode_a', 'mode_b_search', 'mode_c']", description: "Target node name." },
+        returns: { type: "Literal['acquire_user_data', 'acquire_hf_data', 'acquire_web_data']", description: "Target node name." },
       },
       {
-        name: "hf_found_edge",
-        signature: "hf_found_edge(state: DataGenState) -> Literal['mode_b_download', 'mode_c']",
-        description: "LangGraph conditional edge function on mode_b_search_node. Returns 'mode_b_download' if a valid HuggingFace candidate was found, 'mode_c' otherwise.",
+        name: "select_curation_edge",
+        signature: "select_curation_edge(state: DataGenState) -> Literal['structure_data', 'validate_hf_data']",
+        description: "LangGraph conditional edge function after acquisition nodes. Returns 'structure_data' for mode A/C and 'validate_hf_data' for mode B.",
         params: [{ name: "state", type: "DataGenState", description: "Current graph state (hf_candidates + selected_candidate must be set)." }],
-        returns: { type: "Literal['mode_b_download', 'mode_c']", description: "Target node name." },
+        returns: { type: "Literal['structure_data', 'validate_hf_data']", description: "Target node name." },
       },
       {
-        name: "mode_a_node",
-        signature: "mode_a_node(state: DataGenState) -> dict",
-        description: "LangGraph node for Mode A. Calls load_raw_data → detect_format → normalize_and_clean → (optionally) augment_with_synthetic. Writes dataset to state.",
+        name: "acquire_user_data_node",
+        signature: "acquire_user_data_node(state: DataGenState) -> dict",
+        description: "LangGraph acquisition node for Mode A. Calls load_raw_data(data_path). Writes raw_data to state.",
         params: [{ name: "state", type: "DataGenState", description: "Current graph state (data_path must be set)." }],
-        returns: { type: "dict", description: "Partial state update: { raw_data, dataset }." },
+        returns: { type: "dict", description: "Partial state update: { raw_data }." },
       },
       {
-        name: "mode_b_search_node",
-        signature: "mode_b_search_node(state: DataGenState) -> dict",
-        description: "LangGraph node. Calls search_huggingface and rank_hf_candidates. Writes candidates and selected_candidate to state. hf_found_edge reads from state to decide next node.",
+        name: "acquire_hf_data_node",
+        signature: "acquire_hf_data_node(state: DataGenState) -> dict",
+        description: "LangGraph acquisition node for Mode B. Calls parse_explicit_hf_dataset_ids, build_explicit_hf_candidates, and fetch_hf_datasets. Writes hf_candidates, selected_candidate, and raw_data to state.",
         params: [{ name: "state", type: "DataGenState", description: "Current graph state." }],
-        returns: { type: "dict", description: "Partial state update: { hf_candidates: list, selected_candidate: HFCandidate | None }." },
+        returns: { type: "dict", description: "Partial state update: { hf_candidates: list[HFCandidate], selected_candidate: HFCandidate | None, raw_data: RawData }." },
       },
       {
-        name: "mode_b_download_node",
-        signature: "mode_b_download_node(state: DataGenState) -> dict",
-        description: "LangGraph node. Calls download_hf_dataset and normalize_and_clean. Writes dataset to state.",
-        params: [{ name: "state", type: "DataGenState", description: "Current graph state (selected_candidate must be set)." }],
-        returns: { type: "dict", description: "Partial state update: { raw_data, dataset }." },
-      },
-      {
-        name: "mode_c_node",
-        signature: "mode_c_node(state: DataGenState) -> dict",
-        description: "LangGraph node. Calls determine_data_schema, then generate_synthetic_data (or scrape_web as fallback), then morph_to_standard. Writes dataset to state.",
+        name: "acquire_web_data_node",
+        signature: "acquire_web_data_node(state: DataGenState) -> dict",
+        description: "LangGraph acquisition node for Mode C. Calls acquire_web_data(query) and writes raw_data to state.",
         params: [{ name: "state", type: "DataGenState", description: "Current graph state." }],
-        returns: { type: "dict", description: "Partial state update: { schema, raw_data, dataset }." },
+        returns: { type: "dict", description: "Partial state update: { raw_data }." },
       },
       {
-        name: "validate_node",
-        signature: "validate_node(state: DataGenState) -> dict",
-        description: "LangGraph node. Called after every mode. Runs validate_dataset() and writes the ValidationReport to state. This is the final node before END.",
-        params: [{ name: "state", type: "DataGenState", description: "Current graph state (dataset must be set)." }],
-        returns: { type: "dict", description: "Partial state update: { validation_report: ValidationReport }." },
+        name: "handoff_structure_data_node",
+        signature: "handoff_structure_data_node(state: DataGenState) -> dict",
+        description: "LangGraph handoff node. Produces handoff payload for sub-agent 2 with action='structure_data'.",
+        params: [{ name: "state", type: "DataGenState", description: "Current graph state." }],
+        returns: { type: "dict", description: "Partial state update: { handoff: dict }." },
+      },
+      {
+        name: "handoff_validate_hf_node",
+        signature: "handoff_validate_hf_node(state: DataGenState) -> dict",
+        description: "LangGraph handoff node. Produces handoff payload for sub-agent 2 with action='validate_hf_dataset'.",
+        params: [{ name: "state", type: "DataGenState", description: "Current graph state (mode should be B)." }],
+        returns: { type: "dict", description: "Partial state update: { handoff: dict }." },
       },
       // ── Mode A ──
       {
@@ -456,33 +449,33 @@ Graph nodes and edges:
       },
       // ── Mode B ──
       {
-        name: "search_huggingface",
-        signature: "search_huggingface(task_description: str, task_type: str) -> list[HFCandidate]",
-        description: "Queries the HuggingFace Hub datasets API for candidates matching the task description and type. Returns up to 10 ranked candidates.",
+        name: "parse_explicit_hf_dataset_ids",
+        signature: "parse_explicit_hf_dataset_ids(config: OrchestrationConfig, data_path: str | None = None) -> list[str]",
+        description: "Extracts explicit Hugging Face dataset IDs from config fields, training_procedure notes/sources, prompt text, and optional hf:// data_path.",
         params: [
-          { name: "task_description", type: "str", description: "Natural-language task description from OrchestrationConfig." },
-          { name: "task_type", type: "str", description: "Structured task type (e.g. 'text-classification', 'token-classification', 'seq2seq')." },
+          { name: "config", type: "OrchestrationConfig", description: "Orchestration config that may include explicit HF sources." },
+          { name: "data_path", type: "str | None", description: "Optional user path that may use hf://<org>/<dataset> syntax.", optional: true },
         ],
-        returns: { type: "list[HFCandidate]", description: "Up to 10 candidates with id, name, num_examples, license, task_categories, download_size." },
+        returns: { type: "list[str]", description: "Normalized HF dataset IDs like ['org/name', ...]." },
       },
       {
-        name: "rank_hf_candidates",
-        signature: "rank_hf_candidates(candidates: list[HFCandidate], config: OrchestrationConfig) -> HFCandidate | None",
-        description: "Scores candidates by relevance to task, dataset size, license compatibility, and download size. Returns the best candidate or None if all fail the minimum quality bar.",
+        name: "build_explicit_hf_candidates",
+        signature: "build_explicit_hf_candidates(dataset_ids: list[str], task_type: str) -> list[HFCandidate]",
+        description: "Builds candidate metadata objects for explicit HF dataset IDs so downstream retrieval can fetch each source.",
         params: [
-          { name: "candidates", type: "list[HFCandidate]", description: "Output of search_huggingface." },
-          { name: "config", type: "OrchestrationConfig", description: "Used to weight task relevance and size requirements." },
+          { name: "dataset_ids", type: "list[str]", description: "Normalized explicit HF dataset IDs." },
+          { name: "task_type", type: "str", description: "Task category used in candidate metadata." },
         ],
-        returns: { type: "HFCandidate | None", description: "Best-ranked candidate, or None if no candidate meets quality threshold." },
+        returns: { type: "list[HFCandidate]", description: "Candidate list preserving user-provided source order." },
       },
       {
-        name: "download_hf_dataset",
-        signature: "download_hf_dataset(candidate: HFCandidate) -> RawData",
-        description: "Downloads the selected HuggingFace dataset to disk and loads it into a RawData object.",
+        name: "fetch_hf_datasets",
+        signature: "fetch_hf_datasets(candidates: list[HFCandidate]) -> RawData",
+        description: "Fetches records from Hugging Face datasets for each explicit candidate and returns a combined RawData bundle.",
         params: [
-          { name: "candidate", type: "HFCandidate", description: "Selected candidate from rank_hf_candidates." },
+          { name: "candidates", type: "list[HFCandidate]", description: "Explicit candidates from build_explicit_hf_candidates." },
         ],
-        returns: { type: "RawData", description: "Downloaded dataset as RawData, ready for normalize_and_clean." },
+        returns: { type: "RawData", description: "Combined records with source attribution and HF bundle metadata." },
       },
       {
         name: "validate_dataset",
@@ -1312,12 +1305,13 @@ export const sharedTypes: TypeDef[] = [
       { name: "config", type: "OrchestrationConfig", description: "Orchestration config from Manager." },
       { name: "data_path", type: "str | None", description: "User-provided data path, or None." },
       { name: "mode", type: "str | None", description: "Set by route_node: 'A' | 'B' | 'C'." },
-      { name: "raw_data", type: "RawData | None", description: "Set by mode nodes after loading/generating data." },
-      { name: "hf_candidates", type: "list[HFCandidate]", description: "Set by mode_b_search_node." },
-      { name: "selected_candidate", type: "HFCandidate | None", description: "Set by mode_b_search_node after ranking." },
-      { name: "schema", type: "DataSchema | None", description: "Set by mode_c_node after determine_data_schema." },
-      { name: "dataset", type: "StandardDataset | None", description: "Set by mode nodes after normalization." },
-      { name: "validation_report", type: "ValidationReport | None", description: "Set by validate_node." },
+      { name: "raw_data", type: "RawData | None", description: "Set by acquire_user_data_node / acquire_hf_data_node / acquire_web_data_node." },
+      { name: "hf_candidates", type: "list[HFCandidate]", description: "Set by acquire_hf_data_node." },
+      { name: "selected_candidate", type: "HFCandidate | None", description: "Set by acquire_hf_data_node." },
+      { name: "schema", type: "DataSchema | None", description: "Reserved for downstream curation/synthesis stages." },
+      { name: "dataset", type: "StandardDataset | None", description: "Reserved for downstream curation/validation stages." },
+      { name: "validation_report", type: "ValidationReport | None", description: "Reserved for downstream validation stage." },
+      { name: "handoff", type: "dict | None", description: "Set by handoff_structure_data_node or handoff_validate_hf_node." },
     ],
   },
   {
