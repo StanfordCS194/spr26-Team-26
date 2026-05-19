@@ -66,7 +66,7 @@ having to infer dependencies from GitHub.
 
 ## Latest Local Stack Validation
 
-Unpublished local stack currently includes #55 through #75, including #73/#74/#75
+Unpublished local stack currently includes #55 through #76, including #73/#74/#75/#76
 on top of #51.
 
 - `python3 -m compileall src`
@@ -124,9 +124,8 @@ on top of #51.
   latest DataGen leaf chain. It merges the existing Mode C teacher-backed web
   structuring work onto #68 and passed the broad no-live suite (`181 passed,
   9 skipped`).
-- The unpublished composition branch now includes #55 through #75, including
-  #73/#74/#75. After resolving the expected local conflicts between #74 output
-  isolation and the newer AutoResearch/DataGen leaves, the full no-live test
-  suite passed (`233 passed, 9 skipped`).
+- The unpublished composition branch now includes #55 through #76, including
+  #73/#74/#75/#76. After merging #76 on top of the composed stack, compileall
+  and the full no-live test suite passed (`244 passed, 9 skipped`).
 
 Current conservative live spend: `$68.64 / $100.00`.
