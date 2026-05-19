@@ -13,7 +13,7 @@ from src.runtime_context import get_output_root
 from src.server import app as server_app
 
 
-def _fake_model(tmp_path, *, total_cost=1.25):
+def _fake_model(tmp_path, *, total_cost=1.25, with_artifacts=False):
     diary_path = tmp_path / "diary.jsonl"
     diary_path.write_text(
         json.dumps(
@@ -32,8 +32,45 @@ def _fake_model(tmp_path, *, total_cost=1.25):
         + "\n",
         encoding="utf-8",
     )
+    weights_path = "outputs/experiments/run/model"
+    if with_artifacts:
+        run_dir = tmp_path / "experiments" / "tinker-run"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        weights_path = str(run_dir)
+        (run_dir / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "run_id": "tinker-run",
+                    "status": "COMPLETED",
+                    "checkpoints": {
+                        "state_path": "tinker://state/abc",
+                        "sampler_path": "tinker://sampler/abc",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (run_dir / "metrics.json").write_text(
+            json.dumps(
+                {
+                    "train_loss": 0.31,
+                    "val_loss": 0.29,
+                    "test_loss": 0.33,
+                    "primary_metric": 0.775,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (run_dir / "metrics.jsonl").write_text(
+            json.dumps({"step": 1, "val_loss": 0.29}) + "\n",
+            encoding="utf-8",
+        )
+        (run_dir / "sample.json").write_text(
+            json.dumps({"text": "sample completion"}),
+            encoding="utf-8",
+        )
     return {
-        "weights_path": "outputs/experiments/run/model",
+        "weights_path": weights_path,
         "metrics": {
             "scalar": 0.775,
             "metrics": {
@@ -141,6 +178,53 @@ def test_create_run_completes_with_manager_result(tmp_path, monkeypatch):
     assert state["metrics"][0]["accuracy"] == 0.775
     assert state["iterations"][0]["status"] == "KEPT"
     assert state["result"]["weights_path"] == "outputs/experiments/run/model"
+
+
+def test_create_run_surfaces_artifacts_and_allowlisted_downloads(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    def fake_invoke(prompt, budget, data_path=None):
+        root = get_output_root()
+        assert root is not None
+        return _fake_model(root, total_cost=0.5, with_artifacts=True)
+
+    monkeypatch.setattr(server_app, "invoke_manager_graph", fake_invoke)
+    client = TestClient(server_app.app)
+
+    response = client.post(
+        "/api/runs",
+        json={
+            "prompt": "Fine tune a small chat assistant on support tickets",
+            "budget": 25,
+            "task_type": "fine-tuning",
+        },
+    )
+
+    assert response.status_code == 200
+    run_id = response.json()["run_id"]
+    state = _wait_for_status(client, run_id, "complete")
+
+    artifacts = state["artifacts"]
+    assert artifacts["modelPath"].endswith(f"outputs/api-runs/{run_id}/experiments/tinker-run")
+    assert artifacts["checkpoints"]["state_path"] == "tinker://state/abc"
+    assert artifacts["metrics"]["val_loss"] == 0.29
+    assert artifacts["sample"]["text"] == "sample completion"
+
+    files = {item["name"]: item for item in artifacts["files"]}
+    assert files["manifest"]["exists"] is True
+    assert files["manifest"]["downloadPath"] == f"/runs/{run_id}/artifacts/manifest"
+    assert files["metrics_log"]["contentType"] == "application/x-ndjson"
+
+    manifest_response = client.get(f"/api/runs/{run_id}/artifacts/manifest")
+    assert manifest_response.status_code == 200
+    assert manifest_response.json()["checkpoints"]["sampler_path"] == "tinker://sampler/abc"
+
+    metrics_log_response = client.get(f"/api/runs/{run_id}/artifacts/metrics_log")
+    assert metrics_log_response.status_code == 200
+    assert '"step": 1' in metrics_log_response.text
+
+    missing_response = client.get(f"/api/runs/{run_id}/artifacts/not-real")
+    assert missing_response.status_code == 404
 
 
 def test_create_run_passes_existing_local_data_path(tmp_path, monkeypatch):

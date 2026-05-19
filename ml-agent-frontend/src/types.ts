@@ -38,6 +38,24 @@ export interface LogEntry {
   type: LogType;
 }
 
+export interface ArtifactFile {
+  name: string;
+  label: string;
+  path?: string | null;
+  exists: boolean;
+  sizeBytes?: number | null;
+  contentType: string;
+  downloadPath?: string | null;
+}
+
+export interface RunArtifacts {
+  modelPath?: string | null;
+  checkpoints: Record<string, unknown>;
+  metrics?: Record<string, unknown> | null;
+  sample?: Record<string, unknown> | null;
+  files: ArtifactFile[];
+}
+
 export interface TrainingState {
   status: 'idle' | 'running' | 'complete' | 'failed';
   stage: number;
@@ -50,6 +68,8 @@ export interface TrainingState {
   iterations: Iteration[];
   logs: LogEntry[];
   stages: PipelineStage[];
+  artifacts?: RunArtifacts | null;
+  result?: Record<string, unknown> | null;
   error?: string | null;
   runId?: string;
 }

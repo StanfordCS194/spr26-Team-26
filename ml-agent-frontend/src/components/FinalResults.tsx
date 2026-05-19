@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from '../api/runs';
 import type { TrainingState } from '../types';
 import Tooltip from './Tooltip';
 
@@ -24,6 +25,9 @@ const RESULT_TOOLTIPS: Record<string, { label: string; body: string }> = {
 export default function FinalResults({ state, onReset }: Props) {
   const lastMetric = state.metrics[state.metrics.length - 1];
   const bestIter = state.iterations.find(i => i.status === 'KEPT') ?? state.iterations[0];
+  const apiBaseUrl = getApiBaseUrl();
+  const artifactFiles = state.artifacts?.files.filter(file => file.exists) ?? [];
+  const checkpointEntries = Object.entries(state.artifacts?.checkpoints ?? {}).filter(([, value]) => value);
 
   const handleExportDiary = () => {
     const diary = {
@@ -35,6 +39,8 @@ export default function FinalResults({ state, onReset }: Props) {
       iterations: state.iterations,
       metrics: state.metrics,
       logs: state.logs,
+      artifacts: state.artifacts ?? null,
+      result: state.result ?? null,
     };
     const blob = new Blob([JSON.stringify(diary, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -50,6 +56,14 @@ export default function FinalResults({ state, onReset }: Props) {
     { label: 'Val Accuracy', value: lastMetric ? `${(lastMetric.accuracy * 100).toFixed(1)}%` : '—' },
     { label: 'Total Cost', value: `$${state.costSpent.toFixed(2)}` },
   ];
+  const artifactHref = (downloadPath?: string | null) => (
+    apiBaseUrl && downloadPath ? `${apiBaseUrl}${downloadPath}` : null
+  );
+  const compactPath = (value?: string | null) => {
+    if (!value) return '—';
+    if (value.length <= 72) return value;
+    return `…${value.slice(-69)}`;
+  };
 
   return (
     <section
@@ -109,6 +123,61 @@ export default function FinalResults({ state, onReset }: Props) {
           );
         })}
       </div>
+
+      {state.artifacts && (
+        <div style={{
+          borderTop: '0.5px solid var(--border)',
+          paddingTop: '1rem',
+          marginBottom: '1.5rem',
+          textAlign: 'left',
+        }}>
+          <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+            Artifacts
+          </p>
+          <div style={{ display: 'grid', gap: '0.4rem' }}>
+            {state.artifacts.modelPath && (
+              <div style={{ display: 'grid', gridTemplateColumns: '96px 1fr', gap: '0.75rem', alignItems: 'center' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Model</span>
+                <code style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {compactPath(state.artifacts.modelPath)}
+                </code>
+              </div>
+            )}
+            {artifactFiles.map(file => {
+              const href = artifactHref(file.downloadPath);
+              return (
+                <div
+                  key={file.name}
+                  style={{ display: 'grid', gridTemplateColumns: '96px 1fr auto', gap: '0.75rem', alignItems: 'center' }}
+                >
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{file.label}</span>
+                  <code style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {compactPath(file.path)}
+                  </code>
+                  {href && (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ fontSize: '11px', color: 'var(--accent)', textDecoration: 'none' }}
+                    >
+                      Open
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+            {checkpointEntries.map(([key, value]) => (
+              <div key={key} style={{ display: 'grid', gridTemplateColumns: '96px 1fr', gap: '0.75rem', alignItems: 'center' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{key}</span>
+                <code style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {String(value)}
+                </code>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
         <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>

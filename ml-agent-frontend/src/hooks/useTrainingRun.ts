@@ -15,6 +15,8 @@ function makeInitialState(): TrainingState {
     iterations: [],
     logs: [],
     stages: [],
+    artifacts: null,
+    result: null,
     error: null,
   };
 }
@@ -44,6 +46,8 @@ function makeStartingState(
       { id: 4, label: 'AutoResearch', status: 'pending' },
       { id: 5, label: 'Finalization', status: 'pending' },
     ],
+    artifacts: null,
+    result: null,
     error: null,
   };
 }
@@ -75,6 +79,8 @@ export function useTrainingRun() {
       iterations: next.iterations,
       logs: next.logs,
       stages: next.stages,
+      artifacts: next.artifacts ?? null,
+      result: next.result ?? null,
       error: next.error,
       runId: next.run_id,
     });
