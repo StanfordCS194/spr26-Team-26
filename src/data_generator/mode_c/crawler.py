@@ -4,12 +4,18 @@ import re
 import time
 from typing import Any
 from urllib.parse import urlparse
-import requests
-import trafilatura
 import io
-import fitz  # PyMuPDF
 
 from src.data_generator.mode_c.offline import mode_c_offline, mode_c_offline_reason
+
+try:
+    import requests
+except ModuleNotFoundError:
+    class _MissingRequests:
+        def get(self, *_args, **_kwargs):
+            raise ModuleNotFoundError("requests")
+
+    requests = _MissingRequests()
 
 
 def crawl_and_extract_pages(
@@ -149,6 +155,8 @@ def fetch_and_extract_one(result: dict[str, Any], timeout: int = 20) -> dict[str
                 "error": None,
             }
         html = response.text or ""
+        import trafilatura
+
         extracted = trafilatura.extract(
             html,
             url=url,
@@ -211,6 +219,8 @@ def classify_url(url: str) -> str:
 
 
 def extract_pdf_text(pdf_bytes: bytes) -> str:
+    import fitz  # PyMuPDF
+
     doc = fitz.open(stream=io.BytesIO(pdf_bytes), filetype="pdf")
     chunks = []
     for page_idx, page in enumerate(doc):
