@@ -21,7 +21,7 @@ Budget cap: $100 total.
 | stack-003 | 2026-05-19 06:53 | #54 | Mode C web/Manager boundary validation | none | passed | $0.00 | $8.94 | Structured web chat/SFT rows reach DecisionEngine/AutoResearch; raw targetless web is rejected before training. Focused and neighboring suites passed. |
 | hf-001 | 2026-05-19 06:53 | #54/#51 | accidental broad HF retrieval start | Hugging Face public dataset pull | stopped | $0.00 | $8.94 | An overly broad pytest command entered the existing live HF retrieval suite. Stopped it once identified; no Tinker, Anthropic, or Tavily spend. |
 | stack-004 | 2026-05-19 06:54 | #51 temporary local merge | refreshed full-stack non-live validation | none | passed | $0.00 | $8.94 | Temporarily folded #53 and #54 into #51; `python3 -m compileall src`; non-live suite excluding live Tinker and live HF retrieval passed with `196 passed, 6 skipped`. This integration push was reset because it auto-marked leaf drafts as merged. |
-| hygiene-001 | 2026-05-19 06:58 | #55/#56/#51 | PR hygiene correction | none | complete | $0.00 | $8.94 | Reset #51 back to `680c5c5`; opened replacement drafts #55 and #56 so the leaf changes remain reviewable and unmerged. |
+| hygiene-001 | 2026-05-19 06:58 | #55/#56/#51 | PR hygiene correction | none | complete | $0.00 | $8.94 | Reset #51 back to `680c5c5`; opened replacement drafts #55 and #56 so the leaf changes remain reviewable and unmerged; deleted obsolete remote heads for #53/#54. |
 
 ## Spend Ledger
 
