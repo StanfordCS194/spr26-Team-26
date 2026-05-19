@@ -199,8 +199,15 @@ def _first_text(record: Mapping[str, Any], keys: Sequence[str]) -> str:
 def _split_counts(n_records: int) -> dict[str, int]:
     if n_records <= 0:
         return {"train_size": 0, "val_size": 0, "test_size": 0}
+    if n_records == 1:
+        return {"train_size": 1, "val_size": 0, "test_size": 0}
+    if n_records == 2:
+        return {"train_size": 1, "val_size": 0, "test_size": 1}
+    if n_records < 10:
+        return {"train_size": n_records - 2, "val_size": 1, "test_size": 1}
+
     train_size = max(1, int(n_records * 0.8))
-    val_size = int(n_records * 0.1) if n_records >= 3 else 0
+    val_size = max(1, int(n_records * 0.1))
     test_size = max(0, n_records - train_size - val_size)
     return {
         "train_size": train_size,
