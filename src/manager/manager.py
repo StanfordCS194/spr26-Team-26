@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from src.data_sources import looks_like_local_data_path, normalize_hf_dataset_source
-from src.runtime_context import get_output_root
+from src.runtime_context import get_output_root, raise_if_cancelled
 from src.types import (
     DatasetResult,
     ManagerState,
@@ -65,7 +65,9 @@ def invoke_manager_graph(
         "config": None,
         "result": None,
     }
+    raise_if_cancelled()
     final_state = graph.invoke(initial_state)
+    raise_if_cancelled()
     return final_state["result"]
 
 
@@ -73,6 +75,7 @@ def invoke_manager_graph(
 
 def query_data_node(state: ManagerState) -> dict:
     """LangGraph node. Calls query_user_for_data(). Returns: { has_data, data_path }."""
+    raise_if_cancelled()
     existing_path = state.get("data_path")
     if existing_path:
         expanded_path = Path(existing_path).expanduser()
@@ -95,12 +98,15 @@ def query_data_node(state: ManagerState) -> dict:
 
 def reason_node(state: ManagerState) -> dict:
     """LangGraph node. Calls reason_about_task() via Claude API. Returns: { task_reasoning }."""
+    raise_if_cancelled()
     reasoning = reason_about_task(state["prompt"], state["budget"], state["has_data"])
+    raise_if_cancelled()
     return {"task_reasoning": reasoning}
 
 
 def build_config_node(state: ManagerState) -> dict:
     """LangGraph node. Builds OrchestrationConfig and logs the decision. Returns: { config }."""
+    raise_if_cancelled()
     config = build_orchestration_config(
         state["task_reasoning"],
         state["prompt"],
@@ -112,6 +118,7 @@ def build_config_node(state: ManagerState) -> dict:
         rationale=state["task_reasoning"]["notes"],
         config=config,
     )
+    raise_if_cancelled()
     return {"config": config}
 
 
@@ -128,14 +135,18 @@ def orchestrate_node(state: ManagerState) -> dict:
     budget = config["compute_budget"]
 
     # ── 1. Data acquisition ──────────────────────────────────────────────────
+    raise_if_cancelled()
     log_event(AgentName.MANAGER, LogLevel.INFO, "Starting DataGen sub-agent", {})
     handoff = invoke_data_generator_graph(config, state.get("data_path"))
+    raise_if_cancelled()
     dataset = _handoff_to_dataset_result(handoff)
     _ensure_dataset_is_trainable(dataset)
 
     # ── 2. Decision Engine — pick model, estimate cost, write training script
+    raise_if_cancelled()
     log_event(AgentName.MANAGER, LogLevel.INFO, "Running Decision Engine", {})
     plan = run_decision_engine(config, dataset)
+    raise_if_cancelled()
     log_decision(
         step="orchestrate",
         rationale=f"strategy={plan['strategy']} model={plan['base_model']} "
@@ -147,8 +158,10 @@ def orchestrate_node(state: ManagerState) -> dict:
     cost_manager = CostManager(budget)
 
     # ── 4. AutoResearch loop ─────────────────────────────────────────────────
+    raise_if_cancelled()
     log_event(AgentName.MANAGER, LogLevel.INFO, "Launching AutoResearch loop", {})
     result = invoke_autoresearch_graph(plan, config, cost_manager)
+    raise_if_cancelled()
 
     log_event(
         AgentName.MANAGER,

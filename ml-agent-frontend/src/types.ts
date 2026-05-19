@@ -2,6 +2,7 @@ export type StageStatus = 'pending' | 'in-progress' | 'complete';
 export type TaskType = 'classification' | 'regression' | 'fine-tuning';
 export type LogType = 'default' | 'success' | 'warning' | 'error';
 export type IterationStatus = 'KEPT' | 'REVERTED' | 'PENDING';
+export type RunStatus = 'idle' | 'running' | 'cancelling' | 'cancelled' | 'complete' | 'failed';
 
 export type StartTraining = (
   prompt: string,
@@ -57,7 +58,7 @@ export interface RunArtifacts {
 }
 
 export interface TrainingState {
-  status: 'idle' | 'running' | 'complete' | 'failed';
+  status: RunStatus;
   stage: number;
   prompt: string;
   budget: number;

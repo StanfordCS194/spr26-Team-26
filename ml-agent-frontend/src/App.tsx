@@ -9,7 +9,7 @@ export default function App() {
   const simulation = useTrainingSimulation();
   const backend = useTrainingRun();
   const controller = isBackendApiConfigured() ? backend : simulation;
-  const { state, start, reset } = controller;
+  const { state, start, reset, cancel } = controller;
 
   const handleStart: StartTraining = (prompt, budget, taskType, dataPath = null) => {
     return start(prompt, budget, taskType, dataPath);
@@ -19,5 +19,5 @@ export default function App() {
     return <InputForm onStart={handleStart} />;
   }
 
-  return <Dashboard state={state} onReset={reset} />;
+  return <Dashboard state={state} onReset={reset} onCancel={cancel} />;
 }

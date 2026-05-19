@@ -8,6 +8,7 @@ added later once observability emits run-scoped events.
 from __future__ import annotations
 
 import json
+import math
 import os
 import threading
 import uuid
@@ -22,7 +23,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.data_sources import looks_like_local_data_path, normalize_hf_dataset_source
 from src.manager.manager import invoke_manager_graph
-from src.runtime_context import output_root
+from src.runtime_context import (
+    RunCancelled,
+    cancellation_context,
+    output_root,
+    raise_if_cancelled,
+)
 from src.server.schemas import (
     ArtifactView,
     IterationView,
@@ -34,6 +40,7 @@ from src.server.schemas import (
     RunRequest,
     RunState,
 )
+from src.tinker_api.tinker_api import cancel_job
 
 
 STAGE_LABELS = [
@@ -81,6 +88,9 @@ class _RunRecord:
     artifact_content_types: dict[str, str] = field(default_factory=dict)
     error: str | None = None
     stages: list[PipelineStage] = field(default_factory=list)
+    cancel_event: threading.Event = field(default_factory=threading.Event)
+    active_tinker_jobs: set[str] = field(default_factory=set)
+    worker_thread: threading.Thread | None = None
 
 
 _RUNS: dict[str, _RunRecord] = {}
@@ -104,6 +114,27 @@ def _append_log(record: _RunRecord, component: str, message: str, kind: str = "d
         LogEntryView(time=_time_label(), component=component, message=message, type=kind),
     )
     record.logs = record.logs[:100]
+
+
+def _is_terminal(record: _RunRecord) -> bool:
+    return record.status in {"cancelled", "complete", "failed"}
+
+
+def _mark_cancelled(record: _RunRecord, message: str = "Run cancelled") -> None:
+    record.status = "cancelled"
+    record.error = None
+    _append_log(record, "Manager", message, "warning")
+
+
+def _request_cancel(record: _RunRecord) -> None:
+    if _is_terminal(record):
+        return
+    record.cancel_event.set()
+    for job_id in list(record.active_tinker_jobs):
+        cancel_job(job_id)
+    if record.status != "cancelling":
+        record.status = "cancelling"
+        _append_log(record, "Manager", "Cancellation requested", "warning")
 
 
 def _copy_request_with_data_path(request: RunRequest, data_path: str | None) -> RunRequest:
@@ -215,6 +246,159 @@ def _iterations_from_diary(path: str | None) -> list[IterationView]:
             )
         )
     return list(reversed(iterations))
+
+
+def _jsonl_rows(path: Path) -> list[dict[str, Any]]:
+    if not path.is_file():
+        return []
+
+    rows: list[dict[str, Any]] = []
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(row, dict):
+            rows.append(row)
+    return rows
+
+
+def _log_time(timestamp: Any) -> str:
+    if isinstance(timestamp, str) and len(timestamp) >= 19:
+        return timestamp[11:19]
+    return _time_label()
+
+
+def _log_kind(level: Any) -> str:
+    if level == "ERROR":
+        return "error"
+    if level == "WARN":
+        return "warning"
+    return "default"
+
+
+def _logs_from_observability(record: _RunRecord) -> list[LogEntryView]:
+    rows = _jsonl_rows(record.output_dir / "logs" / "run.jsonl")
+    return [
+        LogEntryView(
+            time=_log_time(row.get("timestamp")),
+            component=str(row.get("agent") or "System"),
+            message=str(row.get("message") or ""),
+            type=_log_kind(row.get("level")),
+        )
+        for row in reversed(rows[-100:])
+        if row.get("message")
+    ]
+
+
+def _merge_logs(record: _RunRecord, file_logs: list[LogEntryView]) -> None:
+    if not file_logs:
+        return
+    seen = {(item.time, item.component, item.message, item.type) for item in file_logs}
+    merged = file_logs + [
+        item
+        for item in record.logs
+        if (item.time, item.component, item.message, item.type) not in seen
+    ]
+    record.logs = merged[:100]
+
+
+def _cost_from_diary(path: Path) -> float:
+    return sum(float(row.get("cost_usd") or 0.0) for row in _jsonl_rows(path))
+
+
+def _experiment_dirs(record: _RunRecord) -> list[Path]:
+    root = record.output_dir / "experiments"
+    if not root.is_dir():
+        return []
+    return sorted(
+        [path for path in root.iterdir() if path.is_dir()],
+        key=lambda path: path.stat().st_mtime,
+    )
+
+
+def _latest_experiment_dir(record: _RunRecord) -> Path | None:
+    dirs = _experiment_dirs(record)
+    return dirs[-1] if dirs else None
+
+
+def _metric_point(row: dict[str, Any], iteration: int) -> MetricPoint | None:
+    loss = row.get("val_loss", row.get("train_loss"))
+    score = row.get("primary_metric")
+    try:
+        loss_value = float(loss)
+        score_value = float(score or 0.0)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(loss_value):
+        return None
+    return MetricPoint(loss=loss_value, accuracy=score_value, iteration=iteration)
+
+
+def _metrics_from_experiments(record: _RunRecord) -> list[MetricPoint]:
+    points: list[MetricPoint] = []
+    for run_dir in _experiment_dirs(record):
+        rows = _jsonl_rows(run_dir / "metrics.jsonl")
+        if not rows:
+            metrics = _read_json_if_exists(run_dir / "metrics.json")
+            rows = [metrics] if metrics else []
+        for row in rows:
+            point = _metric_point(row, len(points) + 1)
+            if point:
+                points.append(point)
+    return points[-100:]
+
+
+def _refresh_stage_from_files(record: _RunRecord, latest_experiment: Path | None) -> None:
+    if _is_terminal(record):
+        return
+
+    stage = record.stage
+    if (record.output_dir / "datasets" / "train_data.jsonl").exists():
+        stage = max(stage, 2)
+    if (
+        (record.output_dir / "scripts" / "train.py").exists()
+        or (record.output_dir / "configs" / "current.json").exists()
+    ):
+        stage = max(stage, 3)
+    if latest_experiment and (
+        (latest_experiment / "metrics.jsonl").exists()
+        or (latest_experiment / "metrics.json").exists()
+    ):
+        stage = max(stage, 4)
+
+    if stage > record.stage:
+        _mark_stage(record, stage)
+
+
+def _refresh_record_from_files(record: _RunRecord) -> None:
+    _merge_logs(record, _logs_from_observability(record))
+
+    diary_path = record.output_dir / "logs" / "research_diary.jsonl"
+    if diary_path.exists():
+        record.iterations = _iterations_from_diary(str(diary_path))
+        record.cost_spent = max(record.cost_spent, _cost_from_diary(diary_path))
+
+    metrics = _metrics_from_experiments(record)
+    if metrics:
+        record.metrics = metrics
+
+    latest_experiment = _latest_experiment_dir(record)
+    _refresh_stage_from_files(record, latest_experiment)
+    if latest_experiment and record.result is None:
+        record.artifacts = _artifacts_from_result(
+            record,
+            {
+                "weights_path": str(latest_experiment),
+                "research_diary_path": str(diary_path) if diary_path.exists() else None,
+            },
+        )
 
 
 def _read_json_if_exists(path: Path | None) -> dict[str, Any] | None:
@@ -340,19 +524,34 @@ def _run_manager(record: _RunRecord) -> None:
         _append_log(record, "Manager", "Manager graph is running")
 
     try:
-        with output_root(record.output_dir):
+        with output_root(record.output_dir), cancellation_context(
+            record.cancel_event,
+            record.active_tinker_jobs,
+        ):
+            raise_if_cancelled()
             result = invoke_manager_graph(
                 record.request.prompt,
                 record.request.budget,
                 record.request.data_path,
             )
+            raise_if_cancelled()
+    except RunCancelled:
+        with _LOCK:
+            _refresh_record_from_files(record)
+            _mark_cancelled(record)
+        return
     except Exception as exc:  # surfaced to the browser as a failed run state
         with _LOCK:
+            _refresh_record_from_files(record)
             _fail_current_stage(record, str(exc))
         return
 
     with _LOCK:
-        _store_manager_result(record, dict(result))
+        _refresh_record_from_files(record)
+        if record.cancel_event.is_set():
+            _mark_cancelled(record)
+        else:
+            _store_manager_result(record, dict(result))
 
 
 def _to_state(record: _RunRecord) -> RunState:
@@ -397,6 +596,7 @@ def create_run(request: RunRequest) -> RunCreated:
         _RUNS[run_id] = record
 
     thread = threading.Thread(target=_run_manager, args=(record,), daemon=True)
+    record.worker_thread = thread
     thread.start()
     return RunCreated(run_id=run_id, status="running")
 
@@ -407,6 +607,18 @@ def get_run(run_id: str) -> RunState:
         record = _RUNS.get(run_id)
         if record is None:
             raise HTTPException(status_code=404, detail="run not found")
+        _refresh_record_from_files(record)
+        return _to_state(record)
+
+
+@app.post("/api/runs/{run_id}/cancel", response_model=RunState)
+def cancel_run(run_id: str) -> RunState:
+    with _LOCK:
+        record = _RUNS.get(run_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        _request_cancel(record)
+        _refresh_record_from_files(record)
         return _to_state(record)
 
 
@@ -418,6 +630,7 @@ def get_run_artifact(run_id: str, artifact_name: str) -> FileResponse:
             raise HTTPException(status_code=404, detail="run not found")
         if artifact_name not in ARTIFACT_DEFINITIONS:
             raise HTTPException(status_code=404, detail="artifact not found")
+        _refresh_record_from_files(record)
         path = record.artifact_paths.get(artifact_name)
         content_type = record.artifact_content_types.get(artifact_name)
 

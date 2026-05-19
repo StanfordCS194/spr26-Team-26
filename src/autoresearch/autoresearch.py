@@ -19,7 +19,7 @@ import anthropic
 
 from src.autoresearch.config import TrainingConfig
 from src.observability.observability import log_event
-from src.runtime_context import resolve_output_path
+from src.runtime_context import raise_if_cancelled, resolve_output_path
 from src.tinker_api.sft_runner import (
     DEFAULT_LIVE_SMOKE_STEPS,
     DEFAULT_TINKER_MODEL,
@@ -152,7 +152,9 @@ def invoke_autoresearch_graph(
         "should_stop": False,
     }
 
+    raise_if_cancelled()
     final_state = graph.invoke(initial_state)
+    raise_if_cancelled()
 
     total_cost = sum(r["cost_usd"] for r in final_state["diary"])
     termination = "budget_limit" if final_state["should_stop"] else "training_complete"
@@ -177,6 +179,7 @@ def invoke_autoresearch_graph(
 
 def init_node(state: AutoResearchState) -> dict:
     """LangGraph node. Calls create_eval_suite(). Returns: { eval_suite, current_script, current_config, iteration: 0 }."""
+    raise_if_cancelled()
     task_analysis: TaskAnalysis = {
         "task_type": state["config"]["training_procedure"]["task_type"],
         "modality": "text",
@@ -230,6 +233,7 @@ def init_node(state: AutoResearchState) -> dict:
 
 def baseline_node(state: AutoResearchState) -> dict:
     """LangGraph node. Submits and evaluates the unmodified baseline script. Returns: { baseline_score, best_score }."""
+    raise_if_cancelled()
     log_event(
         AgentName.AUTORESEARCH,
         LogLevel.INFO,
@@ -242,6 +246,7 @@ def baseline_node(state: AutoResearchState) -> dict:
         max_steps=_max_steps_from_state(state),
         output_dir=str(_experiments_output_dir()),
     )
+    raise_if_cancelled()
     baseline_score = run_evals(experiment["model_path"], state["eval_suite"])
 
     log_event(
@@ -261,6 +266,7 @@ def baseline_node(state: AutoResearchState) -> dict:
 
 def propose_node(state: AutoResearchState) -> dict:
     """LangGraph node. Calls propose_hypothesis() and apply_patch(). Returns: { current_script, current_patch, last_description, original_content }."""
+    raise_if_cancelled()
     task_analysis: TaskAnalysis = {
         "task_type": state["config"]["training_procedure"]["task_type"],
         "modality": "text",
@@ -285,6 +291,7 @@ def propose_node(state: AutoResearchState) -> dict:
         task_analysis,
         allowed_params=allowed_params,
     )
+    raise_if_cancelled()
 
     # Bug fix: patch the config JSON, not the training script (.py files are not patchable).
     original_content = apply_patch(str(_config_path()), hypothesis["patch"])
@@ -312,6 +319,7 @@ def propose_node(state: AutoResearchState) -> dict:
 
 def run_node(state: AutoResearchState) -> dict:
     """LangGraph node. Runs a bounded SDK-native Tinker experiment. Returns: { last_result }."""
+    raise_if_cancelled()
     log_event(
         AgentName.AUTORESEARCH,
         LogLevel.INFO,
@@ -332,12 +340,14 @@ def run_node(state: AutoResearchState) -> dict:
         f"RUN: job {result['job_id']} finished — status={result['status']}",
         metadata={"job_id": result["job_id"], "cost_usd": result["cost_usd"]},
     )
+    raise_if_cancelled()
 
     return {"last_result": result}
 
 
 def revert_and_continue_node(state: AutoResearchState) -> dict:
     """LangGraph node (early stop path). Calls revert_patch(), logs REVERTED, increments iteration. Returns: { current_script, diary, iteration }."""
+    raise_if_cancelled()
     revert_patch(str(_config_path()), state["original_content"])
 
     log_event(
@@ -376,6 +386,7 @@ def revert_and_continue_node(state: AutoResearchState) -> dict:
 
 def evaluate_node(state: AutoResearchState) -> dict:
     """LangGraph node. Calls run_evals(), compare_scores(), flag_regression(). Returns: { last_score, last_delta }."""
+    raise_if_cancelled()
     last_score = run_evals(state["last_result"]["model_path"], state["eval_suite"])
     last_delta = compare_scores(last_score, state["baseline_score"])
     regressed = flag_regression(last_delta)
@@ -407,6 +418,7 @@ def evaluate_node(state: AutoResearchState) -> dict:
 
 def keep_node(state: AutoResearchState) -> dict:
     """LangGraph node. Updates best_score and best_script. Resets no_improve_streak. Returns: { best_score, best_script, no_improve_streak: 0 }."""
+    raise_if_cancelled()
     log_event(
         AgentName.AUTORESEARCH,
         LogLevel.INFO,
@@ -429,6 +441,7 @@ def keep_node(state: AutoResearchState) -> dict:
 
 def revert_node(state: AutoResearchState) -> dict:
     """LangGraph node. Calls revert_patch(). Increments no_improve_streak. Returns: { current_script, no_improve_streak }."""
+    raise_if_cancelled()
     revert_patch(str(_config_path()), state["original_content"])
 
     new_streak = state["no_improve_streak"] + 1
@@ -447,6 +460,7 @@ def revert_node(state: AutoResearchState) -> dict:
 
 def log_node(state: AutoResearchState) -> dict:
     """LangGraph node. Calls log_iteration(). Calls adapt_eval_suite() every 10 iters. Returns: { diary, eval_suite, iteration }."""
+    raise_if_cancelled()
     iteration_number = state["iteration"] + 1
 
     # revert_and_continue_node already logged its entry and updated state["diary"].
@@ -528,6 +542,7 @@ def decision_edge(state: AutoResearchState) -> Literal["keep", "revert"]:
 
 def continue_edge(state: AutoResearchState) -> Literal["propose", "__end__"]:
     """After log_node. Returns '__end__' if budget exhausted / convergence, else 'propose' to loop."""
+    raise_if_cancelled()
     if state["should_stop"]:
         return "__end__"
 

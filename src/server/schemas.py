@@ -67,7 +67,7 @@ class RunArtifactsView(BaseModel):
 
 class RunState(BaseModel):
     run_id: str
-    status: Literal["running", "complete", "failed"]
+    status: Literal["running", "cancelling", "cancelled", "complete", "failed"]
     stage: int
     prompt: str
     budget: float

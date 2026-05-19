@@ -57,3 +57,9 @@ export function createRun(request: CreateRunRequest): Promise<CreateRunResponse>
 export function getRun(runId: string): Promise<BackendRunState> {
   return requestJson<BackendRunState>(`/runs/${runId}`);
 }
+
+export function cancelRun(runId: string): Promise<BackendRunState> {
+  return requestJson<BackendRunState>(`/runs/${runId}/cancel`, {
+    method: 'POST',
+  });
+}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createRun, getRun } from '../api/runs';
+import { cancelRun, createRun, getRun, type BackendRunState } from '../api/runs';
 import type { StartTraining, TaskType, TrainingState } from '../types';
 
 function makeInitialState(): TrainingState {
@@ -52,9 +52,34 @@ function makeStartingState(
   };
 }
 
+function isTerminalStatus(status: TrainingState['status']) {
+  return status === 'complete' || status === 'failed' || status === 'cancelled';
+}
+
+function stateFromBackend(next: BackendRunState): TrainingState {
+  return {
+    status: next.status,
+    stage: next.stage,
+    prompt: next.prompt,
+    budget: next.budget,
+    taskType: next.taskType,
+    dataPath: next.dataPath ?? null,
+    costSpent: next.costSpent,
+    metrics: next.metrics,
+    iterations: next.iterations,
+    logs: next.logs,
+    stages: next.stages,
+    artifacts: next.artifacts ?? null,
+    result: next.result ?? null,
+    error: next.error,
+    runId: next.run_id,
+  };
+}
+
 export function useTrainingRun() {
   const [state, setState] = useState<TrainingState>(makeInitialState);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const runIdRef = useRef<string | null>(null);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -67,25 +92,9 @@ export function useTrainingRun() {
 
   const poll = useCallback(async (runId: string) => {
     const next = await getRun(runId);
-    setState({
-      status: next.status,
-      stage: next.stage,
-      prompt: next.prompt,
-      budget: next.budget,
-      taskType: next.taskType,
-      dataPath: next.dataPath ?? null,
-      costSpent: next.costSpent,
-      metrics: next.metrics,
-      iterations: next.iterations,
-      logs: next.logs,
-      stages: next.stages,
-      artifacts: next.artifacts ?? null,
-      result: next.result ?? null,
-      error: next.error,
-      runId: next.run_id,
-    });
+    setState(stateFromBackend(next));
 
-    if (next.status === 'complete' || next.status === 'failed') {
+    if (isTerminalStatus(next.status)) {
       stopPolling();
     }
   }, [stopPolling]);
@@ -103,6 +112,7 @@ export function useTrainingRun() {
         data_path: normalizedDataPath,
       });
       setState(prev => ({ ...prev, runId: created.run_id }));
+      runIdRef.current = created.run_id;
       await poll(created.run_id);
       pollRef.current = setInterval(() => {
         void poll(created.run_id).catch((error: unknown) => {
@@ -125,8 +135,32 @@ export function useTrainingRun() {
 
   const reset = useCallback(() => {
     stopPolling();
+    runIdRef.current = null;
     setState(makeInitialState());
   }, [stopPolling]);
 
-  return { state, start, reset };
+  const cancel = useCallback(async () => {
+    const runId = runIdRef.current ?? state.runId;
+    if (!runId || isTerminalStatus(state.status)) {
+      return;
+    }
+
+    setState(prev => ({ ...prev, status: 'cancelling' }));
+    try {
+      const next = await cancelRun(runId);
+      setState(stateFromBackend(next));
+      if (isTerminalStatus(next.status)) {
+        stopPolling();
+      }
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        status: 'failed',
+        error: error instanceof Error ? error.message : String(error),
+      }));
+      stopPolling();
+    }
+  }, [state.runId, state.status, stopPolling]);
+
+  return { state, start, reset, cancel };
 }

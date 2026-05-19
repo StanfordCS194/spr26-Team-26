@@ -18,10 +18,12 @@ from uuid import uuid4
 
 from src.tinker_api.tinker_api import (
     TinkerAPIError,
+    cancel_job,
     get_cumulative_spend,
     is_cancelled,
     record_tokens,
 )
+from src.runtime_context import active_tinker_job, cancellation_requested
 from src.types import DatasetResult, ExperimentResult, TrainingMetrics
 
 if TYPE_CHECKING:
@@ -88,42 +90,45 @@ def run_tinker_sft_experiment(
         metrics_path = run_dir / "metrics.jsonl"
         status = "COMPLETED"
 
-        for step in range(target_steps):
-            if is_cancelled(run_name):
-                status = "CANCELLED"
-                break
+        with active_tinker_job(run_name):
+            for step in range(target_steps):
+                if cancellation_requested():
+                    cancel_job(run_name)
+                if is_cancelled(run_name):
+                    status = "CANCELLED"
+                    break
 
-            batch_conversations = _conversation_batch(conversations, cfg.batch_size, step)
-            batch = [
-                supervised_data.conversation_to_datum(
-                    conversation,
-                    renderer,
-                    cfg.max_seq_length,
-                    train_on_what,
-                )
-                for conversation in batch_conversations
-            ]
+                batch_conversations = _conversation_batch(conversations, cfg.batch_size, step)
+                batch = [
+                    supervised_data.conversation_to_datum(
+                        conversation,
+                        renderer,
+                        cfg.max_seq_length,
+                        train_on_what,
+                    )
+                    for conversation in batch_conversations
+                ]
 
-            adam_params = tinker_types.AdamParams(learning_rate=cfg.learning_rate)
-            fwd_future = training_client.forward_backward(batch, loss_fn="cross_entropy")
-            optim_future = training_client.optim_step(adam_params)
-            fwd_result = _future_result(fwd_future)
-            optim_result = _future_result(optim_future)
+                adam_params = tinker_types.AdamParams(learning_rate=cfg.learning_rate)
+                fwd_future = training_client.forward_backward(batch, loss_fn="cross_entropy")
+                optim_future = training_client.optim_step(adam_params)
+                fwd_result = _future_result(fwd_future)
+                optim_result = _future_result(optim_future)
 
-            tokens = sum(_datum_token_count(datum) for datum in batch)
-            record_tokens(run_name, tokens)
-            loss = _extract_loss(fwd_result, optim_result)
-            step_metrics = {
-                "step": step + 1,
-                "train_loss": loss,
-                "val_loss": loss,
-                "test_loss": loss,
-                "primary_metric": _score_from_loss(loss),
-                "tokens": tokens,
-            }
-            metrics_history.append(step_metrics)
-            with open(metrics_path, "a") as fh:
-                fh.write(json.dumps(step_metrics) + "\n")
+                tokens = sum(_datum_token_count(datum) for datum in batch)
+                record_tokens(run_name, tokens)
+                loss = _extract_loss(fwd_result, optim_result)
+                step_metrics = {
+                    "step": step + 1,
+                    "train_loss": loss,
+                    "val_loss": loss,
+                    "test_loss": loss,
+                    "primary_metric": _score_from_loss(loss),
+                    "tokens": tokens,
+                }
+                metrics_history.append(step_metrics)
+                with open(metrics_path, "a") as fh:
+                    fh.write(json.dumps(step_metrics) + "\n")
 
         checkpoints, sampling_client = _save_final_artifacts(training_client, run_name)
         sample_payload = _sample_once(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 import time
 from pathlib import Path
 
@@ -225,6 +226,159 @@ def test_create_run_surfaces_artifacts_and_allowlisted_downloads(tmp_path, monke
 
     missing_response = client.get(f"/api/runs/{run_id}/artifacts/not-real")
     assert missing_response.status_code == 404
+
+
+def test_running_run_refreshes_logs_iterations_metrics_and_artifacts(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    ready = threading.Event()
+    release = threading.Event()
+
+    def fake_invoke(prompt, budget, data_path=None):
+        root = get_output_root()
+        assert root is not None
+
+        from src.observability.observability import log_event
+        from src.types import AgentName, LogLevel
+
+        log_event(AgentName.DATA_GEN, LogLevel.INFO, "dataset found", {})
+        diary_path = root / "logs" / "research_diary.jsonl"
+        diary_path.parent.mkdir(parents=True, exist_ok=True)
+        diary_path.write_text(
+            json.dumps(
+                {
+                    "iteration": 1,
+                    "hypothesis": "Increase learning rate",
+                    "patch": "- learning_rate: 0.0001\n+ learning_rate: 0.0005",
+                    "metrics": {"val_loss": 0.4, "primary_metric": 0.714},
+                    "decision": "PENDING",
+                    "cost_usd": 0.42,
+                }
+            )
+            + "\nnot-json-yet",
+            encoding="utf-8",
+        )
+        run_dir = root / "experiments" / "live-progress"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / "metrics.jsonl").write_text(
+            json.dumps({"step": 1, "val_loss": 0.4, "primary_metric": 0.714}) + "\n",
+            encoding="utf-8",
+        )
+        (run_dir / "manifest.json").write_text(
+            json.dumps({"run_id": "live-progress", "checkpoints": {"state_path": "tinker://state/progress"}}),
+            encoding="utf-8",
+        )
+        ready.set()
+        assert release.wait(timeout=5)
+        return _fake_model(root, total_cost=0.5, with_artifacts=True)
+
+    monkeypatch.setattr(server_app, "invoke_manager_graph", fake_invoke)
+    client = TestClient(server_app.app)
+
+    response = client.post(
+        "/api/runs",
+        json={
+            "prompt": "Fine tune while surfacing live progress",
+            "budget": 25,
+            "task_type": "fine-tuning",
+        },
+    )
+
+    assert response.status_code == 200
+    run_id = response.json()["run_id"]
+    assert ready.wait(timeout=5)
+
+    state = client.get(f"/api/runs/{run_id}").json()
+    assert state["status"] == "running"
+    assert state["stage"] >= 4
+    assert state["costSpent"] == 0.42
+    assert state["logs"][0]["component"] == "DataGen"
+    assert state["iterations"][0]["status"] == "PENDING"
+    assert state["metrics"][0]["loss"] == 0.4
+    assert state["artifacts"]["checkpoints"]["state_path"] == "tinker://state/progress"
+
+    metrics_log = client.get(f"/api/runs/{run_id}/artifacts/metrics_log")
+    assert metrics_log.status_code == 200
+    assert '"step": 1' in metrics_log.text
+
+    release.set()
+    assert _wait_for_status(client, run_id, "complete")["status"] == "complete"
+
+
+def test_cancel_running_run_stops_at_safe_boundary(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    entered = threading.Event()
+
+    def fake_invoke(prompt, budget, data_path=None):
+        root = get_output_root()
+        assert root is not None
+
+        from src.runtime_context import active_tinker_job, cancellation_requested
+
+        with active_tinker_job("server-active-job"):
+            entered.set()
+            while not cancellation_requested():
+                time.sleep(0.01)
+        return _fake_model(root, total_cost=99.0, with_artifacts=True)
+
+    monkeypatch.setattr(server_app, "invoke_manager_graph", fake_invoke)
+    client = TestClient(server_app.app)
+
+    response = client.post(
+        "/api/runs",
+        json={
+            "prompt": "Fine tune a cancellable support assistant",
+            "budget": 25,
+            "task_type": "fine-tuning",
+        },
+    )
+    assert response.status_code == 200
+    run_id = response.json()["run_id"]
+    assert entered.wait(timeout=5)
+
+    cancel_response = client.post(f"/api/runs/{run_id}/cancel")
+    assert cancel_response.status_code == 200
+    assert cancel_response.json()["status"] == "cancelling"
+
+    from src.tinker_api.tinker_api import is_cancelled
+
+    assert is_cancelled("server-active-job")
+    state = _wait_for_status(client, run_id, "cancelled")
+    assert state["status"] == "cancelled"
+    assert state["result"] is None
+    assert any("cancel" in item["message"].lower() for item in state["logs"])
+
+
+def test_cancel_missing_run_returns_404():
+    client = TestClient(server_app.app)
+    response = client.post("/api/runs/not-a-run/cancel")
+    assert response.status_code == 404
+
+
+def test_cancel_completed_run_is_idempotent(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    def fake_invoke(prompt, budget, data_path=None):
+        root = get_output_root()
+        assert root is not None
+        return _fake_model(root, total_cost=0.5)
+
+    monkeypatch.setattr(server_app, "invoke_manager_graph", fake_invoke)
+    client = TestClient(server_app.app)
+
+    response = client.post(
+        "/api/runs",
+        json={
+            "prompt": "Fine tune and finish before cancel",
+            "budget": 25,
+            "task_type": "fine-tuning",
+        },
+    )
+
+    run_id = response.json()["run_id"]
+    _wait_for_status(client, run_id, "complete")
+    cancel_response = client.post(f"/api/runs/{run_id}/cancel")
+    assert cancel_response.status_code == 200
+    assert cancel_response.json()["status"] == "complete"
 
 
 def test_create_run_passes_existing_local_data_path(tmp_path, monkeypatch):

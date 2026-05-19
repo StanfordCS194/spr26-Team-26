@@ -17,6 +17,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from src.runtime_context import resolve_output_path
 from src.types import LogEntry
 
 # ANSI color codes by agent name
@@ -41,7 +42,7 @@ def log_event(
     level: str,
     message: str,
     metadata: dict = {},
-    log_path: str = "outputs/logs/run.jsonl",
+    log_path: str | Path | None = None,
 ) -> None:
     """Central logging function called by every agent. Writes JSON to disk and colored line to stdout."""
     entry: LogEntry = {
@@ -52,7 +53,12 @@ def log_event(
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     emit_cli(entry)
-    write_json_log(entry, log_path)
+    path = Path(log_path) if log_path is not None else resolve_output_path(
+        "outputs/logs/run.jsonl",
+        "logs",
+        "run.jsonl",
+    )
+    write_json_log(entry, path)
 
 
 def format_cli_line(entry: LogEntry) -> str:
@@ -72,7 +78,7 @@ def emit_cli(entry: LogEntry) -> None:
     print(format_cli_line(entry), file=sys.stdout, flush=True)
 
 
-def write_json_log(entry: LogEntry, log_path: str) -> None:
+def write_json_log(entry: LogEntry, log_path: str | Path) -> None:
     """Appends the LogEntry as a JSON line to the structured log file."""
     path = Path(log_path)
     path.parent.mkdir(parents=True, exist_ok=True)
