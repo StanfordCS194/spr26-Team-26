@@ -255,6 +255,7 @@ def validate_synthetic_records(
     duplicate_count = 0
     seen: set[str] = set()
     label_counts: dict[str, int] = {}
+    allowed_labels = set(_schema_labels(schema))
 
     for index, record in enumerate(records):
         try:
@@ -268,8 +269,14 @@ def validate_synthetic_records(
             issues.append(f"row {index}: duplicate input/output pair")
             continue
         seen.add(key)
-        valid += 1
         label = _assistant_content(normalized)
+        if allowed_labels and label not in allowed_labels:
+            issues.append(
+                f"row {index}: label {label!r} is not in schema labels "
+                f"{sorted(allowed_labels)!r}"
+            )
+            continue
+        valid += 1
         label_counts[label] = label_counts.get(label, 0) + 1
 
     if valid < min_examples:

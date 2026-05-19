@@ -9,12 +9,6 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from src.data_generator.mode_c.nodes import (
-    aggregate_web_sources_node,
-    crawl_web_pages_node,
-    plan_web_acquisition_node,
-    search_web_sources_node,
-)
 from src.data_generator.mode_c.synthetic import (
     DEFAULT_SYNTHETIC_EXAMPLES,
     DEFAULT_TEACHER_MODEL,
@@ -29,6 +23,30 @@ from src.data_generator.mode_c.synthetic import (
     validate_synthetic_records,
 )
 from src.types import OrchestrationConfig, RawData
+
+
+def plan_web_acquisition_node(*args, **kwargs):
+    from src.data_generator.mode_c.nodes import plan_web_acquisition_node as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def search_web_sources_node(*args, **kwargs):
+    from src.data_generator.mode_c.nodes import search_web_sources_node as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def crawl_web_pages_node(*args, **kwargs):
+    from src.data_generator.mode_c.nodes import crawl_web_pages_node as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def aggregate_web_sources_node(*args, **kwargs):
+    from src.data_generator.mode_c.nodes import aggregate_web_sources_node as _impl
+
+    return _impl(*args, **kwargs)
 
 
 def acquire_synthetic_dataset(

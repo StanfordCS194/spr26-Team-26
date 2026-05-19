@@ -278,6 +278,7 @@ class DataGenState(TypedDict, total=False):
     web_pages: list[dict]
     human_readable: str | None
     mode_c_fallback: str | None
+    mode_c_backend: str | None
     web_acquisition_error: str | None
 
 

@@ -4,6 +4,8 @@ import sys
 import types
 from types import SimpleNamespace
 
+import pytest
+
 from src.data_generator.mode_c import (
     acquire_synthetic_dataset,
     acquire_web_data,
@@ -178,6 +180,23 @@ def test_validate_synthetic_records_reports_malformed_and_duplicate_rows(monkeyp
     assert any("duplicate" in issue for issue in quality["issues"])
 
 
+def test_validate_synthetic_records_enforces_schema_labels(monkeypatch):
+    monkeypatch.setenv("DATA_GENERATOR_SYNTHETIC_OFFLINE", "1")
+    schema = {
+        **infer_schema_without_teacher(_config()),
+        "output_format": "one of: urgent, normal",
+    }
+
+    quality = validate_synthetic_records(
+        [{"input": "server is down", "output": "not_relevant"}],
+        schema,
+        min_examples=1,
+    )
+
+    assert quality["passed"] is False
+    assert any("schema labels" in issue for issue in quality["issues"])
+
+
 def test_acquire_web_data_compatibility_wrapper_returns_raw_data(monkeypatch):
     monkeypatch.setenv("DATA_GENERATOR_SYNTHETIC_OFFLINE", "1")
 
@@ -229,6 +248,56 @@ def test_mode_c_graph_handoff_contains_schema_and_validation(monkeypatch):
     assert handoff["schema"]["output_format"] == "one of: relevant, not_relevant"
     assert handoff["validation_report"]["passed"] is True
     assert len(handoff["raw_data"]["records"]) == 10
+
+
+def test_mode_c_synthetic_backend_never_calls_web(monkeypatch):
+    monkeypatch.setenv("DATA_GENERATOR_MODE_C_BACKEND", "synthetic")
+    monkeypatch.setenv("TAVILY_API_KEY", "present-but-should-not-be-used")
+
+    from src.data_generator.mode_c import nodes as mode_c_nodes
+
+    def fail_search(_web_plan):
+        raise AssertionError("synthetic backend should not call web search")
+
+    monkeypatch.setattr(mode_c_nodes, "search_web_sources", fail_search)
+
+    handoff = invoke_data_generator_graph(_config(synthetic_examples=8), data_path=None)
+
+    assert handoff["mode_c_fallback"] == "synthetic"
+    assert handoff["raw_data"]["format_meta"]["mode_c_backend"] == "synthetic"
+    assert handoff["validation_report"]["passed"] is True
+
+
+def test_mode_c_offline_env_overrides_web_backend(monkeypatch):
+    monkeypatch.setenv("DATA_GENERATOR_SYNTHETIC_OFFLINE", "1")
+    monkeypatch.setenv("DATA_GENERATOR_MODE_C_BACKEND", "web")
+
+    from src.data_generator.mode_c import nodes as mode_c_nodes
+
+    def fail_search(_web_plan):
+        raise AssertionError("offline synthetic mode should not call web search")
+
+    monkeypatch.setattr(mode_c_nodes, "search_web_sources", fail_search)
+
+    handoff = invoke_data_generator_graph(_config(synthetic_examples=8), data_path=None)
+
+    assert handoff["mode_c_fallback"] == "synthetic"
+    assert handoff["raw_data"]["format_meta"]["mode_c_backend"] == "synthetic"
+
+
+def test_mode_c_web_backend_fails_loudly_on_search_error(monkeypatch):
+    monkeypatch.delenv("DATA_GENERATOR_SYNTHETIC_OFFLINE", raising=False)
+    monkeypatch.setenv("DATA_GENERATOR_MODE_C_BACKEND", "web")
+
+    from src.data_generator.mode_c import nodes as mode_c_nodes
+
+    def fail_search(_web_plan):
+        raise RuntimeError("web unavailable")
+
+    monkeypatch.setattr(mode_c_nodes, "search_web_sources", fail_search)
+
+    with pytest.raises(RuntimeError, match="web unavailable"):
+        invoke_data_generator_graph(_config(synthetic_examples=8), data_path=None)
 
 
 def test_scrape_web_fallback_uses_same_standard_contract(monkeypatch):

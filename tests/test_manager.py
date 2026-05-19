@@ -10,6 +10,7 @@ from src.manager.manager import (
     build_orchestration_config,
     log_decision,
     orchestrate_node,
+    query_data_node,
     reason_about_task,
 )
 from src.types import OrchestrationConfig, TaskReasoning
@@ -77,6 +78,30 @@ def test_reason_about_task_returns_task_reasoning():
     assert result["task_type"] == "text-classification"
     assert result["training_type"] == "SFT"
     assert "learning_rate" in result["hyperparameters"]
+
+
+def test_query_data_node_uses_programmatic_data_path_without_input(tmp_path, monkeypatch):
+    data_path = tmp_path / "train.jsonl"
+    data_path.write_text('{"input":"x","output":"y"}\n', encoding="utf-8")
+
+    def fail_input(_prompt):
+        raise AssertionError("query_data_node should not prompt when data_path is set")
+
+    monkeypatch.setattr("builtins.input", fail_input)
+
+    out = query_data_node(
+        {
+            "prompt": "classify",
+            "budget": 5.0,
+            "data_path": str(data_path),
+            "has_data": True,
+            "task_reasoning": None,
+            "config": None,
+            "result": None,
+        }
+    )
+
+    assert out == {"has_data": True, "data_path": str(data_path.resolve())}
 
 
 def test_invoke_manager_graph_returns_trained_model():

@@ -121,7 +121,10 @@ def curate_record(
         raise ValueError(f"missing input field; expected one of {_INPUT_KEYS}")
     if not target_text:
         if _is_mode_c_web_record(record, mode, record_source):
-            return _curate_web_source_record(record, user_text, config)
+            raise ValueError(
+                "Mode C web source has no assistant target; run synthetic "
+                "structuring before training"
+            )
         raise ValueError(f"missing target field; expected one of {_TARGET_KEYS}")
     return {"input": user_text, "output": target_text}
 
@@ -168,30 +171,6 @@ def _is_mode_c_web_record(
     return str(metadata.get("extraction_method") or "") != ""
 
 
-def _curate_web_source_record(
-    record: Mapping[str, Any],
-    input_text: str,
-    config: Mapping[str, Any] | None,
-) -> dict[str, Any]:
-    task = _task_prompt(config)
-    source = _first_text(record, ("source_locator", "url", "title", "domain"))
-    user_content = (
-        f"Task: {task}\n"
-        f"Source: {source or 'web acquisition'}\n"
-        f"Content: {input_text}"
-    )
-    assistant_content = (
-        "candidate_source: this acquired source contains material that can be "
-        "used by the data curation step for the requested task."
-    )
-    return {
-        "messages": [
-            {"role": "user", "content": user_content},
-            {"role": "assistant", "content": assistant_content},
-        ]
-    }
-
-
 def _normalize_messages(messages: Any) -> list[dict[str, str]]:
     if not isinstance(messages, list):
         raise ValueError("messages must be a list")
@@ -215,12 +194,6 @@ def _first_text(record: Mapping[str, Any], keys: Sequence[str]) -> str:
         if value is not None and str(value).strip():
             return str(value).strip()
     return ""
-
-
-def _task_prompt(config: Mapping[str, Any] | None) -> str:
-    if not config:
-        return "the requested ML task"
-    return " ".join(str(config.get("prompt", "the requested ML task")).split())
 
 
 def _split_counts(n_records: int) -> dict[str, int]:

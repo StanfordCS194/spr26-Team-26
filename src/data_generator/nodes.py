@@ -98,11 +98,13 @@ def build_handoff_node(state: DataGenState) -> dict:
             "selected_candidate": state.get("selected_candidate"),
             "web_plan": state.get("web_plan"),
             "web_search_results": state.get("web_search_results", []),
+            "mode_c_backend": state.get("mode_c_backend"),
             "mode_c_fallback": state.get("mode_c_fallback"),
             "web_acquisition_error": state.get("web_acquisition_error"),
             "source_metadata": {
                 "data_path": state.get("data_path"),
                 "mode": mode,
+                "mode_c_backend": state.get("mode_c_backend"),
                 "mode_c_fallback": state.get("mode_c_fallback"),
                 "web_acquisition_error": state.get("web_acquisition_error"),
                 "raw_format": raw_data.get("format_meta"),

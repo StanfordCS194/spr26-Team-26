@@ -31,24 +31,19 @@ def test_curate_record_rejects_content_without_target():
         curate_record({"content": "Only source text"})
 
 
-def test_curate_record_adapts_mode_c_web_source_without_target():
-    curated = curate_record(
-        {
-            "source_kind": "web_page",
-            "source_locator": "https://example.com/support",
-            "input": "Urgent tickets include outages and security incidents.",
-            "output": "",
-        },
-        mode="C",
-        config={"prompt": "classify support tickets by urgency"},
-        record_source="curation_payload",
-    )
-
-    assert curated["messages"][0]["role"] == "user"
-    assert "classify support tickets by urgency" in curated["messages"][0]["content"]
-    assert "https://example.com/support" in curated["messages"][0]["content"]
-    assert curated["messages"][1]["role"] == "assistant"
-    assert "candidate_source" in curated["messages"][1]["content"]
+def test_curate_record_rejects_mode_c_web_source_without_target():
+    with pytest.raises(ValueError, match="web source has no assistant target"):
+        curate_record(
+            {
+                "source_kind": "web_page",
+                "source_locator": "https://example.com/support",
+                "input": "Urgent tickets include outages and security incidents.",
+                "output": "",
+            },
+            mode="C",
+            config={"prompt": "classify support tickets by urgency"},
+            record_source="curation_payload",
+        )
 
 
 def test_curate_handoff_writes_only_valid_jsonl(tmp_path):
@@ -111,7 +106,7 @@ def test_curate_handoff_prefers_mode_c_curation_payload(tmp_path):
                     "source_kind": "web_page",
                     "source_locator": "https://example.com/urgency",
                     "input": "Outages and active security incidents are urgent.",
-                    "output": "",
+                    "output": "urgent",
                 }
             ]
         },
@@ -128,10 +123,12 @@ def test_curate_handoff_prefers_mode_c_curation_payload(tmp_path):
         for line in open(result["dataset"]["path"]).read().splitlines()
         if line.strip()
     ]
-    assert rows[0]["messages"][0]["content"].startswith(
-        "Task: build a classifier for support ticket urgency"
-    )
-    assert "raw page should not be used" not in rows[0]["messages"][0]["content"]
+    assert rows == [
+        {
+            "input": "Outages and active security incidents are urgent.",
+            "output": "urgent",
+        }
+    ]
 
 
 def test_curate_handoff_preserves_upstream_validation(tmp_path):
