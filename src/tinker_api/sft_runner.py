@@ -123,9 +123,7 @@ def run_tinker_sft_experiment(
 
         with active_tinker_job(run_name):
             for step in range(target_steps):
-                if cancellation_requested():
-                    cancel_job(run_name)
-                if is_cancelled(run_name):
+                if _sync_cancellation(run_name):
                     status = "CANCELLED"
                     break
 
@@ -172,31 +170,54 @@ def run_tinker_sft_experiment(
                 if nonfinite_loss:
                     break
 
-        checkpoints, sampling_client = _save_final_artifacts(training_client, run_name)
-        sample_payload = _sample_once(
-            sampling_client=sampling_client,
-            renderer=renderer,
-            tinker_types=tinker_types,
-            conversations=conversations,
-        )
-        _write_json(run_dir / "sample.json", sample_payload)
+            if _sync_cancellation(run_name):
+                status = "CANCELLED"
 
-        val_loss = _evaluate_holdout_loss(
-            training_client=training_client,
-            conversations=splits.val,
-            renderer=renderer,
-            supervised_data=supervised_data,
-            cfg=cfg,
-            train_on_what=train_on_what,
-        )
-        test_loss = _evaluate_holdout_loss(
-            training_client=training_client,
-            conversations=splits.test,
-            renderer=renderer,
-            supervised_data=supervised_data,
-            cfg=cfg,
-            train_on_what=train_on_what,
-        )
+            if status == "CANCELLED":
+                checkpoints = _cancelled_checkpoints()
+                sample_payload = _cancelled_sample(conversations)
+                val_loss = None
+                test_loss = None
+            else:
+                checkpoints, sampling_client = _save_final_artifacts(training_client, run_name)
+                if _sync_cancellation(run_name):
+                    status = "CANCELLED"
+                    sample_payload = _cancelled_sample(conversations)
+                    val_loss = None
+                    test_loss = None
+                else:
+                    sample_payload = _sample_once(
+                        sampling_client=sampling_client,
+                        renderer=renderer,
+                        tinker_types=tinker_types,
+                        conversations=conversations,
+                    )
+                    if _sync_cancellation(run_name):
+                        status = "CANCELLED"
+                        val_loss = None
+                        test_loss = None
+                    else:
+                        val_loss = _evaluate_holdout_loss(
+                            training_client=training_client,
+                            conversations=splits.val,
+                            renderer=renderer,
+                            supervised_data=supervised_data,
+                            cfg=cfg,
+                            train_on_what=train_on_what,
+                        )
+                        if _sync_cancellation(run_name):
+                            status = "CANCELLED"
+                            test_loss = None
+                        else:
+                            test_loss = _evaluate_holdout_loss(
+                                training_client=training_client,
+                                conversations=splits.test,
+                                renderer=renderer,
+                                supervised_data=supervised_data,
+                                cfg=cfg,
+                                train_on_what=train_on_what,
+                            )
+        _write_json(run_dir / "sample.json", sample_payload)
         final_metrics = _final_metrics(
             metrics_history,
             status,
@@ -461,6 +482,29 @@ def _load_tinker_deps() -> tuple[Any, Any, Any, Any, Any, Any]:
     return tinker, tinker_types, model_info, renderers, supervised_data, tokenizer_utils
 
 
+def _sync_cancellation(run_name: str) -> bool:
+    if cancellation_requested():
+        cancel_job(run_name)
+    return is_cancelled(run_name)
+
+
+def _cancelled_checkpoints() -> dict[str, str]:
+    return {"skipped": "cancelled"}
+
+
+def _cancelled_sample(conversations: list[list[dict[str, str]]]) -> dict[str, Any]:
+    prompt_messages = [message for message in conversations[0] if message["role"] != "assistant"]
+    if not prompt_messages:
+        prompt_messages = [{"role": "user", "content": conversations[0][0]["content"]}]
+    return {
+        "prompt": prompt_messages,
+        "text": "",
+        "tokens": [],
+        "status": "CANCELLED",
+        "backend": "cancelled",
+    }
+
+
 def _use_dry_run_backend() -> bool:
     if _env_flag_enabled(NO_SPEND_ENV):
         return True
@@ -498,68 +542,72 @@ def _run_dry_run_sft_experiment(
         max_steps=max_steps,
     )
 
-    for step in range(target_steps):
-        if is_cancelled(run_name):
+    with active_tinker_job(run_name):
+        for step in range(target_steps):
+            if _sync_cancellation(run_name):
+                status = "CANCELLED"
+                break
+
+            batch_conversations = _conversation_batch(
+                training_conversations,
+                cfg.batch_size,
+                step,
+            )
+            tokens = sum(_dry_run_token_count(conversation) for conversation in batch_conversations)
+            record_tokens(run_name, tokens)
+            loss = _dry_run_batch_loss(batch_conversations, step)
+            step_metrics = {
+                "step": step + 1,
+                "train_loss": loss,
+                "val_loss": loss,
+                "test_loss": loss,
+                "primary_metric": _score_from_loss(loss),
+                "tokens": tokens,
+            }
+            metrics_history.append(step_metrics)
+            with open(metrics_path, "a") as fh:
+                fh.write(json.dumps(step_metrics, allow_nan=False) + "\n")
+
+        if _sync_cancellation(run_name):
             status = "CANCELLED"
-            break
 
-        batch_conversations = _conversation_batch(
-            training_conversations,
-            cfg.batch_size,
-            step,
+        val_loss = _dry_run_holdout_loss(splits.val)
+        test_loss = _dry_run_holdout_loss(splits.test)
+        final_metrics = _final_metrics(
+            metrics_history,
+            status,
+            val_loss=val_loss,
+            test_loss=test_loss,
         )
-        tokens = sum(_dry_run_token_count(conversation) for conversation in batch_conversations)
-        record_tokens(run_name, tokens)
-        loss = _dry_run_batch_loss(batch_conversations, step)
-        step_metrics = {
-            "step": step + 1,
-            "train_loss": loss,
-            "val_loss": loss,
-            "test_loss": loss,
-            "primary_metric": _score_from_loss(loss),
-            "tokens": tokens,
+        checkpoints = {
+            "state_path": f"dry-run://state/{run_name}-final-state",
+            "sampler_path": f"dry-run://sampler/{run_name}-final-sampler",
         }
-        metrics_history.append(step_metrics)
-        with open(metrics_path, "a") as fh:
-            fh.write(json.dumps(step_metrics, allow_nan=False) + "\n")
-
-    val_loss = _dry_run_holdout_loss(splits.val)
-    test_loss = _dry_run_holdout_loss(splits.test)
-    final_metrics = _final_metrics(
-        metrics_history,
-        status,
-        val_loss=val_loss,
-        test_loss=test_loss,
-    )
-    checkpoints = {
-        "state_path": f"dry-run://state/{run_name}-final-state",
-        "sampler_path": f"dry-run://sampler/{run_name}-final-sampler",
-    }
-    manifest = {
-        "run_id": run_name,
-        "status": status,
-        "backend": TINKER_DRY_RUN_BACKEND,
-        "model_name": model_name,
-        "renderer_name": "dry_run_chat",
-        "train_on_what": "last_assistant_message",
-        "dataset_path": _dataset_path_for_manifest(dataset),
-        "training_examples": len(training_conversations),
-        "split_examples": {
-            "train": len(splits.train),
-            "val": len(splits.val),
-            "test": len(splits.test),
-        },
-        "heldout_eval": {
-            "val_loss": val_loss,
-            "test_loss": test_loss,
-        },
-        "max_steps": max_steps,
-        "completed_steps": len(metrics_history),
-        "checkpoints": checkpoints,
-    }
-    _write_json(run_dir / "sample.json", _dry_run_sample(conversations))
-    _write_json(run_dir / "manifest.json", manifest)
-    _write_json(run_dir / "metrics.json", final_metrics)
+        manifest = {
+            "run_id": run_name,
+            "status": status,
+            "backend": TINKER_DRY_RUN_BACKEND,
+            "model_name": model_name,
+            "renderer_name": "dry_run_chat",
+            "train_on_what": "last_assistant_message",
+            "dataset_path": _dataset_path_for_manifest(dataset),
+            "training_examples": len(training_conversations),
+            "split_examples": {
+                "train": len(splits.train),
+                "val": len(splits.val),
+                "test": len(splits.test),
+            },
+            "heldout_eval": {
+                "val_loss": val_loss,
+                "test_loss": test_loss,
+            },
+            "max_steps": max_steps,
+            "completed_steps": len(metrics_history),
+            "checkpoints": checkpoints,
+        }
+        _write_json(run_dir / "sample.json", _dry_run_sample(conversations))
+        _write_json(run_dir / "manifest.json", manifest)
+        _write_json(run_dir / "metrics.json", final_metrics)
 
     return {
         "job_id": run_name,

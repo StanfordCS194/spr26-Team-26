@@ -573,6 +573,73 @@ def test_cancel_running_run_stops_at_safe_boundary(tmp_path, monkeypatch):
     assert any("cancel" in item["message"].lower() for item in state["logs"])
 
 
+def test_cancel_no_spend_dry_run_tinker_run(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("NO_SPEND", "1")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("TINKER_API_KEY", raising=False)
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+
+    from src.autoresearch.config import TrainingConfig
+    from src.tinker_api import sft_runner, tinker_api
+
+    started = threading.Event()
+    original_record_tokens = tinker_api.record_tokens
+
+    def slow_first_step(job_id: str, n_tokens: int) -> None:
+        if not started.is_set():
+            started.set()
+            time.sleep(0.2)
+        original_record_tokens(job_id, n_tokens)
+
+    def fake_invoke(prompt, budget, data_path=None, task_type_hint=None):
+        root = get_output_root()
+        assert root is not None
+        return sft_runner.run_tinker_sft_experiment(
+            TrainingConfig(model_name="Qwen/Qwen3.5-9B", batch_size=1),
+            [{"input": "Question", "output": "Answer"}],
+            run_id="server-dry-run",
+            max_steps=250,
+            output_dir=str(root / "experiments"),
+        )
+
+    monkeypatch.setattr(sft_runner, "record_tokens", slow_first_step)
+    monkeypatch.setattr(server_app, "invoke_manager_graph", fake_invoke)
+
+    client = TestClient(server_app.app)
+    response = client.post(
+        "/api/runs",
+        json={
+            "prompt": "Fine tune a cancellable no-spend dry-run assistant",
+            "budget": 3,
+            "task_type": "fine-tuning",
+        },
+    )
+    assert response.status_code == 200
+    run_id = response.json()["run_id"]
+    assert started.wait(timeout=5)
+
+    cancel_response = client.post(f"/api/runs/{run_id}/cancel")
+    assert cancel_response.status_code == 200
+    assert cancel_response.json()["status"] in {"cancelling", "cancelled"}
+
+    state = _wait_for_status(client, run_id, "cancelled")
+    manifest_path = (
+        tmp_path
+        / "outputs"
+        / "api-runs"
+        / run_id
+        / "experiments"
+        / "server-dry-run"
+        / "manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    assert state["status"] == "cancelled"
+    assert manifest["status"] == "CANCELLED"
+    assert tinker_api.is_cancelled("server-dry-run")
+
+
 def test_cancel_missing_run_returns_404():
     client = TestClient(server_app.app)
     response = client.post("/api/runs/not-a-run/cancel")

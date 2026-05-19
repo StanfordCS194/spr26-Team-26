@@ -4,6 +4,7 @@ import importlib
 import json
 import math
 import sys
+import threading
 import types
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -345,6 +346,48 @@ def test_run_tinker_sft_experiment_dry_run_cancels_between_steps(
     assert len(rows) == 1
 
 
+def test_run_tinker_sft_experiment_dry_run_honors_runtime_cancellation(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("TINKER_BACKEND", "dry_run")
+    from src.runtime_context import cancellation_context
+    from src.tinker_api import sft_runner, tinker_api
+    from src.tinker_api.sft_runner import run_tinker_sft_experiment
+
+    cancel_event = threading.Event()
+    active_jobs: set[str] = set()
+    original_record_tokens = tinker_api.record_tokens
+
+    def request_cancel_after_first_step(job_id: str, n_tokens: int) -> None:
+        original_record_tokens(job_id, n_tokens)
+        assert job_id in active_jobs
+        cancel_event.set()
+
+    monkeypatch.setattr(sft_runner, "record_tokens", request_cancel_after_first_step)
+    data_path = _write_jsonl(
+        tmp_path / "train.jsonl",
+        [{"input": "Question", "output": "Answer"}],
+    )
+
+    with cancellation_context(cancel_event, active_jobs):
+        result = run_tinker_sft_experiment(
+            TrainingConfig(model_name="Qwen/Qwen3.5-9B", batch_size=1),
+            str(data_path),
+            run_id="runtime-dry-cancel",
+            max_steps=3,
+            output_dir=str(tmp_path / "experiments"),
+        )
+
+    run_dir = tmp_path / "experiments" / "runtime-dry-cancel"
+    manifest = _assert_strict_json_file(run_dir / "manifest.json")
+
+    assert result["status"] == "CANCELLED"
+    assert manifest["completed_steps"] == 1
+    assert tinker_api.is_cancelled("runtime-dry-cancel")
+    assert active_jobs == set()
+
+
 def test_run_tinker_sft_experiment_writes_strict_json_for_nonfinite_training_loss(
     tmp_path,
     monkeypatch,
@@ -646,7 +689,7 @@ def test_extract_forward_loss_uses_weighted_logprobs():
 
 
 def test_run_tinker_sft_experiment_stops_on_cancel_and_writes_artifacts(tmp_path, monkeypatch):
-    _install_fake_tinker_stack(monkeypatch, losses=[0.5, 0.25, 0.1])
+    state = _install_fake_tinker_stack(monkeypatch, losses=[0.5, 0.25, 0.1])
     from src.tinker_api import tinker_api
     from src.tinker_api.sft_runner import run_tinker_sft_experiment
 
@@ -671,10 +714,17 @@ def test_run_tinker_sft_experiment_stops_on_cancel_and_writes_artifacts(tmp_path
     )
 
     run_dir = tmp_path / "experiments" / "cancel-run"
+    manifest = _assert_strict_json_file(run_dir / "manifest.json")
+    sample = _assert_strict_json_file(run_dir / "sample.json")
+
     assert result["status"] == "CANCELLED"
-    assert (run_dir / "manifest.json").exists()
-    assert (run_dir / "sample.json").exists()
+    assert manifest["checkpoints"] == {"skipped": "cancelled"}
+    assert sample["status"] == "CANCELLED"
     assert (run_dir / "metrics.jsonl").read_text().count("\n") == 1
+    assert state.training_client.save_state_calls == 0
+    assert state.training_client.save_weights_calls == 0
+    assert state.training_client.sample_calls == 0
+    assert state.training_client.forward_calls == 0
 
 
 def test_run_evals_scores_tinker_metrics(tmp_path):
@@ -1230,9 +1280,13 @@ class _FakeTrainingClient:
         self.forward_backward_calls = 0
         self.forward_calls = 0
         self.optim_step_calls = 0
+        self.save_state_calls = 0
+        self.save_weights_calls = 0
+        self.sample_calls = 0
         self.batches = []
         self.forward_batches = []
         self.sampling_client = _FakeSamplingClient()
+        self.sampling_client.training_client = self
 
     def forward_backward(self, batch, loss_fn):
         self.forward_backward_calls += 1
@@ -1255,9 +1309,11 @@ class _FakeTrainingClient:
         return _FakeFuture(types.SimpleNamespace(metrics={}))
 
     def save_state(self, name):
+        self.save_state_calls += 1
         return _FakeFuture(types.SimpleNamespace(path=f"tinker://state/{name}"))
 
     def save_weights_for_sampler(self, name):
+        self.save_weights_calls += 1
         return _FakeFuture(types.SimpleNamespace(path=f"tinker://sampler/{name}"))
 
     def save_weights_and_get_sampling_client(self, name=None):
@@ -1266,6 +1322,7 @@ class _FakeTrainingClient:
 
 class _FakeSamplingClient:
     def sample(self, prompt, num_samples, sampling_params):
+        self.training_client.sample_calls += 1
         sequence = types.SimpleNamespace(tokens=[10, 11, 12])
         return _FakeFuture(types.SimpleNamespace(sequences=[sequence]))
 
