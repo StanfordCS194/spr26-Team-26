@@ -38,22 +38,22 @@ def test_mode_c_web_real_search_crawl_and_artifact():
     assert len(records) > 0
 
     for rec in records:
-    assert rec["source"] in {"web_page", "web_asset"}
-    assert rec["url"]
-    assert rec["title"] is not None
-    assert rec["content"] is not None
-    assert rec["metadata"]
+        assert rec["source"] in {"web_page", "web_asset"}
+        assert rec["url"]
+        assert rec["title"] is not None
+        assert rec["content"] is not None
+        assert rec["metadata"]
 
-    if rec["source"] == "web_page":
-        assert len(rec["content"]) >= 300
-        assert rec["metadata"]["extraction_method"] == "trafilatura"
+        if rec["source"] == "web_page":
+            assert len(rec["content"]) >= 300
+            assert rec["metadata"]["extraction_method"] == "trafilatura"
 
-    if rec["source"] == "web_asset":
-        assert rec.get("source_type") in {"pdf", "csv", "json", "image"}
-        assert rec["metadata"]["extraction_method"] in {
-            "asset_metadata_only",
-            "direct_text_asset",
-        }
+        if rec["source"] == "web_asset":
+            assert rec.get("source_type") in {"pdf", "csv", "json", "image"}
+            assert rec["metadata"]["extraction_method"] in {
+                "asset_metadata_only",
+                "direct_text_asset",
+            }
 
     assert handoff["human_readable"]
     assert "Mode C Web Acquisition Report" in handoff["human_readable"]
