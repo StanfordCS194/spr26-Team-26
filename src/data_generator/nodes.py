@@ -178,6 +178,7 @@ def _normalize_single_record(mode: str, record: dict[str, Any], index: int) -> d
     metadata = {
         "mode": mode,
         "source": record.get("source"),
+        "dataset_id": record.get("dataset_id"),
         "source_type": record.get("source_type"),
         "source_path": record.get("source_path") or record.get("path"),
         "url": record.get("url"),

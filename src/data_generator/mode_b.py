@@ -6,6 +6,8 @@ from typing import Any
 
 from src.types import HFCandidate, OrchestrationConfig, RawData
 
+_OFFLINE_SPLITS = ("train", "validation", "test")
+
 
 def parse_explicit_hf_dataset_ids(config: OrchestrationConfig, data_path: str | None = None) -> list[str]:
     """Extract explicit HF dataset IDs from config/prompt/path."""
@@ -77,14 +79,14 @@ def fetch_hf_datasets(candidates: list[HFCandidate]) -> RawData:
 
     if offline:
         for candidate in candidates:
-            records.append(
-                {
-                    "source": candidate["name"],
-                    "content": f"offline_placeholder: acquired metadata for {candidate['name']}",
-                }
-            )
+            for record in _build_offline_trainable_records(candidate, max_rows_per_dataset):
+                if max_total_records is not None and len(records) >= max_total_records:
+                    break
+                records.append(record)
+            if max_total_records is not None and len(records) >= max_total_records:
+                break
         return {
-            "records": records or [{"source": "none", "content": "offline_empty"}],
+            "records": records or [_offline_empty_record()],
             "format_meta": {"modality": "text", "file_type": "hf_bundle", "encoding": "utf-8"},
         }
 
@@ -94,7 +96,12 @@ def fetch_hf_datasets(candidates: list[HFCandidate]) -> RawData:
         try:
             dataset_records = _fetch_with_hf_datasets(dataset_id, max_rows_per_dataset)
             if dataset_records:
-                records.extend(dataset_records)
+                if max_total_records is None:
+                    records.extend(dataset_records)
+                else:
+                    remaining = max_total_records - len(records)
+                    if remaining > 0:
+                        records.extend(dataset_records[:remaining])
             else:
                 records.append(
                     {
@@ -120,6 +127,70 @@ def fetch_hf_datasets(candidates: list[HFCandidate]) -> RawData:
         "records": records,
         "format_meta": {"modality": "text", "file_type": "hf_bundle", "encoding": "utf-8"},
     }
+
+
+def _build_offline_trainable_records(
+    candidate: HFCandidate,
+    max_rows_per_dataset: int | None,
+) -> list[dict]:
+    dataset_id = str(candidate.get("name") or candidate.get("id") or "unknown").strip() or "unknown"
+    task_type = _candidate_task_type(candidate)
+    row_count = len(_OFFLINE_SPLITS)
+    if max_rows_per_dataset is not None:
+        row_count = min(row_count, max_rows_per_dataset)
+
+    records: list[dict] = []
+    for idx, split in enumerate(_OFFLINE_SPLITS[:row_count]):
+        label = _offline_label(task_type, idx)
+        input_text = (
+            f"Offline Mode B sample {idx + 1} from {dataset_id} "
+            f"for {task_type} ({split} split)."
+        )
+        records.append(
+            {
+                "source": dataset_id,
+                "dataset_id": dataset_id,
+                "split": split,
+                "input": input_text,
+                "output": label,
+                "label": label,
+                "content": input_text,
+                "metadata": {
+                    "offline": True,
+                    "dataset_id": dataset_id,
+                    "candidate_id": candidate.get("id"),
+                    "row_index": idx,
+                },
+            }
+        )
+    return records
+
+
+def _offline_empty_record() -> dict:
+    input_text = "Offline Mode B run received no explicit Hugging Face dataset candidates."
+    return {
+        "source": "none",
+        "dataset_id": "none",
+        "split": "train",
+        "input": input_text,
+        "output": "no_dataset_candidates",
+        "label": "no_dataset_candidates",
+        "content": input_text,
+        "metadata": {"offline": True, "dataset_id": "none", "row_index": 0},
+    }
+
+
+def _candidate_task_type(candidate: HFCandidate) -> str:
+    task_categories = candidate.get("task_categories")
+    if isinstance(task_categories, list) and task_categories:
+        return str(task_categories[0]).strip() or "text_classification"
+    return "text_classification"
+
+
+def _offline_label(task_type: str, idx: int) -> str:
+    normalized = re.sub(r"[^A-Za-z0-9]+", "_", task_type.strip().lower()).strip("_")
+    prefix = normalized or "text_classification"
+    return f"{prefix}_label_{idx % 2}"
 
 
 def _split_tokens(value: str) -> list[str]:
@@ -204,6 +275,7 @@ def _fetch_with_hf_datasets(dataset_id: str, max_rows_per_dataset: int | None) -
                 continue
             rec = {
                 "source": dataset_id,
+                "dataset_id": dataset_id,
                 "split": str(split_name),
                 "input": text_val[:1000],
                 "label": label_val,
