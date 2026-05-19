@@ -69,7 +69,8 @@ def test_log_decision_writes_to_disk(tmp_path):
     assert entry["config_snapshot"]["prompt"] == "test task"
 
 
-def test_reason_about_task_returns_task_reasoning():
+def test_reason_about_task_returns_task_reasoning(monkeypatch):
+    monkeypatch.setenv("MANAGER_REASONER", "claude")
     mock_response = MagicMock()
     mock_response.content = [MagicMock(text=json.dumps(MOCK_REASONING))]
 
@@ -82,7 +83,8 @@ def test_reason_about_task_returns_task_reasoning():
     assert "learning_rate" in result["hyperparameters"]
 
 
-def test_reason_about_task_parses_fenced_json_response():
+def test_reason_about_task_parses_fenced_json_response(monkeypatch):
+    monkeypatch.setenv("MANAGER_REASONER", "claude")
     mock_response = MagicMock()
     mock_response.content = [MagicMock(text=f"```json\n{json.dumps(MOCK_REASONING)}\n```")]
 
@@ -92,6 +94,47 @@ def test_reason_about_task_parses_fenced_json_response():
 
     assert result["task_type"] == "text-classification"
     assert result["suggested_base_model"] == "bert-base-uncased"
+
+
+def test_reason_about_task_uses_local_fallback_without_anthropic_key(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("MANAGER_REASONER", raising=False)
+
+    def fail_anthropic():
+        raise AssertionError("Anthropic should not be constructed in auto mode without a key")
+
+    monkeypatch.setattr("anthropic.Anthropic", fail_anthropic)
+
+    result = reason_about_task("Classify support tickets by urgency", 5.0, False)
+
+    assert result["task_type"] == "text-classification"
+    assert result["training_type"] == "SFT"
+    assert result["suggested_base_model"] is None
+    assert result["hyperparameters"]["num_epochs"] == 1
+    assert result["hyperparameters"]["max_steps"] == 5
+    assert "Local deterministic planner" in result["notes"]
+
+
+def test_reason_about_task_local_mode_overrides_available_key(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "present-but-not-used")
+    monkeypatch.setenv("MANAGER_REASONER", "local")
+
+    def fail_anthropic():
+        raise AssertionError("MANAGER_REASONER=local should not construct Anthropic")
+
+    monkeypatch.setattr("anthropic.Anthropic", fail_anthropic)
+
+    result = reason_about_task("Summarize customer support transcripts", 5.0, True)
+
+    assert result["task_type"] == "summarization"
+    assert result["data_format"] == "jsonl with messages or input/output fields"
+
+
+def test_reason_about_task_invalid_reasoner_mode_fails(monkeypatch):
+    monkeypatch.setenv("MANAGER_REASONER", "maybe")
+
+    with pytest.raises(ValueError, match="MANAGER_REASONER"):
+        reason_about_task("classify movie sentiment", 50.0, False)
 
 
 def test_parse_task_reasoning_response_rejects_missing_keys():
@@ -109,7 +152,8 @@ def test_parse_task_reasoning_response_rejects_non_json():
         _parse_task_reasoning_response("Here is the plan: use SFT.")
 
 
-def test_reason_about_task_includes_task_type_hint():
+def test_reason_about_task_includes_task_type_hint(monkeypatch):
+    monkeypatch.setenv("MANAGER_REASONER", "claude")
     mock_response = MagicMock()
     mock_response.content = [MagicMock(text=json.dumps(MOCK_REASONING))]
 

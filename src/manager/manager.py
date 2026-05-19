@@ -25,6 +25,7 @@ from src.types import (
 )
 
 LOG_PATH = os.environ.get("DECISIONS_LOG", "decisions.jsonl")
+_MANAGER_REASONER_ENV = "MANAGER_REASONER"
 
 
 def build_manager_graph():
@@ -236,7 +237,10 @@ def reason_about_task(
     *,
     task_type_hint: str | None = None,
 ) -> TaskReasoning:
-    """Calls Claude API to infer task type, training type, base model, and starting hyperparams."""
+    """Infer task type, training type, base model, and starting hyperparams."""
+    if _use_local_reasoner():
+        return _local_task_reasoning(prompt, budget, has_data)
+
     import anthropic
 
     hint = _normalize_task_type_hint(task_type_hint)
@@ -271,6 +275,84 @@ def reason_about_task(
     )
     raw_text = message.content[0].text
     return _parse_task_reasoning_response(raw_text)
+
+
+def _manager_reasoner_mode() -> str:
+    raw = os.getenv(_MANAGER_REASONER_ENV, "auto").strip().lower()
+    if raw in {"", "auto"}:
+        return "auto"
+    if raw in {"local", "offline", "heuristic"}:
+        return "local"
+    if raw in {"claude", "anthropic", "live", "required"}:
+        return "claude"
+    raise ValueError(f"{_MANAGER_REASONER_ENV} must be one of: auto, local, claude")
+
+
+def _use_local_reasoner() -> bool:
+    mode = _manager_reasoner_mode()
+    if mode == "local":
+        return True
+    if mode == "claude":
+        return False
+    if os.getenv("NO_SPEND", "").strip().lower() in {"1", "true", "yes", "on"}:
+        return True
+    return not bool(os.getenv("ANTHROPIC_API_KEY"))
+
+
+def _local_task_reasoning(prompt: str, budget: float, has_data: bool) -> TaskReasoning:
+    """Deterministic fallback planner for no-live Manager runs."""
+    task_type = _infer_local_task_type(prompt)
+    data_format = (
+        "jsonl with messages or input/output fields"
+        if has_data
+        else "generated jsonl with messages or input/output fields"
+    )
+    hyperparameters = {
+        "learning_rate": 1e-4,
+        "batch_size": 4,
+        "epochs": 1,
+        "num_epochs": 1,
+        "max_seq_len": 512,
+        "max_seq_length": 512,
+        "lora_rank": 8,
+        "max_steps": 5,
+    }
+    return TaskReasoning(
+        task_type=task_type,
+        data_format=data_format,
+        training_type="SFT",
+        suggested_base_model=None,
+        hyperparameters=hyperparameters,
+        notes=(
+            "Local deterministic planner used because live Manager reasoning "
+            "was not enabled."
+        ),
+    )
+
+
+def _infer_local_task_type(prompt: str) -> str:
+    text = prompt.lower()
+    if any(term in text for term in ("translate", "translation")):
+        return "translation"
+    if any(term in text for term in ("summarize", "summarise", "summary")):
+        return "summarization"
+    if any(term in text for term in ("question answering", "question-answering", "qa")):
+        return "question-answering"
+    if any(
+        term in text
+        for term in (
+            "classify",
+            "classification",
+            "sentiment",
+            "label",
+            "category",
+            "categorize",
+            "categorise",
+            "intent",
+        )
+    ):
+        return "text-classification"
+    return "custom"
 
 
 def _parse_task_reasoning_response(raw_text: str) -> TaskReasoning:
