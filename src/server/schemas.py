@@ -47,6 +47,24 @@ class LogEntryView(BaseModel):
     type: Literal["default", "success", "warning", "error"]
 
 
+class ArtifactView(BaseModel):
+    name: str
+    label: str
+    path: str | None = None
+    exists: bool
+    sizeBytes: int | None = None
+    contentType: str
+    downloadPath: str | None = None
+
+
+class RunArtifactsView(BaseModel):
+    modelPath: str | None = None
+    checkpoints: dict[str, Any] = Field(default_factory=dict)
+    metrics: dict[str, Any] | None = None
+    sample: dict[str, Any] | None = None
+    files: list[ArtifactView] = Field(default_factory=list)
+
+
 class RunState(BaseModel):
     run_id: str
     status: Literal["running", "complete", "failed"]
@@ -60,5 +78,6 @@ class RunState(BaseModel):
     iterations: list[IterationView]
     logs: list[LogEntryView]
     stages: list[PipelineStage]
+    artifacts: RunArtifactsView | None = None
     result: dict[str, Any] | None = None
     error: str | None = None

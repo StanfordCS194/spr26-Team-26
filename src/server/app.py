@@ -17,16 +17,19 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.data_sources import looks_like_local_data_path, normalize_hf_dataset_source
 from src.manager.manager import invoke_manager_graph
 from src.runtime_context import output_root
 from src.server.schemas import (
+    ArtifactView,
     IterationView,
     LogEntryView,
     MetricPoint,
     PipelineStage,
+    RunArtifactsView,
     RunCreated,
     RunRequest,
     RunState,
@@ -42,6 +45,13 @@ STAGE_LABELS = [
     "Finalization",
 ]
 RUN_OUTPUT_ROOT = Path(os.getenv("MANAGER_RUN_OUTPUT_ROOT", "outputs/api-runs"))
+ARTIFACT_DEFINITIONS = {
+    "manifest": ("Manifest", "manifest.json", "application/json"),
+    "metrics": ("Metrics", "metrics.json", "application/json"),
+    "metrics_log": ("Metrics Log", "metrics.jsonl", "application/x-ndjson"),
+    "sample": ("Sample", "sample.json", "application/json"),
+    "diary": ("Research Diary", None, "application/x-ndjson"),
+}
 
 
 app = FastAPI(title="Nemoral ML Agent API")
@@ -66,6 +76,9 @@ class _RunRecord:
     iterations: list[IterationView] = field(default_factory=list)
     logs: list[LogEntryView] = field(default_factory=list)
     result: dict[str, Any] | None = None
+    artifacts: RunArtifactsView | None = None
+    artifact_paths: dict[str, Path] = field(default_factory=dict)
+    artifact_content_types: dict[str, str] = field(default_factory=dict)
     error: str | None = None
     stages: list[PipelineStage] = field(default_factory=list)
 
@@ -204,6 +217,108 @@ def _iterations_from_diary(path: str | None) -> list[IterationView]:
     return list(reversed(iterations))
 
 
+def _read_json_if_exists(path: Path | None) -> dict[str, Any] | None:
+    if path is None or not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _resolve_reported_path(record: _RunRecord, value: Any) -> Path | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+
+    raw_path = Path(value).expanduser()
+    if raw_path.is_absolute():
+        return raw_path
+
+    candidates = [
+        raw_path,
+        record.output_dir / raw_path,
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return raw_path
+
+
+def _artifact_view(
+    *,
+    run_id: str,
+    name: str,
+    label: str,
+    path: Path | None,
+    content_type: str,
+    downloadable: bool,
+) -> ArtifactView:
+    exists = bool(path and path.is_file())
+    return ArtifactView(
+        name=name,
+        label=label,
+        path=str(path) if path else None,
+        exists=exists,
+        sizeBytes=path.stat().st_size if exists and path is not None else None,
+        contentType=content_type,
+        downloadPath=f"/runs/{run_id}/artifacts/{name}" if downloadable else None,
+    )
+
+
+def _is_run_artifact_path(record: _RunRecord, path: Path | None) -> bool:
+    if path is None or not path.is_file():
+        return False
+    try:
+        path.resolve().relative_to(record.output_dir.resolve())
+    except ValueError:
+        return False
+    return True
+
+
+def _artifacts_from_result(record: _RunRecord, result: dict[str, Any]) -> RunArtifactsView:
+    model_path = _resolve_reported_path(record, result.get("weights_path"))
+    diary_path = _resolve_reported_path(record, result.get("research_diary_path"))
+
+    files: list[ArtifactView] = []
+    artifact_paths: dict[str, Path] = {}
+    artifact_content_types: dict[str, str] = {}
+
+    for name, (label, filename, content_type) in ARTIFACT_DEFINITIONS.items():
+        if name == "diary":
+            path = diary_path
+        else:
+            path = model_path / filename if model_path and filename else None
+        downloadable = _is_run_artifact_path(record, path)
+        view = _artifact_view(
+            run_id=record.run_id,
+            name=name,
+            label=label,
+            path=path,
+            content_type=content_type,
+            downloadable=downloadable,
+        )
+        files.append(view)
+        if downloadable and path is not None:
+            artifact_paths[name] = path
+            artifact_content_types[name] = content_type
+
+    manifest = _read_json_if_exists(artifact_paths.get("manifest"))
+    checkpoints = manifest.get("checkpoints", {}) if manifest else {}
+    metrics = _read_json_if_exists(artifact_paths.get("metrics"))
+    sample = _read_json_if_exists(artifact_paths.get("sample"))
+
+    record.artifact_paths = artifact_paths
+    record.artifact_content_types = artifact_content_types
+    return RunArtifactsView(
+        modelPath=str(model_path) if model_path else None,
+        checkpoints=checkpoints if isinstance(checkpoints, dict) else {},
+        metrics=metrics,
+        sample=sample,
+        files=files,
+    )
+
+
 def _store_manager_result(record: _RunRecord, result: dict[str, Any]) -> None:
     record.result = result
     record.status = "complete"
@@ -211,6 +326,7 @@ def _store_manager_result(record: _RunRecord, result: dict[str, Any]) -> None:
     metric = _metric_from_result(result)
     record.metrics = [metric] if metric else []
     record.iterations = _iterations_from_diary(result.get("research_diary_path"))
+    record.artifacts = _artifacts_from_result(record, result)
     _complete_all_stages(record)
     _append_log(record, "Manager", "Training pipeline complete", "success")
 
@@ -253,6 +369,7 @@ def _to_state(record: _RunRecord) -> RunState:
         iterations=record.iterations,
         logs=record.logs,
         stages=record.stages,
+        artifacts=record.artifacts,
         result=record.result,
         error=record.error,
     )
@@ -291,6 +408,22 @@ def get_run(run_id: str) -> RunState:
         if record is None:
             raise HTTPException(status_code=404, detail="run not found")
         return _to_state(record)
+
+
+@app.get("/api/runs/{run_id}/artifacts/{artifact_name}")
+def get_run_artifact(run_id: str, artifact_name: str) -> FileResponse:
+    with _LOCK:
+        record = _RUNS.get(run_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        if artifact_name not in ARTIFACT_DEFINITIONS:
+            raise HTTPException(status_code=404, detail="artifact not found")
+        path = record.artifact_paths.get(artifact_name)
+        content_type = record.artifact_content_types.get(artifact_name)
+
+    if path is None or not path.is_file() or content_type is None:
+        raise HTTPException(status_code=404, detail="artifact not found")
+    return FileResponse(path, media_type=content_type, filename=path.name)
 
 
 def _reset_runs_for_tests() -> None:

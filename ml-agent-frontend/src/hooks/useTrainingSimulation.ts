@@ -111,6 +111,8 @@ export function useTrainingSimulation() {
     iterations: [],
     logs: [],
     stages: makeStages(),
+    artifacts: null,
+    result: null,
   });
 
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -147,6 +149,8 @@ export function useTrainingSimulation() {
       iterations: [],
       logs: [],
       stages: makeStages(),
+      artifacts: null,
+      result: null,
     });
 
     let cursor = 0; // ms elapsed
@@ -258,6 +262,8 @@ export function useTrainingSimulation() {
       iterations: [],
       logs: [],
       stages: makeStages(),
+      artifacts: null,
+      result: null,
     });
   }, []);
 
