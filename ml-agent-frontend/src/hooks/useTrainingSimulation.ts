@@ -267,5 +267,22 @@ export function useTrainingSimulation() {
     });
   }, []);
 
-  return { state, start, reset };
+  const cancel = useCallback(() => {
+    clearTimers();
+    setState(prev => ({
+      ...prev,
+      status: prev.status === 'running' ? 'cancelled' : prev.status,
+      logs: [
+        {
+          time: new Date().toLocaleTimeString('en-US', { hour12: false }),
+          component: 'Manager',
+          message: 'Run cancelled',
+          type: 'warning',
+        },
+        ...prev.logs,
+      ],
+    }));
+  }, []);
+
+  return { state, start, reset, cancel };
 }

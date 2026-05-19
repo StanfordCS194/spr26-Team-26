@@ -3,13 +3,20 @@
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 
 from src.autoresearch import autoresearch as ar
 from src.data_generator.curation import curate_handoff_to_dataset_result
 from src.decision_engine.decision_engine import write_finetune_script
 from src.manager.manager import build_orchestration_config, log_decision
-from src.runtime_context import output_root
+from src.runtime_context import (
+    RunCancelled,
+    active_tinker_job,
+    cancellation_context,
+    output_root,
+    raise_if_cancelled,
+)
 
 
 def test_output_root_routes_manager_datagen_decision_and_autoresearch(
@@ -92,3 +99,21 @@ def test_output_root_routes_manager_datagen_decision_and_autoresearch(
 
     diary_line = (run_root / "logs" / "research_diary.jsonl").read_text().strip()
     assert json.loads(diary_line)["decision"] == "PENDING"
+
+
+def test_cancellation_context_signals_and_tracks_active_tinker_jobs():
+    event = threading.Event()
+    jobs: set[str] = set()
+
+    with cancellation_context(event, jobs):
+        with active_tinker_job("job-123"):
+            assert jobs == {"job-123"}
+            event.set()
+            try:
+                raise_if_cancelled()
+            except RunCancelled as exc:
+                assert "cancelled" in str(exc)
+            else:
+                raise AssertionError("raise_if_cancelled should raise after cancellation")
+
+    assert jobs == set()

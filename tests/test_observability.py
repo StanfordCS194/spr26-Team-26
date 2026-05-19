@@ -9,6 +9,7 @@ from src.observability.observability import (
     write_json_log,
     get_budget_display,
 )
+from src.runtime_context import output_root
 from src.types import AgentName, LogLevel
 
 
@@ -59,3 +60,16 @@ def test_log_event_writes_to_disk(tmp_path):
     assert parsed["agent"] == AgentName.DATA_GEN
     assert parsed["message"] == "dataset found"
     assert "timestamp" in parsed
+
+
+def test_log_event_uses_active_output_root(tmp_path):
+    run_root = tmp_path / "run-123"
+
+    with output_root(run_root):
+        log_event(AgentName.MANAGER, LogLevel.INFO, "run scoped")
+
+    log_file = run_root / "logs" / "run.jsonl"
+    assert log_file.is_file()
+    parsed = json.loads(log_file.read_text().splitlines()[0])
+    assert parsed["message"] == "run scoped"
+    assert not (tmp_path / "outputs" / "logs" / "run.jsonl").exists()

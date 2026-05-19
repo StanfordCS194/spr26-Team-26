@@ -9,6 +9,7 @@ import FinalResults from './FinalResults';
 interface Props {
   state: TrainingState;
   onReset: () => void;
+  onCancel: () => void;
 }
 
 const headerStyle: React.CSSProperties = {
@@ -29,7 +30,7 @@ function StatusDot({ status }: { status: TrainingState['status'] }) {
       ? 'var(--success)'
       : status === 'failed'
         ? 'var(--danger)'
-        : status === 'running'
+        : status === 'running' || status === 'cancelling'
           ? 'var(--accent)'
           : 'var(--text-muted)';
   const label =
@@ -37,7 +38,11 @@ function StatusDot({ status }: { status: TrainingState['status'] }) {
       ? 'COMPLETE'
       : status === 'failed'
         ? 'FAILED'
-        : status === 'running'
+        : status === 'cancelled'
+          ? 'CANCELLED'
+          : status === 'cancelling'
+            ? 'CANCELLING'
+            : status === 'running'
           ? 'RUNNING'
           : 'IDLE';
 
@@ -50,7 +55,7 @@ function StatusDot({ status }: { status: TrainingState['status'] }) {
           borderRadius: '50%',
           background: color,
           display: 'inline-block',
-          animation: status === 'running' ? 'pulse 1.5s ease-in-out infinite' : 'none',
+          animation: status === 'running' || status === 'cancelling' ? 'pulse 1.5s ease-in-out infinite' : 'none',
         }}
       />
       <span style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.1em', color }}>
@@ -60,7 +65,9 @@ function StatusDot({ status }: { status: TrainingState['status'] }) {
   );
 }
 
-export default function Dashboard({ state, onReset }: Props) {
+export default function Dashboard({ state, onReset, onCancel }: Props) {
+  const canCancel = state.status === 'running' || state.status === 'cancelling';
+
   return (
     <div style={{ minHeight: '100vh' }}>
       <style>{`
@@ -82,22 +89,43 @@ export default function Dashboard({ state, onReset }: Props) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <StatusDot status={state.status} />
-          <button
-            onClick={onReset}
-            style={{
-              padding: '4px 10px',
-              background: 'transparent',
-              border: '0.5px solid var(--border)',
-              borderRadius: '6px',
-              color: 'var(--text-secondary)',
-              fontSize: '12px',
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-            aria-label="Reset training"
-          >
-            Reset
-          </button>
+          {canCancel ? (
+            <button
+              onClick={onCancel}
+              disabled={state.status === 'cancelling'}
+              style={{
+                padding: '4px 10px',
+                background: 'transparent',
+                border: '0.5px solid var(--warning)',
+                borderRadius: '6px',
+                color: 'var(--warning)',
+                fontSize: '12px',
+                cursor: state.status === 'cancelling' ? 'not-allowed' : 'pointer',
+                opacity: state.status === 'cancelling' ? 0.7 : 1,
+                fontFamily: 'inherit',
+              }}
+              aria-label="Cancel training"
+            >
+              {state.status === 'cancelling' ? 'Cancelling...' : 'Cancel'}
+            </button>
+          ) : (
+            <button
+              onClick={onReset}
+              style={{
+                padding: '4px 10px',
+                background: 'transparent',
+                border: '0.5px solid var(--border)',
+                borderRadius: '6px',
+                color: 'var(--text-secondary)',
+                fontSize: '12px',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+              aria-label="Reset training"
+            >
+              Reset
+            </button>
+          )}
         </div>
       </header>
 
@@ -165,6 +193,26 @@ export default function Dashboard({ state, onReset }: Props) {
             </p>
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
               {state.error ?? 'The backend run ended before producing a model.'}
+            </p>
+          </section>
+        )}
+
+        {state.status === 'cancelled' && (
+          <section
+            style={{
+              background: 'var(--bg-surface)',
+              border: '0.5px solid var(--warning)',
+              borderRadius: 'var(--radius)',
+              padding: '0.875rem 1rem',
+              marginBottom: '1.5rem',
+            }}
+            role="status"
+          >
+            <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--warning)', marginBottom: '0.25rem' }}>
+              Run cancelled
+            </p>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+              The backend stopped the training pipeline at the next safe checkpoint.
             </p>
           </section>
         )}
