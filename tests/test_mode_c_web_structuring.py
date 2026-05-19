@@ -306,7 +306,7 @@ def test_aggregate_web_sources_uses_structured_records_when_required(monkeypatch
     assert out["raw_data"]["records"][0]["output"] == "urgent"
 
 
-def test_aggregate_web_sources_without_teacher_keeps_raw_web_invalid(monkeypatch):
+def test_aggregate_web_sources_auto_without_teacher_falls_back_synthetic(monkeypatch):
     monkeypatch.setenv("DATA_GENERATOR_WEB_STRUCTURING", "auto")
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
@@ -320,9 +320,37 @@ def test_aggregate_web_sources_without_teacher_keeps_raw_web_invalid(monkeypatch
         }
     )
 
+    assert out["validation_report"]["passed"] is True
+    assert out["mode_c_fallback"] == "synthetic"
+    assert out["raw_data"]["format_meta"]["file_type"] == "synthetic_chat_jsonl"
+    assert out["raw_data"]["format_meta"]["mode_c_fallback"] == "synthetic"
+    assert out["raw_data"]["format_meta"]["num_pages_crawled"] == 1
+    assert out["raw_data"]["records"][0]["messages"][0]["role"] == "user"
+    assert out["raw_data"]["records"][0]["messages"][-1]["role"] == "assistant"
+    assert any(
+        "web structuring requires a teacher" in issue
+        for issue in out["raw_data"]["format_meta"]["web_structuring_issues"]
+    )
+    assert "Web acquisition report retained for provenance" in out["human_readable"]
+
+
+def test_aggregate_web_sources_required_without_teacher_keeps_structuring_failure(monkeypatch):
+    monkeypatch.setenv("DATA_GENERATOR_WEB_STRUCTURING", "required")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    out = aggregate_web_sources_node(
+        {
+            "config": _config(),
+            "web_plan": {"planner_backend": "test"},
+            "web_search_results": [{"url": "https://example.com/urgency"}],
+            "web_pages": _pages(),
+            "mode_c_backend": "web",
+        }
+    )
+
     assert out["validation_report"]["passed"] is False
-    assert out["raw_data"]["format_meta"]["file_type"] == "web_aggregated_sources"
-    assert out["raw_data"]["records"][0]["url"] == "https://example.com/urgency"
+    assert out["raw_data"]["format_meta"]["file_type"] == "web_structured_chat_jsonl"
+    assert out["raw_data"]["records"] == []
     assert any(
         "web structuring requires a teacher" in issue
         for issue in out["validation_report"]["issues"]

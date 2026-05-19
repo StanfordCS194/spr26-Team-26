@@ -168,7 +168,11 @@ def test_mode_c_saves_deployment_style_handoff_artifacts(monkeypatch, tmp_path: 
     assert "Mode C Web Acquisition Report" in handoff["human_readable"]
     artifact_dir = _test_artifact_dir("test_mode_c_saves_deployment_style_handoff_artifacts")
     saved_handoff = _assert_saved_artifacts(artifact_dir, "C")
-    assert saved_handoff["curation_payload"]["records"][0]["source_locator"] == "https://example.com/data"
+    assert saved_handoff["curation_payload"]["format_meta"]["mode_c_fallback"] == "synthetic"
+    assert saved_handoff["curation_payload"]["format_meta"]["web_source_urls"] == [
+        "https://example.com/data"
+    ]
+    assert saved_handoff["curation_payload"]["records"][0]["messages"][-1]["role"] == "assistant"
 
     source_report = artifact_dir / "source_human_readable.md"
     assert source_report.exists()
