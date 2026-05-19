@@ -274,5 +274,10 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
 - The unpublished composition branch through #95 now passes the full no-live
   Python suite (`281 passed, 8 skipped`) and a no-spend API product smoke with
   local Manager/proposer plus dry-run Tinker.
+- #96 fixes a data-contract hole in Mode A. Plain `.txt` lines are now
+  source-only rather than fabricated `output="unknown"` supervised examples,
+  and both curation and the Tinker runner reject chat records with no assistant
+  target after a user. It is stacked on #90 and composes with the local stack
+  after preserving later Tinker runner split/heldout/dry-run behavior.
 
 Current conservative live spend: `$94.14 / $100.00`.

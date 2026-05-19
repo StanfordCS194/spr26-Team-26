@@ -73,3 +73,4 @@
 - 2026-05-19 11:44 PDT — A local proposal is only useful if it actually changes the config. Treat no-op hyperparameter patches as bugs in the proposer, not as acceptable low-cost exploration.
 - 2026-05-19 11:45 PDT — Tests that intentionally exercise a live-capable seam with monkeypatches should opt into that seam explicitly. After the local-proposer default, fake-Claude tests should set `AUTORESEARCH_PROPOSER=claude`; default no-key behavior belongs to separate local-mode tests.
 - 2026-05-19 11:46 PDT — Use broad no-live suites with live credentials unset, not with global backend overrides that change test semantics. Product-shaped dry-run validation should be a separate smoke with explicit `TINKER_BACKEND=dry_run`.
+- 2026-05-19 11:52 PDT — Unlabeled local text is source material, not SFT supervision. Never fabricate labels like `unknown`; let curation fail clearly unless the user provides a target field or valid chat messages.
