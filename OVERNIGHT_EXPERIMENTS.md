@@ -52,6 +52,7 @@ Budget cap: $100 total.
 | stack-015 | 2026-05-19 08:19 | #65 | batched heldout eval validation | none | passed | $0.00 | $46.04 | Draft PR #65 opened. Tinker heldout eval now forwards val/test examples in batches and aggregates losses by token weights or example counts. Validation cluster passed `81 passed, 3 skipped`, plus compileall and diff check. |
 | stack-016 | 2026-05-19 08:20 | local only #55/#56/#57/#58/#59/#60/#61/#62/#63/#64/#65 | unpublished full-stack non-live validation | none | passed | $0.00 | $46.04 | Merged #65 into the local unpublished stack. Compileall passed and broad non-live suite excluding live Tinker/HF retrieval passed `208 passed, 7 skipped`. |
 | tinker-017 | 2026-05-19 08:23 | local only #65 stack | live batched heldout validation | Tinker | passed | $2.50 | $48.54 | Direct runner smoke on the 22-row web DataGen `DatasetResult`: `Qwen/Qwen3.5-9B`, 1 step, split 17 train / 2 val / 3 test, `batch_size=2`. Completed with heldout `val_loss=10.51830530166626`, `test_loss=10.068393389383951`. Artifacts at `outputs/overnight/live-heldout-batches/live-heldout-batches-1779203847`. |
+| stack-017 | 2026-05-19 08:25 | #66 | Tinker plan metric validation | none | passed | $0.00 | $48.54 | Draft PR #66 opened. DecisionEngine Tinker plans now use `eval_metric=primary_metric` so plan metadata matches the Tinker heldout-loss evaluator. Validation cluster passed `106 passed, 4 skipped`, plus compileall and diff check. |
 
 ## Spend Ledger
 
