@@ -16,6 +16,7 @@ from pathlib import Path
 from src.data_sources import looks_like_local_data_path, normalize_hf_dataset_source
 from src.runtime_context import get_output_root
 from src.types import (
+    DataRequest,
     DatasetResult,
     ManagerState,
     OrchestrationConfig,
@@ -53,6 +54,7 @@ def invoke_manager_graph(
     prompt: str,
     budget: float,
     data_path: str | None = None,
+    data_request: DataRequest | None = None,
 ) -> TrainedModel:
     """Main entry point for the entire system. Builds and invokes the Manager graph."""
     graph = build_manager_graph()
@@ -60,7 +62,8 @@ def invoke_manager_graph(
         "prompt": prompt,
         "budget": budget,
         "data_path": data_path,
-        "has_data": data_path is not None,
+        "data_request": data_request,
+        "has_data": data_path is not None or _has_data_request_sources(data_request),
         "task_reasoning": None,
         "config": None,
         "result": None,
@@ -86,6 +89,10 @@ def query_data_node(state: ManagerState) -> dict:
             return {"has_data": True, "data_path": hf_source}
         return {"has_data": False, "data_path": None}
 
+    data_request = state.get("data_request")
+    if _has_data_request_sources(data_request):
+        return {"has_data": True, "data_path": None, "data_request": data_request}
+
     try:
         path = query_user_for_data()
     except EOFError:
@@ -106,6 +113,7 @@ def build_config_node(state: ManagerState) -> dict:
         state["prompt"],
         state["budget"],
         state["has_data"],
+        state.get("data_request"),
     )
     log_decision(
         step="build_config",
@@ -254,9 +262,10 @@ def build_orchestration_config(
     prompt: str,
     budget: float,
     has_data: bool,
+    data_request: DataRequest | None = None,
 ) -> OrchestrationConfig:
     """Assembles the OrchestrationConfig dict passed to all downstream agents."""
-    return OrchestrationConfig(
+    config = OrchestrationConfig(
         data=has_data,
         prompt=prompt,
         compute_budget=budget,
@@ -269,3 +278,15 @@ def build_orchestration_config(
             "notes": reasoning["notes"],
         },
     )
+    if _has_data_request_sources(data_request):
+        config["data_request"] = data_request
+    return config
+
+
+def _has_data_request_sources(data_request: DataRequest | None) -> bool:
+    if not isinstance(data_request, dict):
+        return False
+    sources = data_request.get("sources")
+    if not isinstance(sources, list):
+        return False
+    return any(bool(source) for source in sources)

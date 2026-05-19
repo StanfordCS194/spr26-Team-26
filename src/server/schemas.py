@@ -12,6 +12,7 @@ class RunRequest(BaseModel):
     budget: float = Field(gt=0, le=500)
     task_type: Literal["classification", "regression", "fine-tuning"] = "fine-tuning"
     data_path: str | None = Field(default=None, max_length=1000)
+    data_request: dict[str, Any] | None = None
 
 
 class RunCreated(BaseModel):
@@ -55,6 +56,7 @@ class RunState(BaseModel):
     budget: float
     taskType: Literal["classification", "regression", "fine-tuning"]
     dataPath: str | None = None
+    dataRequest: dict[str, Any] | None = None
     costSpent: float
     metrics: list[MetricPoint]
     iterations: list[IterationView]

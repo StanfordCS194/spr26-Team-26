@@ -1,4 +1,4 @@
-import type { TaskType, TrainingState } from '../types';
+import type { DataRequest, TaskType, TrainingState } from '../types';
 
 export interface CreateRunResponse {
   run_id: string;
@@ -8,6 +8,7 @@ export interface CreateRunResponse {
 export interface BackendRunState extends TrainingState {
   run_id: string;
   dataPath?: string | null;
+  dataRequest?: DataRequest | null;
   result?: Record<string, unknown> | null;
 }
 
@@ -16,6 +17,7 @@ interface CreateRunRequest {
   budget: number;
   task_type: TaskType;
   data_path?: string | null;
+  data_request?: DataRequest | null;
 }
 
 export function getApiBaseUrl(): string | null {

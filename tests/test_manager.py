@@ -51,6 +51,20 @@ def test_build_orchestration_config_shape():
     assert "learning_rate" in proc["hyperparameters"]
 
 
+def test_build_orchestration_config_preserves_data_request_sources():
+    data_request = {"sources": [{"type": "hf_dataset", "id": "SetFit/sst2"}]}
+
+    config = build_orchestration_config(
+        MOCK_REASONING,
+        "classify sentiment",
+        50.0,
+        True,
+        data_request,
+    )
+
+    assert config["data_request"] == data_request
+
+
 def test_log_decision_writes_to_disk(tmp_path):
     log_file = str(tmp_path / "decisions.jsonl")
     config = build_orchestration_config(MOCK_REASONING, "test task", 25.0, True)
@@ -123,6 +137,30 @@ def test_query_data_node_preserves_hf_dataset_source(monkeypatch):
     )
 
     assert out == {"has_data": True, "data_path": "hf://SetFit/sst2"}
+
+
+def test_query_data_node_preserves_structured_data_request_without_input(monkeypatch):
+    data_request = {"sources": [{"type": "hf_dataset", "id": "SetFit/sst2"}]}
+
+    def fail_input(_prompt):
+        raise AssertionError("query_data_node should not prompt when data_request is set")
+
+    monkeypatch.setattr("builtins.input", fail_input)
+
+    out = query_data_node(
+        {
+            "prompt": "classify",
+            "budget": 5.0,
+            "data_path": None,
+            "data_request": data_request,
+            "has_data": True,
+            "task_reasoning": None,
+            "config": None,
+            "result": None,
+        }
+    )
+
+    assert out == {"has_data": True, "data_path": None, "data_request": data_request}
 
 
 def test_query_data_node_does_not_treat_missing_relative_file_as_hf(monkeypatch):

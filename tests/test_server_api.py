@@ -84,7 +84,7 @@ def test_create_run_completes_with_manager_result(tmp_path, monkeypatch):
     calls = []
     roots = []
 
-    def fake_invoke(prompt, budget, data_path=None):
+    def fake_invoke(prompt, budget, data_path=None, data_request=None):
         calls.append((prompt, budget, data_path))
         root = get_output_root()
         assert root is not None
@@ -149,7 +149,7 @@ def test_create_run_passes_existing_local_data_path(tmp_path, monkeypatch):
     data_path.write_text('{"input":"great","output":"positive"}\n', encoding="utf-8")
     calls = []
 
-    def fake_invoke(prompt, budget, data_path=None):
+    def fake_invoke(prompt, budget, data_path=None, data_request=None):
         calls.append((prompt, budget, data_path))
         root = get_output_root()
         assert root is not None
@@ -187,7 +187,7 @@ def test_create_run_accepts_hugging_face_data_sources(tmp_path, monkeypatch, sub
     monkeypatch.chdir(tmp_path)
     calls = []
 
-    def fake_invoke(prompt, budget, data_path=None):
+    def fake_invoke(prompt, budget, data_path=None, data_request=None):
         calls.append((prompt, budget, data_path))
         root = get_output_root()
         assert root is not None
@@ -212,10 +212,56 @@ def test_create_run_accepts_hugging_face_data_sources(tmp_path, monkeypatch, sub
     assert state["dataPath"] == expected
 
 
+def test_create_run_passes_structured_data_request_to_manager(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    calls = []
+
+    def fake_invoke(prompt, budget, data_path=None, data_request=None):
+        calls.append((prompt, budget, data_path, data_request))
+        root = get_output_root()
+        assert root is not None
+        return _fake_model(root, total_cost=0.2)
+
+    monkeypatch.setattr(server_app, "invoke_manager_graph", fake_invoke)
+    client = TestClient(server_app.app)
+
+    response = client.post(
+        "/api/runs",
+        json={
+            "prompt": "Fine tune on the provided Hugging Face dataset envelope",
+            "budget": 20,
+            "task_type": "classification",
+            "data_request": {
+                "sources": [
+                    {"type": "hf_dataset", "id": "SetFit/sst2"},
+                    "https://huggingface.co/datasets/imdb/imdb",
+                ]
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    state = _wait_for_status(client, response.json()["run_id"], "complete")
+    assert calls[0] == (
+        "Fine tune on the provided Hugging Face dataset envelope",
+        20.0,
+        None,
+        {
+            "sources": [
+                {"type": "hf_dataset", "id": "SetFit/sst2"},
+                {"type": "hf_dataset", "id": "imdb/imdb"},
+            ]
+        },
+    )
+    assert state["dataPath"] is None
+    assert state["dataRequest"] == calls[0][3]
+    assert any("Structured data sources: 2" in item["message"] for item in state["logs"])
+
+
 def test_create_run_surfaces_manager_failure(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
-    def fail_invoke(prompt, budget, data_path=None):
+    def fail_invoke(prompt, budget, data_path=None, data_request=None):
         assert get_output_root() is not None
         raise RuntimeError("DataGen did not produce a trainable dataset")
 
@@ -240,7 +286,7 @@ def test_create_run_surfaces_manager_failure(tmp_path, monkeypatch):
 def test_missing_data_path_is_rejected_before_background_run(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
-    def fail_invoke(prompt, budget, data_path=None):
+    def fail_invoke(prompt, budget, data_path=None, data_request=None):
         raise AssertionError("manager should not be called for missing data_path")
 
     monkeypatch.setattr(server_app, "invoke_manager_graph", fail_invoke)
@@ -263,7 +309,7 @@ def test_missing_data_path_is_rejected_before_background_run(tmp_path, monkeypat
 def test_missing_relative_data_path_is_not_treated_as_hf_source(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
-    def fail_invoke(prompt, budget, data_path=None):
+    def fail_invoke(prompt, budget, data_path=None, data_request=None):
         raise AssertionError("manager should not be called for missing data_path")
 
     monkeypatch.setattr(server_app, "invoke_manager_graph", fail_invoke)
@@ -286,7 +332,7 @@ def test_missing_relative_data_path_is_not_treated_as_hf_source(tmp_path, monkey
 def test_unsupported_remote_data_path_is_rejected(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
-    def fail_invoke(prompt, budget, data_path=None):
+    def fail_invoke(prompt, budget, data_path=None, data_request=None):
         raise AssertionError("manager should not be called for unsupported data_path")
 
     monkeypatch.setattr(server_app, "invoke_manager_graph", fail_invoke)

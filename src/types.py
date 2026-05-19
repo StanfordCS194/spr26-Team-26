@@ -6,7 +6,7 @@ See spec-site/content/spec.ts for the canonical definitions.
 
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 
 # ENUMS
@@ -51,11 +51,25 @@ class TrainingProcedure(TypedDict):
     notes: str
 
 
+class DataSource(TypedDict, total=False):
+    type: str
+    id: str
+    url: str
+    dataset_id: str
+    dataset_url: str
+    value: str
+
+
+class DataRequest(TypedDict, total=False):
+    sources: list[DataSource | str]
+
+
 class OrchestrationConfig(TypedDict):
     data: bool
     prompt: str
     compute_budget: float
     training_procedure: TrainingProcedure
+    data_request: NotRequired[DataRequest]
 
 
 class TaskReasoning(TypedDict):
@@ -254,6 +268,7 @@ class ManagerState(TypedDict):
     prompt: str
     budget: float
     data_path: str | None
+    data_request: DataRequest | None
     has_data: bool
     task_reasoning: TaskReasoning | None
     config: OrchestrationConfig | None
