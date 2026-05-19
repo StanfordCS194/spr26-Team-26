@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { cancelRun, createRun, getRun, type BackendRunState } from '../api/runs';
-import type { StartTraining, TaskType, TrainingState } from '../types';
+import type { PipelineStage, StartTraining, StageStatus, TaskType, TrainingState } from '../types';
 
 function makeInitialState(): TrainingState {
   return {
@@ -58,8 +58,47 @@ function isTerminalStatus(status: TrainingState['status']) {
   return status === 'complete' || status === 'failed' || status === 'cancelled';
 }
 
-function stateFromBackend(next: BackendRunState): TrainingState {
+function terminalStageStatus(status: TrainingState['status']): Extract<StageStatus, 'failed' | 'cancelled'> | null {
+  if (status === 'failed' || status === 'cancelled') return status;
+  return null;
+}
+
+function terminalStageIndex(stages: PipelineStage[], stage: number): number {
+  if (stages.length === 0) return -1;
+
+  const activeStage = stages.findIndex(item => item.status === 'in-progress');
+  if (activeStage >= 0) return activeStage;
+
+  return Math.max(0, Math.min(stage, stages.length - 1));
+}
+
+function markTerminalStage(
+  stages: PipelineStage[],
+  stage: number,
+  status: Extract<StageStatus, 'failed' | 'cancelled'>
+): PipelineStage[] {
+  const activeStage = terminalStageIndex(stages, stage);
+  if (activeStage < 0) return stages;
+
+  return stages.map((item, index) => {
+    if (index < activeStage) return { ...item, status: 'complete' };
+    if (index === activeStage) return { ...item, status };
+    return { ...item, status: 'pending' };
+  });
+}
+
+function withTerminalStages(state: TrainingState): TrainingState {
+  const status = terminalStageStatus(state.status);
+  if (!status) return state;
+
   return {
+    ...state,
+    stages: markTerminalStage(state.stages, state.stage, status),
+  };
+}
+
+function stateFromBackend(next: BackendRunState): TrainingState {
+  return withTerminalStages({
     status: next.status,
     stage: next.stage,
     prompt: next.prompt,
@@ -76,7 +115,7 @@ function stateFromBackend(next: BackendRunState): TrainingState {
     result: next.result ?? null,
     error: next.error,
     runId: next.run_id,
-  };
+  });
 }
 
 export function useTrainingRun() {
@@ -121,7 +160,7 @@ export function useTrainingRun() {
         void poll(created.run_id).catch((error: unknown) => {
           stopPolling();
           setState(prev => ({
-            ...prev,
+            ...withTerminalStages({ ...prev, status: 'failed' }),
             status: 'failed',
             error: error instanceof Error ? error.message : String(error),
           }));
@@ -129,7 +168,7 @@ export function useTrainingRun() {
       }, 2000);
     } catch (error) {
       setState(prev => ({
-        ...prev,
+        ...withTerminalStages({ ...prev, status: 'failed' }),
         status: 'failed',
         error: error instanceof Error ? error.message : String(error),
       }));
@@ -157,7 +196,7 @@ export function useTrainingRun() {
       }
     } catch (error) {
       setState(prev => ({
-        ...prev,
+        ...withTerminalStages({ ...prev, status: 'failed' }),
         status: 'failed',
         error: error instanceof Error ? error.message : String(error),
       }));
