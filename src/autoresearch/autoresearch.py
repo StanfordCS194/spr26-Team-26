@@ -62,6 +62,12 @@ _TINKER_HYPERPARAMETER_ALIASES = {
     "max_seq_len": "max_seq_length",
 }
 _EVAL_ADAPTATION_ENV = "AUTORESEARCH_EVAL_ADAPTATION"
+_NO_SPEND_ENV = "NO_SPEND"
+
+
+def _env_truthy(name: str) -> bool:
+    """Return True for conventional truthy environment flag values."""
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _patch_to_diff(patch_dict: dict, current_config: dict) -> str:
@@ -103,6 +109,8 @@ def _eval_adaptation_skip_reason() -> str | None:
     setting = _eval_adaptation_setting()
     if setting == "off":
         return f"{_EVAL_ADAPTATION_ENV}=off"
+    if _env_truthy(_NO_SPEND_ENV):
+        return f"{_NO_SPEND_ENV}=1"
     if setting == "auto" and not os.getenv("ANTHROPIC_API_KEY"):
         return "ANTHROPIC_API_KEY is not configured"
     return None
