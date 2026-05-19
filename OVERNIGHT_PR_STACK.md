@@ -1,6 +1,6 @@
 # Overnight PR Stack
 
-Updated: 2026-05-19 09:27 PDT
+Updated: 2026-05-19 09:41 PDT
 
 Purpose: give reviewers a merge/review order for the draft PR stack without
 having to infer dependencies from GitHub.
@@ -35,6 +35,7 @@ having to infer dependencies from GitHub.
    - #73 `codex/manager-json-robustness` -> #46
    - #50 `codex/frontend-manager-api-bridge` -> #46
    - #74 `codex/api-run-output-isolation` -> #50
+   - #76 `codex/frontend-dataset-source` -> #74
    - #52 `codex/preserve-chat-messages-curation` -> #40
    - #58 `codex/curation-small-splits` -> #52
    - #64 `codex/curation-source-splits` -> #58
@@ -65,8 +66,8 @@ having to infer dependencies from GitHub.
 
 ## Latest Local Stack Validation
 
-Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
-#62, #63, #64, #65, #66, #67, #68, #69, #70, #71, #72, and #73 on top of #51.
+Unpublished local stack currently includes #55 through #75, including #73/#74/#75
+on top of #51.
 
 - `python3 -m compileall src`
 - Full non-live suite with live Tinker/HF cases skipped by default:
@@ -114,6 +115,11 @@ Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
   targeted API/runtime tests, broad no-live branch tests with the old ungated
   HF retrieval file ignored (`176 passed, 7 skipped`), frontend lint, and
   frontend build.
+- #76 adds frontend/API dataset-source pass-through on top of #74. It accepts
+  existing local paths and Hugging Face sources, preserves canonical `hf://...`
+  through Manager, and passed compileall, focused API/Manager tests
+  (`26 passed, 1 skipped`), broad no-live branch tests (`187 passed, 7 skipped`),
+  frontend lint/build, and browser form sanity.
 - #75 resolves the DataGen stack topology issue where #44 was a sibling of the
   latest DataGen leaf chain. It merges the existing Mode C teacher-backed web
   structuring work onto #68 and passed the broad no-live suite (`181 passed,
