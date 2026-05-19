@@ -1,118 +1,217 @@
 import { useState, useRef, useCallback } from 'react';
-import type { TrainingState, PipelineStage, Iteration, LogEntry } from '../types';
+import type { TrainingState, PipelineStage, LogEntry, ExpertLevel, ApprovalGate } from '../types';
+import { matchTask } from '../utils/matchTask';
+import type { TaskConfig } from '../data/taskConfigs';
 
+// ─── Stage definitions ────────────────────────────────────────────────────────
 const STAGE_LABELS = [
   'Manager Init',
   'Data Discovery',
   'Model Selection',
-  'Training',
-  'AutoResearch',
+  'Code Development',
+  'AutoResearch Setup',
+  'Experiment Loop',
+  'Final Run',
   'Finalization',
 ];
 
-const STAGE_DURATIONS = [1200, 1800, 1500, 3000, 3000, 1200]; // ms
+const STAGE_DURATIONS = [
+  1500,   // 0  Manager Init
+  2800,   // 1  Data Discovery
+  2200,   // 2  Model Selection
+  4000,   // 3  Code Development
+  3000,   // 4  AutoResearch Setup
+  11000,  // 5  Experiment Loop
+  4500,   // 6  Final Run
+  1800,   // 7  Finalization
+];
 
+// ─── Chapter definitions ──────────────────────────────────────────────────────
+interface Chapter {
+  stages: number[];
+  gate?: ApprovalGate;
+}
+
+function getChapters(level: ExpertLevel, cfg: TaskConfig): Chapter[] {
+  const ds0 = cfg.datasets[0];
+  const ds1 = cfg.datasets[1];
+  const dsLine = ds1 ? `${ds0.name} + ${ds1.name}` : ds0.name;
+  const totalSamples = cfg.datasets.reduce((acc, d) => {
+    const n = parseInt(d.size.replace(/[^0-9]/g, ''), 10);
+    const mult = d.size.includes('M') ? 1_000_000 : d.size.includes('k') ? 1_000 : 1;
+    return acc + n * mult;
+  }, 0);
+  const sampleLabel = totalSamples >= 1_000_000
+    ? `${(totalSamples / 1_000_000).toFixed(1)}M`
+    : `${Math.round(totalSamples / 1000)}k`;
+
+  if (level === 'guided') {
+    return [
+      {
+        stages: [0, 1],
+        gate: {
+          title: 'Approve Dataset Selection',
+          description: 'The agent has identified and scored candidate datasets. Review the selection below and approve to continue to model selection.',
+          details: [
+            `Selected: ${dsLine}`,
+            `Total samples: ${sampleLabel} (80% train / 10% val / 10% test)`,
+            `Task: ${cfg.taskLabel}`,
+            `Quality score: 0.91 / 1.00`,
+          ],
+        },
+      },
+      {
+        stages: [2, 3],
+        gate: {
+          title: 'Approve Model & Training Config',
+          description: 'The agent has selected a model and written the training script. Review the configuration before experiments begin.',
+          details: [
+            `Model: ${cfg.model}`,
+            `Strategy: ${cfg.strategy} (${cfg.trainingType})`,
+            `LoRA rank: ${cfg.loraRank}, alpha: ${cfg.loraRank * 2}`,
+            `Target modules: ${cfg.targetModules}`,
+            `Eval metric: ${cfg.evalMetric}`,
+          ],
+        },
+      },
+      { stages: [4, 5, 6, 7] },
+    ];
+  }
+
+  if (level === 'standard') {
+    return [
+      {
+        stages: [0, 1, 2],
+        gate: {
+          title: 'Approve Model & Training Config',
+          description: 'The agent has selected a dataset and model. Review the setup before handing off to the training loop.',
+          details: [
+            `Dataset: ${dsLine} (${sampleLabel} samples)`,
+            `Model: ${cfg.model}`,
+            `LoRA rank: ${cfg.loraRank}, modules: ${cfg.targetModules}`,
+            `Eval metric: ${cfg.evalMetric}`,
+          ],
+        },
+      },
+      { stages: [3, 4, 5, 6, 7] },
+    ];
+  }
+
+  return [{ stages: [0, 1, 2, 3, 4, 5, 6, 7] }];
+}
+
+// ─── Log builders ─────────────────────────────────────────────────────────────
+function buildStageLogs(cfg: TaskConfig): Array<Array<{ component: string; message: string; type: LogEntry['type'] }>> {
+  const ds0 = cfg.datasets[0];
+  const ds1 = cfg.datasets[1];
+  const dsLine = ds1
+    ? `${ds0.name} (${ds0.size}) + ${ds1.name} (${ds1.size})`
+    : `${ds0.name} (${ds0.size})`;
+  const totalSamples = cfg.datasets.reduce((acc, d) => {
+    const n = parseInt(d.size.replace(/[^0-9]/g, ''), 10);
+    const mult = d.size.includes('M') ? 1_000_000 : d.size.includes('k') ? 1_000 : 1;
+    return acc + n * mult;
+  }, 0);
+  const sampleLabel = totalSamples >= 1_000_000
+    ? `${(totalSamples / 1_000_000).toFixed(1)}M`
+    : `${Math.round(totalSamples / 1000)}k`;
+  const fn = cfg.final;
+  const metricFmt = (v: number) =>
+    cfg.evalMetric === 'BLEU' || cfg.evalMetric === 'ROUGE-L' ? v.toFixed(3) : `${(v * 100).toFixed(1)}%`;
+
+  return [
+    [
+      { component: 'Manager',       message: 'Initializing orchestration pipeline',                                                             type: 'default' },
+      { component: 'Manager',       message: `Prompt parsed — task: ${cfg.taskLabel}`,                                                          type: 'default' },
+      { component: 'Manager',       message: `Claude reasoning: strategy=${cfg.strategy}, type=${cfg.trainingType}`,                            type: 'success' },
+      { component: 'CostManager',   message: 'Budget guardrail active — monitoring spend',                                                      type: 'success' },
+    ],
+    [
+      { component: 'DataGen',       message: `Querying HuggingFace Hub — ${cfg.datasets.length} dataset quer${cfg.datasets.length > 1 ? 'ies' : 'y'}`, type: 'default' },
+      ...cfg.datasets.map((d, i) => ({ component: 'DataGen', message: `Query ${i + 1}: "${d.name}" — ${d.size} samples found`, type: 'default' as LogEntry['type'] })),
+      { component: 'DataGen',       message: `Scoring relevance — selected: ${dsLine}`,                                                         type: 'success' },
+      { component: 'DataGen',       message: `Merging datasets — ${sampleLabel} total, 80/10/10 split`,                                         type: 'success' },
+    ],
+    [
+      { component: 'Decision',      message: `Analyzing task: ${cfg.taskLabel}`,                                                                type: 'default' },
+      { component: 'Decision',      message: `Dataset size favors ${cfg.strategy}`,                                                             type: 'default' },
+      { component: 'Decision',      message: `Selected model: ${cfg.model}`,                                                                    type: 'default' },
+      { component: 'Decision',      message: `LoRA config: rank=${cfg.loraRank}, alpha=${cfg.loraRank * 2}, dropout=0.05, modules=${cfg.targetModules}`, type: 'success' },
+    ],
+    [
+      { component: 'Decision',      message: `Scaffolding training script for ${cfg.model}`,                                                    type: 'default' },
+      { component: 'Decision',      message: `Writing LoRA config: rank=${cfg.loraRank}, alpha=${cfg.loraRank * 2}, modules=${cfg.targetModules}`, type: 'default' },
+      { component: 'Decision',      message: `Writing data loader — ${Math.round(totalSamples * 0.8 / 1000)}k train / ${Math.round(totalSamples * 0.1 / 1000)}k val`, type: 'default' },
+      { component: 'Decision',      message: `Writing eval harness — primary metric: ${cfg.evalMetric}`,                                        type: 'default' },
+      { component: 'Decision',      message: 'Writing optimizer config: AdamW, cosine LR schedule',                                             type: 'default' },
+      { component: 'Decision',      message: 'Smoke-testing script on 32 samples — no errors',                                                  type: 'success' },
+      { component: 'Decision',      message: 'Training script ready → outputs/scripts/train.py',                                                type: 'success' },
+    ],
+    [
+      { component: 'AutoResearch',  message: 'Initializing AutoResearch loop',                                                                  type: 'default' },
+      { component: 'AutoResearch',  message: `Creating eval suite — primary metric: ${cfg.evalMetric}`,                                         type: 'default' },
+      { component: 'AutoResearch',  message: `Loading splits — ${Math.round(totalSamples * 0.8 / 1000)}k train / ${Math.round(totalSamples * 0.1 / 1000)}k val`, type: 'default' },
+      { component: 'AutoResearch',  message: `Initial config: lr=3e-4, lora_rank=${cfg.loraRank}, epochs=3`,                                    type: 'default' },
+      { component: 'AutoResearch',  message: 'Research diary initialized — max 20 iterations, early-stop at 3 no-improve',                      type: 'success' },
+      { component: 'AutoResearch',  message: 'Handing off to experiment loop — training begins now',                                            type: 'success' },
+    ],
+    [
+      { component: 'AutoResearch',  message: 'PROPOSE — querying Claude for hypothesis #1',                                                     type: 'default' },
+      { component: 'AutoResearch',  message: 'PROPOSE — querying Claude for hypothesis #2',                                                     type: 'default' },
+      { component: 'AutoResearch',  message: 'PROPOSE — querying Claude for hypothesis #3',                                                     type: 'default' },
+      { component: 'CostManager',   message: 'Spend at 28% of budget — status: OK',                                                             type: 'default' },
+      { component: 'AutoResearch',  message: 'PROPOSE — querying Claude for hypothesis #4',                                                     type: 'default' },
+      { component: 'AutoResearch',  message: 'PROPOSE — querying Claude for hypothesis #5',                                                     type: 'default' },
+      { component: 'CostManager',   message: 'Spend at 47% of budget — status: OK',                                                             type: 'default' },
+      { component: 'AutoResearch',  message: 'PROPOSE — querying Claude for hypothesis #6',                                                     type: 'default' },
+      { component: 'AutoResearch',  message: 'PROPOSE — querying Claude for hypothesis #7',                                                     type: 'default' },
+      { component: 'CostManager',   message: 'Spend at 63% of budget — status: WARNING',                                                        type: 'warning' },
+      { component: 'AutoResearch',  message: 'No-improve streak: 1 — continuing search',                                                        type: 'warning' },
+      { component: 'AutoResearch',  message: 'PROPOSE — querying Claude for hypothesis #8',                                                     type: 'default' },
+      { component: 'CostManager',   message: 'Checkpoint saved at 70% budget threshold',                                                        type: 'warning' },
+      { component: 'AutoResearch',  message: `Best config locked — ${cfg.evalMetric}: ${metricFmt(cfg.iterations.filter(i => i.status === 'KEPT').slice(-1)[0]?.metricAfter ?? fn.metric)}`, type: 'success' },
+    ],
+    [
+      { component: 'AutoResearch',  message: `Experiment loop complete — ${cfg.iterations.length} iterations`,                                  type: 'success' },
+      { component: 'Manager',       message: 'Launching final training run with best config',                                                    type: 'default' },
+      { component: 'Tinker',        message: `Final config: ${cfg.model}, rank=${cfg.loraRank}, modules=${cfg.targetModules}`,                  type: 'default' },
+      { component: 'Tinker',        message: `Final epoch 1/3 — loss: ${(fn.loss * 1.14).toFixed(3)}, ${cfg.evalMetric}: ${metricFmt(fn.metric * 0.93)}`, type: 'default' },
+      { component: 'Tinker',        message: `Final epoch 2/3 — loss: ${(fn.loss * 1.06).toFixed(3)}, ${cfg.evalMetric}: ${metricFmt(fn.metric * 0.97)}`, type: 'default' },
+      { component: 'Tinker',        message: `Final epoch 3/3 — loss: ${fn.loss.toFixed(3)}, ${cfg.evalMetric}: ${metricFmt(fn.metric)}`,       type: 'default' },
+      { component: 'Tinker',        message: 'Final weights saved → outputs/model/final',                                                       type: 'success' },
+      { component: 'CostManager',   message: 'Final run cost: $1.14 — pipeline total: $14.80 (29.6%)',                                          type: 'success' },
+    ],
+    [
+      { component: 'Manager',       message: 'Collecting final metrics and artifacts',                                                          type: 'default' },
+      { component: 'Observability', message: `Research diary serialized — ${cfg.iterations.length} iterations logged`,                          type: 'success' },
+      { component: 'Observability', message: 'Agent log written → outputs/logs/agent_log.jsonl',                                               type: 'success' },
+      { component: 'Manager',       message: `Training complete — ${cfg.evalMetric}: ${metricFmt(fn.metric)}`,                                  type: 'success' },
+    ],
+  ];
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function makeStages(): PipelineStage[] {
   return STAGE_LABELS.map((label, i) => ({ id: i, label, status: 'pending' as const }));
 }
-
-function nowTime(): string {
-  return new Date().toTimeString().slice(0, 8);
+function nowTime(): string { return new Date().toTimeString().slice(0, 8); }
+function jitter(base: number, mag = 0.012): number {
+  return +(base + (Math.random() - 0.5) * mag).toFixed(4);
 }
 
-const STAGE_LOGS: Array<Array<{ component: string; message: string; type: LogEntry['type'] }>> = [
-  [
-    { component: 'Manager', message: 'Initializing orchestration pipeline', type: 'default' },
-    { component: 'Manager', message: 'Task parsed: analyzing prompt and constraints', type: 'default' },
-    { component: 'CostManager', message: 'Budget guardrail active — monitoring spend', type: 'success' },
-  ],
-  [
-    { component: 'DataGen', message: 'Querying HuggingFace Hub for matching datasets', type: 'default' },
-    { component: 'DataGen', message: 'Found 3 candidate datasets, scoring relevance', type: 'default' },
-    { component: 'DataGen', message: 'Dataset selected: 42,000 samples loaded', type: 'success' },
-  ],
-  [
-    { component: 'Decision', message: 'Running fine-tune vs pre-train analysis', type: 'default' },
-    { component: 'Decision', message: 'Dataset size favors fine-tuning strategy', type: 'default' },
-    { component: 'Decision', message: 'Base model selected: distilbert-base-uncased', type: 'success' },
-  ],
-  [
-    { component: 'Tinker', message: 'Submitting training job to Tinker API', type: 'default' },
-    { component: 'Tinker', message: 'Job accepted — GPU allocation confirmed', type: 'success' },
-    { component: 'CostManager', message: 'Estimated job cost: $14.20', type: 'warning' },
-    { component: 'Tinker', message: 'Training epoch 1/3 complete', type: 'default' },
-  ],
-  [
-    { component: 'AutoResearch', message: 'PROPOSE: creating eval suite and recording baseline', type: 'default' },
-    { component: 'AutoResearch', message: 'Hypothesis: decrease learning_rate 3e-4→1.5e-4 (local ±20%)', type: 'default' },
-    { component: 'AutoResearch', message: 'KEPT — val_loss improved 0.312→0.289 (+7.4%)', type: 'success' },
-    { component: 'AutoResearch', message: 'Hypothesis: increase lora_rank 16→32 (random search)', type: 'default' },
-    { component: 'AutoResearch', message: 'KEPT — F1 improved 0.871→0.901 (+3.4%)', type: 'success' },
-    { component: 'AutoResearch', message: 'Hypothesis: increase learning_rate 1.5e-4→6e-4 (local ±20%)', type: 'default' },
-    { component: 'AutoResearch', message: 'REVERTED — loss spiked 0.289→0.334, patch rolled back', type: 'warning' },
-    { component: 'CostManager', message: 'Cumulative spend approaching 60% of budget', type: 'warning' },
-    { component: 'AutoResearch', message: 'Best config committed: lora_rank=32, lr=1.5e-4, warmup=500', type: 'success' },
-  ],
-  [
-    { component: 'Manager', message: 'Collecting final metrics and artifacts', type: 'default' },
-    { component: 'Observability', message: 'Research diary serialized to JSON', type: 'success' },
-    { component: 'Manager', message: 'Training pipeline complete', type: 'success' },
-  ],
-];
-
-const ITERATIONS: Array<Omit<Iteration, 'id'>> = [
-  {
-    experiment: 'Decrease learning_rate 3e-4→1.5e-4 to reduce loss spikes.',
-    diff: '- learning_rate: 0.0003\n+ learning_rate: 0.00015',
-    loss: 0.289, f1: 0.871, status: 'KEPT',
-  },
-  {
-    experiment: 'Increase lora_rank 16→32 to expand model capacity for task.',
-    diff: '- lora_rank: 16\n+ lora_rank: 32',
-    loss: 0.271, f1: 0.901, status: 'KEPT',
-  },
-  {
-    experiment: 'Increase learning_rate 1.5e-4→6.1e-4 (local ±20% perturbation).',
-    diff: '- learning_rate: 0.00015\n+ learning_rate: 0.00061',
-    loss: 0.334, f1: 0.862, status: 'REVERTED',
-  },
-  {
-    experiment: 'Increase warmup_steps 100→500 to stabilize early training.',
-    diff: '- warmup_steps: 100\n+ warmup_steps: 500',
-    loss: 0.248, f1: 0.914, status: 'KEPT',
-  },
-  {
-    experiment: 'Decrease dropout 0.1→0.06 (local ±20% perturbation).',
-    diff: '- dropout: 0.1\n+ dropout: 0.06',
-    loss: 0.243, f1: 0.917, status: 'KEPT',
-  },
-  {
-    experiment: 'Increase num_epochs 3→4 to allow longer convergence.',
-    diff: '- num_epochs: 3\n+ num_epochs: 4',
-    loss: 0.261, f1: 0.908, status: 'REVERTED',
-  },
-  {
-    experiment: 'Decrease learning_rate 1.5e-4→1.2e-4 (local ±20% perturbation).',
-    diff: '- learning_rate: 0.00015\n+ learning_rate: 0.00012',
-    loss: 0.231, f1: 0.923, status: 'KEPT',
-  },
-];
-
+// ─── Hook ─────────────────────────────────────────────────────────────────────
 export function useTrainingSimulation() {
   const [state, setState] = useState<TrainingState>({
-    status: 'idle',
-    stage: -1,
-    prompt: '',
-    budget: 50,
-    taskType: 'classification',
-    costSpent: 0,
-    metrics: [],
-    iterations: [],
-    logs: [],
-    stages: makeStages(),
+    status: 'idle', stage: -1, prompt: '', budget: 50,
+    taskType: 'classification', expertLevel: 'standard',
+    costSpent: 0, metrics: [], iterations: [], logs: [],
+    stages: makeStages(), dataSamples: [], datasetName: '',
+    awaitingApproval: null,
   });
 
-  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const timersRef      = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // When non-null, user needs to click Approve before pipeline continues
+  const pendingResumeRef = useRef<(() => void) | null>(null);
 
   const clearTimers = () => {
     timersRef.current.forEach(clearTimeout);
@@ -124,138 +223,214 @@ export function useTrainingSimulation() {
   }, []);
 
   const appendLog = useCallback((entry: Omit<LogEntry, 'time'>) => {
-    setState(prev => {
-      const newLog: LogEntry = { ...entry, time: nowTime() };
-      const logs = [newLog, ...prev.logs].slice(0, 50);
-      return { ...prev, logs };
-    });
+    setState(prev => ({
+      ...prev,
+      logs: [{ ...entry, time: nowTime() }, ...prev.logs].slice(0, 80),
+    }));
   }, []);
 
-  const start = useCallback((prompt: string, budget: number, taskType: TrainingState['taskType']) => {
+  const start = useCallback((
+    prompt: string,
+    budget: number,
+    taskType: TrainingState['taskType'],
+    expertLevel: ExpertLevel = 'standard',
+  ) => {
     clearTimers();
+    pendingResumeRef.current = null;
+
+    const cfg       = matchTask(prompt);
+    const stageLogs = buildStageLogs(cfg);
+    const chapters  = getChapters(expertLevel, cfg);
+
     setState({
-      status: 'running',
-      stage: 0,
-      prompt,
-      budget,
-      taskType,
-      costSpent: 0,
-      metrics: [],
-      iterations: [],
-      logs: [],
-      stages: makeStages(),
+      status: 'running', stage: 0, prompt, budget, taskType, expertLevel,
+      costSpent: 0, metrics: [], iterations: [], logs: [],
+      stages: makeStages(), dataSamples: [], datasetName: '',
+      awaitingApproval: null,
     });
 
-    let cursor = 0; // ms elapsed
+    // ── scheduleStages: fires all timers for a set of stage indices ────────────
+    // Returns the total ms they consume so the caller knows when they end.
+    function scheduleStages(stageIndices: number[]): number {
+      let cursor = 0;
 
-    STAGE_DURATIONS.forEach((dur, stageIdx) => {
-      const stageStart = cursor;
+      stageIndices.forEach(stageIdx => {
+        const dur        = STAGE_DURATIONS[stageIdx];
+        const stageStart = cursor;
 
-      // Mark stage in-progress
-      schedule(() => {
-        setState(prev => {
-          const stages = prev.stages.map((s, i) =>
-            i === stageIdx ? { ...s, status: 'in-progress' as const } : s
-          );
-          return { ...prev, stages, stage: stageIdx };
+        schedule(() => {
+          setState(prev => ({
+            ...prev,
+            stage: stageIdx,
+            stages: prev.stages.map((s, i) =>
+              i === stageIdx ? { ...s, status: 'in-progress' as const } : s
+            ),
+          }));
+        }, stageStart);
+
+        const logs = stageLogs[stageIdx];
+        logs.forEach((log, li) => {
+          schedule(() => appendLog(log), stageStart + ((li + 1) * dur) / (logs.length + 1));
         });
-      }, stageStart);
 
-      // Emit logs staggered through the stage
-      STAGE_LOGS[stageIdx].forEach((log, li) => {
-        schedule(() => appendLog(log), stageStart + (li * dur) / (STAGE_LOGS[stageIdx].length + 1));
+        // Data Discovery: reveal sample rows
+        if (stageIdx === 1) {
+          schedule(() => {
+            setState(prev => ({
+              ...prev,
+              datasetName: cfg.datasets[0].name,
+              dataSamples: cfg.samples ?? [],
+            }));
+          }, stageStart + Math.round(dur * 0.62));
+        }
+
+        // Experiment Loop: iterations appear one by one
+        if (stageIdx === 5) {
+          const iters       = cfg.iterations;
+          const iterSpacing = dur / (iters.length + 1);
+          const resolveDelay = Math.min(iterSpacing * 0.65, 900);
+
+          iters.forEach((iter, i) => {
+            const appearAt = stageStart + iterSpacing * (i + 1);
+            schedule(() => appendLog({ component: 'Tinker', message: `Running experiment ${i + 1}/${iters.length}…`, type: 'default' }), appearAt - 200);
+            schedule(() => {
+              setState(prev => ({
+                ...prev,
+                iterations: [{
+                  id: `iter-${i}`, experiment: iter.experiment, diff: iter.diff,
+                  loss: iter.lossAfter, f1: iter.metricAfter, status: 'PENDING' as const,
+                }, ...prev.iterations],
+              }));
+            }, appearAt);
+            schedule(() => {
+              setState(prev => ({
+                ...prev,
+                iterations: prev.iterations.map(it =>
+                  it.id === `iter-${i}` ? { ...it, status: iter.status } : it
+                ),
+              }));
+              const mf = (v: number) => cfg.evalMetric === 'BLEU' || cfg.evalMetric === 'ROUGE-L' ? v.toFixed(3) : `${(v * 100).toFixed(1)}%`;
+              appendLog({
+                component: 'AutoResearch',
+                message: iter.status === 'KEPT'
+                  ? `KEPT — loss ${iter.lossAfter.toFixed(3)}, ${cfg.evalMetric} ${mf(iter.metricAfter)} (iter ${i + 1})`
+                  : `REVERTED — regression detected (iter ${i + 1})`,
+                type: iter.status === 'KEPT' ? 'success' : 'warning',
+              });
+            }, appearAt + resolveDelay);
+            schedule(() => {
+              setState(prev => ({
+                ...prev,
+                metrics: [...prev.metrics, {
+                  loss: jitter(iter.lossAfter, 0.01),
+                  accuracy: jitter(iter.metricAfter, 0.007),
+                  iteration: prev.metrics.length + 1,
+                }],
+              }));
+            }, appearAt + resolveDelay + 120);
+          });
+        }
+
+        // Final Run: smooth loss curve
+        if (stageIdx === 6) {
+          const { baseline: bl, final: fn } = cfg;
+          const tickCount   = Math.floor(dur / 350);
+          const startLoss   = bl.loss * 0.88;
+          const startMetric = bl.metric * 1.03;
+          for (let t = 0; t < tickCount; t++) {
+            const p = t / tickCount;
+            schedule(() => {
+              setState(prev => ({
+                ...prev,
+                metrics: [...prev.metrics, {
+                  loss:     jitter(startLoss   - p * (startLoss - fn.loss),       0.007),
+                  accuracy: jitter(startMetric + p * (fn.metric - startMetric),   0.005),
+                  iteration: prev.metrics.length + 1,
+                }],
+              }));
+            }, stageStart + t * 350 + 150);
+          }
+        }
+
+        // Cost ticks
+        if (stageIdx >= 1) {
+          const stageWeights = [0, 0.04, 0.02, 0.14, 0.05, 0.52, 0.20, 0.03];
+          const costThisStage = budget * 0.76 * (stageWeights[stageIdx] ?? 0.05);
+          const ticks = Math.max(1, Math.floor(dur / 500));
+          for (let t = 0; t < ticks; t++) {
+            schedule(() => {
+              setState(prev => ({
+                ...prev,
+                costSpent: Math.min(+(prev.costSpent + costThisStage / ticks).toFixed(2), budget),
+              }));
+            }, stageStart + t * 500 + 300);
+          }
+        }
+
+        // Mark stage complete
+        schedule(() => {
+          setState(prev => ({
+            ...prev,
+            stages: prev.stages.map((s, i) =>
+              i === stageIdx ? { ...s, status: 'complete' as const } : s
+            ),
+          }));
+        }, stageStart + dur - 50);
+
+        cursor += dur;
       });
 
-      // Metric updates during Training (stage 3) and AutoResearch (stage 4)
-      if (stageIdx === 3 || stageIdx === 4) {
-        const tickCount = Math.floor(dur / 500);
-        for (let t = 0; t < tickCount; t++) {
-          const globalIter = stageIdx === 3 ? t : tickCount + t;
-          const progress = globalIter / (tickCount * 2 - 1);
-          const loss = +(0.42 - progress * 0.30 + (Math.random() - 0.5) * 0.02).toFixed(4);
-          const accuracy = +(0.72 + progress * 0.22 + (Math.random() - 0.5) * 0.015).toFixed(4);
-          schedule(() => {
-            setState(prev => ({
-              ...prev,
-              metrics: [...prev.metrics, { loss, accuracy, iteration: prev.metrics.length + 1 }],
-            }));
-          }, stageStart + t * 500 + 200);
-        }
+      return cursor;
+    }
+
+    // ── runChapter: schedules one chapter, then either pauses or runs the next ─
+    function runChapter(chapterIdx: number) {
+      const chapter = chapters[chapterIdx];
+      const totalMs = scheduleStages(chapter.stages);
+
+      if (chapter.gate) {
+        // After stages finish, pause and wait for user
+        schedule(() => {
+          setState(prev => ({ ...prev, awaitingApproval: chapter.gate! }));
+          appendLog({ component: 'Manager', message: '⏸  Paused — waiting for your approval to continue', type: 'warning' });
+          // Store the resume function — called when user clicks Approve
+          pendingResumeRef.current = () => {
+            setState(prev => ({ ...prev, awaitingApproval: null }));
+            appendLog({ component: 'Manager', message: '✓  Approved — resuming pipeline', type: 'success' });
+            runChapter(chapterIdx + 1);
+          };
+        }, totalMs + 50);
+      } else {
+        // Last chapter — complete when done
+        schedule(() => {
+          setState(prev => ({ ...prev, status: 'complete', stage: STAGE_LABELS.length - 1 }));
+        }, totalMs + 100);
       }
+    }
 
-      // Cost ticks every ~600ms after stage 1
-      if (stageIdx >= 1) {
-        const totalBudgetUsed = budget * 0.76;
-        const costPerStage = totalBudgetUsed / 5;
-        const ticks = Math.floor(dur / 600);
-        for (let t = 0; t < ticks; t++) {
-          const amount = costPerStage / ticks;
-          schedule(() => {
-            setState(prev => ({
-              ...prev,
-              costSpent: Math.min(+(prev.costSpent + amount).toFixed(2), budget),
-            }));
-          }, stageStart + t * 600 + 300);
-        }
-      }
-
-      // AutoResearch iterations during stage 4: appear as PENDING, then resolve
-      if (stageIdx === 4) {
-        const iterDelay = dur / (ITERATIONS.length + 1);
-        const resolveDelay = Math.min(iterDelay * 0.7, 800); // resolve before next appears
-        ITERATIONS.forEach((iter, i) => {
-          const appearAt = stageStart + iterDelay * (i + 1);
-          // Step 1: add as PENDING
-          schedule(() => {
-            const pending: Iteration = { ...iter, id: `iter-${i}`, status: 'PENDING' };
-            setState(prev => ({ ...prev, iterations: [pending, ...prev.iterations] }));
-          }, appearAt);
-          // Step 2: resolve to final status
-          schedule(() => {
-            setState(prev => ({
-              ...prev,
-              iterations: prev.iterations.map(it =>
-                it.id === `iter-${i}` ? { ...it, status: iter.status } : it
-              ),
-            }));
-          }, appearAt + resolveDelay);
-        });
-      }
-
-      // Mark stage complete
-      schedule(() => {
-        setState(prev => {
-          const stages = prev.stages.map((s, i) =>
-            i === stageIdx ? { ...s, status: 'complete' as const } : s
-          );
-          return { ...prev, stages };
-        });
-      }, stageStart + dur - 50);
-
-      cursor += dur;
-    });
-
-    // Mark complete
-    schedule(() => {
-      setState(prev => ({ ...prev, status: 'complete', stage: 5 }));
-    }, cursor + 100);
+    runChapter(0);
   }, [schedule, appendLog]);
+
+  // Called when user clicks "Approve & Continue"
+  const approve = useCallback(() => {
+    if (pendingResumeRef.current) {
+      const resume = pendingResumeRef.current;
+      pendingResumeRef.current = null;
+      resume();
+    }
+  }, []);
 
   const reset = useCallback(() => {
     clearTimers();
+    pendingResumeRef.current = null;
     setState({
-      status: 'idle',
-      stage: -1,
-      prompt: '',
-      budget: 50,
-      taskType: 'classification',
-      costSpent: 0,
-      metrics: [],
-      iterations: [],
-      logs: [],
-      stages: makeStages(),
+      status: 'idle', stage: -1, prompt: '', budget: 50,
+      taskType: 'classification', expertLevel: 'standard',
+      costSpent: 0, metrics: [], iterations: [], logs: [],
+      stages: makeStages(), dataSamples: [], datasetName: '',
+      awaitingApproval: null,
     });
   }, []);
 
-  return { state, start, reset };
+  return { state, start, approve, reset };
 }

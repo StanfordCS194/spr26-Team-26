@@ -5,9 +5,12 @@ import MetricsChart from './MetricsChart';
 import IterationsList from './IterationsList';
 import ActivityLog from './ActivityLog';
 import FinalResults from './FinalResults';
+import DataSamplePanel from './DataSamplePanel';
+import ApprovalGateCard from './ApprovalGateCard';
 
 interface Props {
   state: TrainingState;
+  onApprove: () => void;
   onReset: () => void;
 }
 
@@ -46,7 +49,7 @@ function StatusDot({ status }: { status: TrainingState['status'] }) {
   );
 }
 
-export default function Dashboard({ state, onReset }: Props) {
+export default function Dashboard({ state, onApprove, onReset }: Props) {
   return (
     <div style={{ minHeight: '100vh' }}>
       <style>{`
@@ -114,10 +117,32 @@ export default function Dashboard({ state, onReset }: Props) {
           }}>
             {state.taskType}
           </span>
+          <span style={{
+            fontSize: '11px',
+            color: state.expertLevel === 'autonomous' ? '#a78bfa' : state.expertLevel === 'guided' ? '#34d399' : '#60a5fa',
+            background: state.expertLevel === 'autonomous' ? '#1e1730' : state.expertLevel === 'guided' ? '#0d2018' : '#0d1a2e',
+            border: `0.5px solid ${state.expertLevel === 'autonomous' ? '#7c3aed' : state.expertLevel === 'guided' ? '#059669' : '#2563eb'}`,
+            borderRadius: '4px',
+            padding: '2px 8px',
+            flexShrink: 0,
+            textTransform: 'capitalize' as const,
+          }}>
+            {state.expertLevel}
+          </span>
         </div>
 
         {/* Pipeline + budget */}
         <PipelineProgress stages={state.stages} costSpent={state.costSpent} budget={state.budget} />
+
+        {/* Approval gate — blocks pipeline until user approves */}
+        {state.awaitingApproval && (
+          <ApprovalGateCard gate={state.awaitingApproval} onApprove={onApprove} />
+        )}
+
+        {/* Dataset preview — shown once Data Discovery produces samples */}
+        {state.dataSamples.length > 0 && (
+          <DataSamplePanel datasetName={state.datasetName} samples={state.dataSamples} />
+        )}
 
         {/* 4 metric cards */}
         <MetricsGrid metrics={state.metrics} costSpent={state.costSpent} budget={state.budget} />

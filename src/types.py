@@ -65,6 +65,7 @@ class TaskReasoning(TypedDict):
     suggested_base_model: str | None
     hyperparameters: dict
     notes: str
+    dataset_queries: list[str]   # one or more HuggingFace search queries for data acquisition
 
 
 class TaskAnalysis(TypedDict):

@@ -110,10 +110,28 @@ def orchestrate_node(state: ManagerState) -> dict:
     config = state["config"]
     budget = config["compute_budget"]
 
-    # ── 1. Data acquisition ──────────────────────────────────────────────────
-    log_event(AgentName.MANAGER, LogLevel.INFO, "Starting DataGen sub-agent", {})
-    handoff = invoke_data_generator_graph(config, state.get("data_path"))
-    dataset = _handoff_to_dataset_result(handoff)
+    # ── 1. Data acquisition (one DataGen run per dataset query) ──────────────
+    queries: list[str] = (
+        state["task_reasoning"].get("dataset_queries")
+        or [config["prompt"]]
+    )
+    log_event(
+        AgentName.MANAGER, LogLevel.INFO,
+        f"Starting DataGen for {len(queries)} dataset query(ies)", {"queries": queries},
+    )
+    dataset_results: list[DatasetResult] = []
+    for i, query in enumerate(queries):
+        query_config = {**config, "prompt": query}
+        log_event(AgentName.MANAGER, LogLevel.INFO, f"DataGen query {i+1}/{len(queries)}: {query}", {})
+        handoff = invoke_data_generator_graph(query_config, state.get("data_path"))
+        dataset_results.append(_handoff_to_dataset_result(handoff, index=i))
+
+    dataset = merge_dataset_results(dataset_results) if len(dataset_results) > 1 else dataset_results[0]
+    log_event(
+        AgentName.MANAGER, LogLevel.INFO,
+        f"Merged {len(dataset_results)} dataset(s) — "
+        f"{dataset['dataset']['train_size']} train records total", {},
+    )
 
     # ── 2. Decision Engine — pick model, estimate cost, write training script
     log_event(AgentName.MANAGER, LogLevel.INFO, "Running Decision Engine", {})
@@ -184,6 +202,10 @@ def reason_about_task(prompt: str, budget: float, has_data: bool) -> TaskReasoni
         "  suggested_base_model: str or null (HuggingFace model ID, e.g. 'bert-base-uncased')\n"
         "  hyperparameters: dict with keys learning_rate, batch_size, epochs, max_seq_len\n"
         "  notes: str (one sentence reasoning summary)\n"
+        "  dataset_queries: list[str] — one or more short HuggingFace search phrases that "
+        "together cover the data needed for this task (e.g. ['movie review sentiment', "
+        "'product review sentiment']). Use multiple queries when combining complementary "
+        "datasets improves coverage. Minimum 1, maximum 4 queries.\n"
         "Respond with raw JSON only. No markdown, no explanation."
     )
     user_msg = (
@@ -200,21 +222,22 @@ def reason_about_task(prompt: str, budget: float, has_data: bool) -> TaskReasoni
     return json.loads(message.content[0].text)
 
 
-def _handoff_to_dataset_result(handoff: dict) -> DatasetResult:
+def _handoff_to_dataset_result(handoff: dict, index: int = 0) -> DatasetResult:
     """Converts a DataGen handoff payload into a DatasetResult for the Decision Engine.
 
-    Persists records to outputs/datasets/train_data.jsonl and computes an 80/10/10 split.
+    Persists records to outputs/datasets/train_data_{index}.jsonl and computes an 80/10/10 split.
+    The index parameter prevents multiple DataGen runs from clobbering each other's files.
     """
     mode = handoff.get("mode_used", "C")
     raw_data = handoff.get("raw_data") or {}
     records: list = raw_data.get("records", []) if isinstance(raw_data, dict) else []
 
     os.makedirs("outputs/datasets", exist_ok=True)
-    dataset_path = os.path.abspath("outputs/datasets/train_data.jsonl")
+    filename = f"train_data_{index}.jsonl" if index > 0 else "train_data.jsonl"
+    dataset_path = os.path.abspath(f"outputs/datasets/{filename}")
     with open(dataset_path, "w") as fh:
         for rec in records:
-            import json as _json
-            fh.write(_json.dumps(rec) + "\n")
+            fh.write(json.dumps(rec) + "\n")
 
     n = len(records)
     train_n = max(1, int(n * 0.8))
@@ -238,6 +261,60 @@ def _handoff_to_dataset_result(handoff: dict) -> DatasetResult:
         mode_used=mode,
         quality_notes=f"DataGen mode {mode}, {n} records",
         validation_report=validation_report,
+    )
+
+
+def merge_dataset_results(results: list[DatasetResult]) -> DatasetResult:
+    """Merges multiple DatasetResults into one combined JSONL dataset.
+
+    Concatenates all records from each result's JSONL file, writes them to
+    outputs/datasets/train_data_merged.jsonl, and recomputes an 80/10/10 split.
+    Propagates any validation issues from individual results into the merged report.
+    """
+    os.makedirs("outputs/datasets", exist_ok=True)
+    merged_path = os.path.abspath("outputs/datasets/train_data_merged.jsonl")
+    all_records: list = []
+    issues: list[str] = []
+
+    for r in results:
+        src_path = r["dataset"]["path"]
+        try:
+            with open(src_path) as fh:
+                for line in fh:
+                    line = line.strip()
+                    if line:
+                        all_records.append(json.loads(line))
+        except FileNotFoundError:
+            issues.append(f"Missing dataset file: {src_path}")
+        issues.extend(r["validation_report"].get("issues", []))
+
+    with open(merged_path, "w") as fh:
+        for rec in all_records:
+            fh.write(json.dumps(rec) + "\n")
+
+    n = len(all_records)
+    train_n = max(1, int(n * 0.8))
+    val_n   = max(1, int(n * 0.1))
+    test_n  = max(1, n - train_n - val_n)
+
+    modes_used = ", ".join(sorted({r["mode_used"] for r in results}))
+    return DatasetResult(
+        dataset=StandardDataset(
+            path=merged_path,
+            format="jsonl",
+            train_size=train_n,
+            val_size=val_n,
+            test_size=test_n,
+        ),
+        mode_used=modes_used,
+        quality_notes=f"Merged {len(results)} dataset(s), {n} total records",
+        validation_report=ValidationReport(
+            passed=n > 0 and not issues,
+            issues=issues,
+            sample_accuracy_estimate=sum(
+                r["validation_report"]["sample_accuracy_estimate"] for r in results
+            ) / len(results),
+        ),
     )
 
 

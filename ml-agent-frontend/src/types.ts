@@ -2,6 +2,7 @@ export type StageStatus = 'pending' | 'in-progress' | 'complete';
 export type TaskType = 'classification' | 'regression' | 'fine-tuning';
 export type LogType = 'default' | 'success' | 'warning';
 export type IterationStatus = 'KEPT' | 'REVERTED' | 'PENDING';
+export type ExpertLevel = 'guided' | 'standard' | 'autonomous';
 
 export interface PipelineStage {
   id: number;
@@ -31,15 +32,29 @@ export interface LogEntry {
   type: LogType;
 }
 
+export interface DataSample {
+  [field: string]: string | number;
+}
+
+export interface ApprovalGate {
+  title: string;
+  description: string;
+  details: string[];
+}
+
 export interface TrainingState {
   status: 'idle' | 'running' | 'complete';
   stage: number;
   prompt: string;
   budget: number;
   taskType: TaskType;
+  expertLevel: ExpertLevel;
   costSpent: number;
   metrics: MetricPoint[];
   iterations: Iteration[];
   logs: LogEntry[];
   stages: PipelineStage[];
+  dataSamples: DataSample[];
+  datasetName: string;
+  awaitingApproval: ApprovalGate | null;
 }
