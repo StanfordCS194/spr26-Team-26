@@ -1,6 +1,6 @@
 # Overnight PR Stack
 
-Updated: 2026-05-19 08:11 PDT
+Updated: 2026-05-19 08:13 PDT
 
 Purpose: give reviewers a merge/review order for the draft PR stack without
 having to infer dependencies from GitHub.
@@ -30,6 +30,7 @@ having to infer dependencies from GitHub.
    - #50 `codex/frontend-manager-api-bridge` -> #46
    - #52 `codex/preserve-chat-messages-curation` -> #40
    - #58 `codex/curation-small-splits` -> #52
+   - #64 `codex/curation-source-splits` -> #58
 5. Integration/docs:
    - #51 `codex/full-stack-contract-smoke` -> #48
    - #49 `codex/spec-tinker-sdk-docs` -> #51
@@ -54,7 +55,8 @@ having to infer dependencies from GitHub.
 ## Latest Local Stack Validation
 
 Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
-#62, and #63 on top of #51.
+#62, and #63 on top of #51. #64 has been opened on the DataGen/curation chain
+and should be included in the next local stack smoke.
 
 - `python3 -m compileall src`
 - Broad non-live suite excluding live Tinker and live Hugging Face retrieval:
