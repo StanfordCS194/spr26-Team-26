@@ -209,6 +209,119 @@ def test_autoresearch_run_node_calls_tinker_runner(monkeypatch, tmp_path):
     assert captured["config"].model_name == "Qwen/Qwen3.5-9B"
 
 
+def test_autoresearch_run_node_uses_pending_proposal_patch(monkeypatch, tmp_path):
+    import src.autoresearch.autoresearch as ar
+
+    data_path = _write_jsonl(tmp_path / "train.jsonl", [{"input": "x", "output": "y"}])
+    captured = {}
+
+    def fake_runner(config, dataset, *, max_steps=None, **kwargs):
+        captured["config"] = config
+        run_dir = tmp_path / "run-patched"
+        run_dir.mkdir()
+        (run_dir / "metrics.json").write_text(
+            json.dumps({"train_loss": 0.5, "val_loss": 0.5, "test_loss": 0.5})
+        )
+        return {
+            "job_id": "fake-run",
+            "status": "COMPLETED",
+            "metrics": {
+                "train_loss": 0.5,
+                "val_loss": 0.5,
+                "test_loss": 0.5,
+                "primary_metric": 2 / 3,
+            },
+            "model_path": str(run_dir),
+            "cost_usd": 0.01,
+            "logs_path": str(run_dir / "metrics.jsonl"),
+        }
+
+    monkeypatch.setattr(ar, "run_tinker_sft_experiment", fake_runner)
+    state = _autoresearch_state(str(data_path))
+    state["current_config"] = {"learning_rate": 1e-4, "batch_size": 4}
+    state["current_patch"] = json.dumps({"learning_rate": 2e-4})
+
+    ar.run_node(state)
+
+    assert captured["config"].learning_rate == pytest.approx(2e-4)
+    assert captured["config"].batch_size == 4
+
+
+def test_autoresearch_propose_then_run_uses_proposed_config(monkeypatch, tmp_path):
+    import src.autoresearch.autoresearch as ar
+    from src.autoresearch.config import TrainingConfig
+
+    data_path = _write_jsonl(tmp_path / "train.jsonl", [{"input": "x", "output": "y"}])
+    config_path = tmp_path / "current.json"
+    TrainingConfig(
+        model_name="Qwen/Qwen3.5-9B",
+        learning_rate=1e-4,
+        batch_size=4,
+    ).save(config_path)
+    monkeypatch.setattr(ar, "_CONFIG_PATH", config_path)
+    monkeypatch.setattr(
+        ar,
+        "propose_hypothesis",
+        lambda *args, **kwargs: {
+            "description": "Increase learning rate for a bounded candidate run.",
+            "patch": json.dumps({"learning_rate": 2e-4}),
+            "expected_effect": "Lower validation loss.",
+            "search_strategy": "local",
+        },
+    )
+    captured = {}
+
+    def fake_runner(config, dataset, *, max_steps=None, **kwargs):
+        captured["config"] = config
+        run_dir = tmp_path / "run-proposed"
+        run_dir.mkdir()
+        (run_dir / "metrics.json").write_text(
+            json.dumps({"train_loss": 0.4, "val_loss": 0.4, "test_loss": 0.4})
+        )
+        return {
+            "job_id": "fake-run",
+            "status": "COMPLETED",
+            "metrics": {
+                "train_loss": 0.4,
+                "val_loss": 0.4,
+                "test_loss": 0.4,
+                "primary_metric": 1 / 1.4,
+            },
+            "model_path": str(run_dir),
+            "cost_usd": 0.01,
+            "logs_path": str(run_dir / "metrics.jsonl"),
+        }
+
+    monkeypatch.setattr(ar, "run_tinker_sft_experiment", fake_runner)
+    state = _autoresearch_state(str(data_path))
+    state["current_config"] = {"learning_rate": 1e-4, "batch_size": 4}
+    state["config"]["training_procedure"]["hyperparameters"] = dict(state["current_config"])
+
+    proposed = ar.propose_node(state)
+    ar.run_node({**state, **proposed})
+
+    assert captured["config"].learning_rate == pytest.approx(2e-4)
+    assert TrainingConfig.load(config_path).learning_rate == pytest.approx(2e-4)
+
+
+def test_autoresearch_init_node_seeds_current_config_json(monkeypatch, tmp_path):
+    import src.autoresearch.autoresearch as ar
+    from src.autoresearch.config import TrainingConfig
+
+    config_path = tmp_path / "configs" / "current.json"
+    monkeypatch.setattr(ar, "_CONFIG_PATH", config_path)
+    state = _autoresearch_state(str(tmp_path / "train.jsonl"))
+    state["current_config"] = {"learning_rate": 1e-4, "batch_size": 4}
+    state["config"]["training_procedure"]["hyperparameters"] = dict(state["current_config"])
+
+    ar.init_node(state)
+
+    seeded = TrainingConfig.load(config_path)
+    assert seeded.model_name == "Qwen/Qwen3.5-9B"
+    assert seeded.learning_rate == pytest.approx(1e-4)
+    assert seeded.batch_size == 4
+
+
 def test_autoresearch_run_node_wraps_tinker_runner_with_cost_manager(monkeypatch, tmp_path):
     import src.autoresearch.autoresearch as ar
 

@@ -165,6 +165,8 @@ def invoke_autoresearch_graph(
 
 def init_node(state: AutoResearchState) -> dict:
     """LangGraph node. Calls create_eval_suite(). Returns: { eval_suite, current_script, current_config, iteration: 0 }."""
+    _write_current_config(_training_config_from_state(state))
+
     task_analysis: TaskAnalysis = {
         "task_type": state["config"]["training_procedure"]["task_type"],
         "modality": "text",
@@ -739,8 +741,14 @@ def _dataset_result_from_plan(plan: TrainingPlan) -> DatasetResult:
     }
 
 
-def _training_config_from_state(state: AutoResearchState) -> TrainingConfig:
+def _training_config_from_state(
+    state: AutoResearchState,
+    *,
+    include_pending_patch: bool = False,
+) -> TrainingConfig:
     data: dict[str, Any] = dict(state["current_config"])
+    if include_pending_patch and state.get("current_patch"):
+        data.update(json.loads(state["current_patch"]))
     data.setdefault("model_name", state["plan"].get("base_model") or DEFAULT_TINKER_MODEL)
     if "max_seq_len" in data and "max_seq_length" not in data:
         data["max_seq_length"] = data["max_seq_len"]
@@ -752,6 +760,10 @@ def _training_config_from_state(state: AutoResearchState) -> TrainingConfig:
     if lora and "lora_alpha" not in data:
         data["lora_alpha"] = lora["alpha"]
     return TrainingConfig.from_dict(data)
+
+
+def _write_current_config(config: TrainingConfig) -> None:
+    config.save(_CONFIG_PATH)
 
 
 def _training_config_from_plan(plan: TrainingPlan) -> TrainingConfig:
@@ -788,7 +800,10 @@ def _run_tinker_experiment_for_state(
         cost_manager.start(run_id)
     try:
         return run_tinker_sft_experiment(
-            _training_config_from_state(state),
+            _training_config_from_state(
+                state,
+                include_pending_patch=phase == "iteration",
+            ),
             _dataset_result_from_plan(state["plan"]),
             run_id=run_id,
             max_steps=_max_steps_from_state(state),
