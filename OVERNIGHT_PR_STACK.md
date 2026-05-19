@@ -254,5 +254,25 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   `ANTHROPIC_API_KEY` is configured, `off` disables it, and `required` preserves
   the explicit live path. Branch no-live suite passed (`168 passed, 4 skipped`);
   composed stack through #91 passed (`264 passed, 6 skipped`).
+- #92 adds a local Manager reasoner on top of the noninteractive Manager path.
+  `MANAGER_REASONER=auto` keeps Claude when a key is configured, but falls back
+  to deterministic local planning without a key or under `NO_SPEND=1`.
+- #93 makes Mode B's offline fallback produce trainable `input`/`output` rows
+  instead of inert examples, and curation preserves dataset/source metadata.
+- #94 adds `TINKER_BACKEND=dry_run` so the API/full graph can exercise the
+  Tinker artifact contract without constructing the SDK client or spending live
+  budget.
+- #95 adds a local AutoResearch proposer. After compose smoke, it was updated
+  to avoid no-op proposals by sampling alternate random values, stepping
+  discrete candidates to neighbors, and forcing integer perturbations to move
+  when bounds allow. Branch validation passed (`67 passed, 3 skipped`); composed
+  AutoResearch/Tinker passed (`74 passed`).
+- #71 was updated for compatibility with #95: the fake-Claude full-stack budget
+  contract now explicitly sets `AUTORESEARCH_PROPOSER=claude` when it
+  monkeypatches `propose_hypothesis()`. This keeps the test's intended path
+  stable while default no-key runs use the local proposer.
+- The unpublished composition branch through #95 now passes the full no-live
+  Python suite (`281 passed, 8 skipped`) and a no-spend API product smoke with
+  local Manager/proposer plus dry-run Tinker.
 
 Current conservative live spend: `$94.14 / $100.00`.
