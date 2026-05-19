@@ -31,6 +31,26 @@ def test_curate_record_rejects_content_without_target():
         curate_record({"content": "Only source text"})
 
 
+def test_curate_record_adapts_mode_c_web_source_without_target():
+    curated = curate_record(
+        {
+            "source_kind": "web_page",
+            "source_locator": "https://example.com/support",
+            "input": "Urgent tickets include outages and security incidents.",
+            "output": "",
+        },
+        mode="C",
+        config={"prompt": "classify support tickets by urgency"},
+        record_source="curation_payload",
+    )
+
+    assert curated["messages"][0]["role"] == "user"
+    assert "classify support tickets by urgency" in curated["messages"][0]["content"]
+    assert "https://example.com/support" in curated["messages"][0]["content"]
+    assert curated["messages"][1]["role"] == "assistant"
+    assert "candidate_source" in curated["messages"][1]["content"]
+
+
 def test_curate_handoff_writes_only_valid_jsonl(tmp_path):
     handoff = {
         "mode_used": "B",
@@ -71,6 +91,65 @@ def test_curate_handoff_writes_only_valid_jsonl(tmp_path):
             ]
         },
     ]
+
+
+def test_curate_handoff_prefers_mode_c_curation_payload(tmp_path):
+    handoff = {
+        "mode_used": "C",
+        "config": {"prompt": "build a classifier for support ticket urgency"},
+        "raw_data": {
+            "records": [
+                {
+                    "content": "raw page should not be used when curation payload exists",
+                }
+            ]
+        },
+        "curation_payload": {
+            "records": [
+                {
+                    "record_id": "c_000001",
+                    "source_kind": "web_page",
+                    "source_locator": "https://example.com/urgency",
+                    "input": "Outages and active security incidents are urgent.",
+                    "output": "",
+                }
+            ]
+        },
+    }
+
+    result = curate_handoff_to_dataset_result(handoff, output_dir=str(tmp_path))
+
+    assert result["validation_report"]["passed"] is True
+    assert result["quality_notes"] == (
+        "DataGen mode C; curated 1 of 1 curation_payload record(s)"
+    )
+    rows = [
+        json.loads(line)
+        for line in open(result["dataset"]["path"]).read().splitlines()
+        if line.strip()
+    ]
+    assert rows[0]["messages"][0]["content"].startswith(
+        "Task: build a classifier for support ticket urgency"
+    )
+    assert "raw page should not be used" not in rows[0]["messages"][0]["content"]
+
+
+def test_curate_handoff_preserves_upstream_validation(tmp_path):
+    handoff = {
+        "mode_used": "C",
+        "raw_data": {"records": [{"input": "A", "output": "alpha"}]},
+        "validation_report": {
+            "passed": False,
+            "issues": ["synthetic quality warning"],
+            "sample_accuracy_estimate": 0.42,
+        },
+    }
+
+    result = curate_handoff_to_dataset_result(handoff, output_dir=str(tmp_path))
+
+    assert result["validation_report"]["passed"] is False
+    assert result["validation_report"]["issues"] == ["synthetic quality warning"]
+    assert result["validation_report"]["sample_accuracy_estimate"] == 0.42
 
 
 def test_curate_handoff_fails_validation_when_no_rows_survive(tmp_path):

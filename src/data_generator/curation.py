@@ -28,8 +28,8 @@ def curate_handoff_to_dataset_result(
     assistant target.
     """
     mode = str(handoff.get("mode_used") or "C")
-    raw_data = handoff.get("raw_data") or {}
-    records = raw_data.get("records", []) if isinstance(raw_data, Mapping) else []
+    config = handoff.get("config") if isinstance(handoff.get("config"), Mapping) else {}
+    records, record_source = _records_from_handoff(handoff)
 
     curated: list[dict[str, Any]] = []
     issues: list[str] = []
@@ -38,7 +38,14 @@ def curate_handoff_to_dataset_result(
             issues.append(f"row {index}: record must be an object")
             continue
         try:
-            curated.append(curate_record(record))
+            curated.append(
+                curate_record(
+                    record,
+                    mode=mode,
+                    config=config,
+                    record_source=record_source,
+                )
+            )
         except ValueError as exc:
             issues.append(f"row {index}: {exc}")
 
@@ -49,19 +56,36 @@ def curate_handoff_to_dataset_result(
             fh.write(json.dumps(record) + "\n")
 
     dropped = len(records) - len(curated)
-    validation_issues = _validation_issues(issues, dropped, len(curated))
+    validation_issues = _validation_issues(
+        issues,
+        dropped,
+        len(curated),
+        handoff.get("validation_report"),
+    )
+    upstream_validation = handoff.get("validation_report")
+    upstream_passed = (
+        bool(upstream_validation.get("passed", True))
+        if isinstance(upstream_validation, Mapping)
+        else True
+    )
+    sample_accuracy = (
+        float(upstream_validation.get("sample_accuracy_estimate", 0.9))
+        if isinstance(upstream_validation, Mapping)
+        else (0.9 if curated else 0.0)
+    )
     dataset: StandardDataset = {
         "path": os.path.abspath(output_path),
         "format": "jsonl",
         **_split_counts(len(curated)),
     }
     validation_report: ValidationReport = {
-        "passed": bool(curated),
+        "passed": bool(curated) and upstream_passed,
         "issues": validation_issues,
-        "sample_accuracy_estimate": 0.9 if curated else 0.0,
+        "sample_accuracy_estimate": sample_accuracy if curated else 0.0,
     }
     quality_notes = (
-        f"DataGen mode {mode}; curated {len(curated)} of {len(records)} raw records"
+        f"DataGen mode {mode}; curated {len(curated)} of {len(records)} "
+        f"{record_source} record(s)"
     )
     if dropped:
         quality_notes += f"; dropped {dropped} malformed record(s)"
@@ -74,7 +98,13 @@ def curate_handoff_to_dataset_result(
     }
 
 
-def curate_record(record: Mapping[str, Any]) -> dict[str, Any]:
+def curate_record(
+    record: Mapping[str, Any],
+    *,
+    mode: str | None = None,
+    config: Mapping[str, Any] | None = None,
+    record_source: str = "raw_data",
+) -> dict[str, Any]:
     """Curate one raw record into a Tinker chat/SFT-compatible JSON object."""
     messages = record.get("messages")
     if messages is not None:
@@ -90,8 +120,76 @@ def curate_record(record: Mapping[str, Any]) -> dict[str, Any]:
     if not user_text:
         raise ValueError(f"missing input field; expected one of {_INPUT_KEYS}")
     if not target_text:
+        if _is_mode_c_web_record(record, mode, record_source):
+            return _curate_web_source_record(record, user_text, config)
         raise ValueError(f"missing target field; expected one of {_TARGET_KEYS}")
     return {"input": user_text, "output": target_text}
+
+
+def _records_from_handoff(handoff: Mapping[str, Any]) -> tuple[list[Any], str]:
+    curation_payload = handoff.get("curation_payload")
+    if isinstance(curation_payload, Mapping):
+        records = curation_payload.get("records")
+        if isinstance(records, list):
+            return records, "curation_payload"
+
+    raw_data = handoff.get("raw_data") or {}
+    if isinstance(raw_data, Mapping) and isinstance(raw_data.get("records"), list):
+        return raw_data["records"], "raw_data"
+
+    return [], "raw_data"
+
+
+def _is_mode_c_web_record(
+    record: Mapping[str, Any],
+    mode: str | None,
+    record_source: str,
+) -> bool:
+    if mode != "C":
+        return False
+    source_kind = str(record.get("source_kind") or record.get("source_type") or "")
+    source = str(record.get("source") or "")
+    metadata = record.get("metadata") if isinstance(record.get("metadata"), Mapping) else {}
+    if record_source == "curation_payload" and source_kind in {
+        "web",
+        "web_page",
+        "web_asset",
+        "html",
+        "pdf",
+        "csv",
+        "json",
+        "image",
+    }:
+        return True
+    if source in {"web_page", "web_asset", "web_search", "mode_c_web_acquisition"}:
+        return True
+    if record.get("url") or record.get("source_locator"):
+        return True
+    return str(metadata.get("extraction_method") or "") != ""
+
+
+def _curate_web_source_record(
+    record: Mapping[str, Any],
+    input_text: str,
+    config: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    task = _task_prompt(config)
+    source = _first_text(record, ("source_locator", "url", "title", "domain"))
+    user_content = (
+        f"Task: {task}\n"
+        f"Source: {source or 'web acquisition'}\n"
+        f"Content: {input_text}"
+    )
+    assistant_content = (
+        "candidate_source: this acquired source contains material that can be "
+        "used by the data curation step for the requested task."
+    )
+    return {
+        "messages": [
+            {"role": "user", "content": user_content},
+            {"role": "assistant", "content": assistant_content},
+        ]
+    }
 
 
 def _normalize_messages(messages: Any) -> list[dict[str, str]]:
@@ -119,6 +217,12 @@ def _first_text(record: Mapping[str, Any], keys: Sequence[str]) -> str:
     return ""
 
 
+def _task_prompt(config: Mapping[str, Any] | None) -> str:
+    if not config:
+        return "the requested ML task"
+    return " ".join(str(config.get("prompt", "the requested ML task")).split())
+
+
 def _split_counts(n_records: int) -> dict[str, int]:
     if n_records <= 0:
         return {"train_size": 0, "val_size": 0, "test_size": 0}
@@ -136,8 +240,13 @@ def _validation_issues(
     row_issues: list[str],
     dropped: int,
     curated_count: int,
+    upstream_validation: Any = None,
 ) -> list[str]:
     issues: list[str] = []
+    if isinstance(upstream_validation, Mapping):
+        upstream_issues = upstream_validation.get("issues", [])
+        if isinstance(upstream_issues, list):
+            issues.extend(str(issue) for issue in upstream_issues if str(issue).strip())
     if dropped:
         preview = "; ".join(row_issues[:3])
         issues.append(f"Dropped {dropped} malformed record(s). {preview}")
