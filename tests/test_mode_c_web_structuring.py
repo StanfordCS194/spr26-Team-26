@@ -113,7 +113,54 @@ def test_structure_web_sources_with_teacher_returns_trainable_records(monkeypatc
         "normal",
     }
     assert all(record["messages"] for record in result.raw_data["records"])
+    assert result.raw_data["format_meta"]["requested_records"] == 4
     assert len(teacher.messages.calls) == 2
+
+
+def test_structure_web_sources_respects_synthetic_example_cap(monkeypatch):
+    monkeypatch.delenv("DATA_GENERATOR_SYNTHETIC_OFFLINE", raising=False)
+    monkeypatch.setenv("DATA_GENERATOR_SYNTHETIC_EXAMPLES", "8")
+    teacher = _FakeTeacher()
+
+    result = structure_web_sources_for_sft(
+        _config(),
+        _pages(),
+        teacher_client=teacher,
+    )
+
+    structuring_call = teacher.messages.calls[-1]
+    assert result.raw_data["format_meta"]["requested_records"] == 8
+    assert "at most 8 objects" in structuring_call["messages"][0]["content"]
+
+
+def test_structure_web_sources_prefers_web_structuring_cap(monkeypatch):
+    monkeypatch.delenv("DATA_GENERATOR_SYNTHETIC_OFFLINE", raising=False)
+    monkeypatch.setenv("DATA_GENERATOR_SYNTHETIC_EXAMPLES", "12")
+    monkeypatch.setenv("DATA_GENERATOR_WEB_STRUCTURING_MAX_RECORDS", "5")
+    teacher = _FakeTeacher()
+
+    result = structure_web_sources_for_sft(
+        _config(),
+        _pages(),
+        teacher_client=teacher,
+    )
+
+    assert result.raw_data["format_meta"]["requested_records"] == 5
+
+
+def test_structure_web_sources_uses_config_example_cap(monkeypatch):
+    monkeypatch.delenv("DATA_GENERATOR_SYNTHETIC_OFFLINE", raising=False)
+    config = _config()
+    config["training_procedure"]["hyperparameters"]["synthetic_examples"] = 9
+    teacher = _FakeTeacher()
+
+    result = structure_web_sources_for_sft(
+        config,
+        _pages(),
+        teacher_client=teacher,
+    )
+
+    assert result.raw_data["format_meta"]["requested_records"] == 9
 
 
 def test_aggregate_web_sources_uses_structured_records_when_required(monkeypatch):
