@@ -550,6 +550,7 @@ def _run_manager(record: _RunRecord) -> None:
                 record.request.prompt,
                 record.request.budget,
                 record.request.data_path,
+                task_type_hint=record.request.task_type,
             )
             raise_if_cancelled()
     except RunCancelled:

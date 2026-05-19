@@ -258,6 +258,7 @@ class ManagerState(TypedDict):
     data_path: str | None
     has_data: bool
     interactive_data_prompt: NotRequired[bool]
+    task_type_hint: NotRequired[str | None]
     task_reasoning: TaskReasoning | None
     config: OrchestrationConfig | None
     result: TrainedModel | None
