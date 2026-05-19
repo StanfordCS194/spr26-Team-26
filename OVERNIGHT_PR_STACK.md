@@ -410,5 +410,10 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   compositions with the latest #102/#107 changes passed targeted
   guard/cancellation/API clusters (`66 passed` each) and the refreshed full
   no-live guard suite (`326 passed, 8 skipped, 5 warnings`).
+- #108 is a new stacked draft PR on #105 for frontend product honesty. Completed
+  runs no longer show a fake deploy action, and user-facing cost labels now say
+  `Budget Used` with tooltip copy that distinguishes budget accounting from
+  provider-billed spend in dry-run/no-spend mode. Branch and product composition
+  frontend lint/build passed, plus a simulation browser smoke.
 
 Current conservative live spend: `$94.14 / $100.00`.
