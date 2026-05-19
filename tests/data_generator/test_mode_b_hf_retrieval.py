@@ -14,6 +14,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from src.data_generator.artifacts import save_subagent2_artifacts
+from src.data_generator.curation import curate_handoff_to_dataset_result
 from src.data_generator.graph import invoke_data_generator_graph
 
 EXAMPLE_REPORT_PATH = (
@@ -685,6 +686,97 @@ def test_parse_hf_dataset_ids_keeps_explicit_sources_and_urls() -> None:
         "mteb/banking77",
         "SetFit/sst2",
     ]
+
+
+def test_offline_hf_fetch_returns_trainable_records_and_honors_caps(monkeypatch) -> None:
+    from src.data_generator.mode_b import (
+        build_explicit_hf_candidates,
+        fetch_hf_datasets,
+    )
+
+    monkeypatch.setenv("DATA_GENERATOR_OFFLINE", "1")
+    monkeypatch.setenv("DATA_GENERATOR_MAX_ROWS_PER_DATASET", "2")
+    monkeypatch.setenv("DATA_GENERATOR_MAX_TOTAL_RECORDS", "3")
+
+    candidates = build_explicit_hf_candidates(
+        ["SetFit/sst2", "mteb/banking77"],
+        "text_classification",
+    )
+
+    raw_data = fetch_hf_datasets(candidates)
+
+    records = raw_data["records"]
+    assert len(records) == 3
+    assert [record["dataset_id"] for record in records] == [
+        "SetFit/sst2",
+        "SetFit/sst2",
+        "mteb/banking77",
+    ]
+    assert [record["split"] for record in records] == [
+        "train",
+        "validation",
+        "train",
+    ]
+    assert all(record["input"] and record["output"] for record in records)
+    assert all(record["source"] == record["dataset_id"] for record in records)
+    assert "offline_placeholder" not in json.dumps(records)
+
+
+def test_offline_mode_b_curation_produces_trainable_rows_and_keeps_splits(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("DATA_GENERATOR_OFFLINE", "1")
+    monkeypatch.delenv("DATA_GENERATOR_MAX_ROWS_PER_DATASET", raising=False)
+    monkeypatch.delenv("DATA_GENERATOR_MAX_TOTAL_RECORDS", raising=False)
+    monkeypatch.setenv("DATA_GENERATOR_ARTIFACT_DIR", str(tmp_path / "artifacts"))
+
+    config = {
+        "data": False,
+        "prompt": "Build an offline Mode B dataset.",
+        "hf_dataset_ids": ["SetFit/sst2", "mteb/banking77"],
+        "compute_budget": 10.0,
+        "training_procedure": {
+            "task_type": "text_classification",
+            "data_format": "jsonl",
+            "training_type": "SFT",
+            "base_model": None,
+            "hyperparameters": {},
+            "notes": "offline unit test",
+        },
+    }
+
+    handoff = invoke_data_generator_graph(config=config, data_path=None)
+    result = curate_handoff_to_dataset_result(handoff, output_dir=str(tmp_path))
+
+    assert result["validation_report"]["passed"] is True
+    assert result["dataset"]["train_size"] == 2
+    assert result["dataset"]["val_size"] == 2
+    assert result["dataset"]["test_size"] == 2
+
+    curation_records = handoff["curation_payload"]["records"]
+    assert len(curation_records) == 6
+    assert {
+        record["metadata"]["dataset_id"]
+        for record in curation_records
+    } == {"SetFit/sst2", "mteb/banking77"}
+    assert {record["metadata"]["source"] for record in curation_records} == {
+        "SetFit/sst2",
+        "mteb/banking77",
+    }
+    assert {record["metadata"]["split"] for record in curation_records} == {
+        "train",
+        "validation",
+        "test",
+    }
+
+    rows = [
+        json.loads(line)
+        for line in open(result["dataset"]["path"], encoding="utf-8").read().splitlines()
+        if line.strip()
+    ]
+    assert len(rows) == 6
+    assert all(row["input"] and row["output"] for row in rows)
 
 
 def test_live_hf_retrieval_requires_explicit_opt_in(monkeypatch, tmp_path: Path) -> None:
