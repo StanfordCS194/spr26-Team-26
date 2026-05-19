@@ -5,6 +5,7 @@ from pathlib import Path
 
 from src.data_generator.artifacts import save_subagent2_artifacts
 from src.data_generator.graph import invoke_data_generator_graph
+from src.runtime_context import output_root
 
 
 def _base_config() -> dict:
@@ -201,3 +202,26 @@ def test_default_artifact_saving_uses_unique_run_directories(monkeypatch, tmp_pa
     assert latest_pointer.exists()
     latest = json.loads(latest_pointer.read_text(encoding="utf-8"))
     assert latest["artifact_dir"] == str(second_dir)
+
+
+def test_run_scoped_output_root_overrides_global_artifact_dir(monkeypatch, tmp_path: Path):
+    external_dir = tmp_path / "external-data-generator-artifacts"
+    run_root = tmp_path / "api-run-root"
+    monkeypatch.setenv("DATA_GENERATOR_ARTIFACT_DIR", str(external_dir))
+
+    handoff = {
+        "target_subagent": "data_curation",
+        "action": "structure_data",
+        "mode_used": "C",
+        "curation_payload": {"record_count": 1},
+        "curation_human_readable": "Sub-Agent 2 Curation Input\nRecord count: 1",
+    }
+
+    with output_root(run_root):
+        saved = save_subagent2_artifacts(handoff)
+
+    manifest_path = Path(saved["manifest"])
+    assert manifest_path == run_root / "data_generator" / "artifacts" / "artifact_manifest.json"
+    assert manifest_path.exists()
+    assert (run_root / "data_generator" / "latest_run.json").exists()
+    assert not external_dir.exists()

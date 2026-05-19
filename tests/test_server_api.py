@@ -516,6 +516,72 @@ def test_data_generator_manifest_path_must_stay_inside_run(tmp_path, monkeypatch
     assert client.get(f"/api/runs/{run_id}/artifacts/data_manifest").status_code == 404
 
 
+def test_api_run_routes_data_generator_artifacts_under_run_root(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    external_dir = tmp_path / "external-data-generator-artifacts"
+    monkeypatch.setenv("DATA_GENERATOR_ARTIFACT_DIR", str(external_dir))
+
+    def fake_invoke(prompt, budget, data_path=None):
+        root = get_output_root()
+        assert root is not None
+        run_dir = root / "experiments" / "dry-run"
+        _write_tinker_artifacts(
+            run_dir,
+            run_id="dry-run",
+            state_path="dry-run://state/abc",
+            backend="dry_run",
+        )
+
+        from src.data_generator.artifacts import save_subagent2_artifacts
+
+        save_subagent2_artifacts(
+            {
+                "target_subagent": "data_curation",
+                "action": "structure_data",
+                "mode_used": "C",
+                "curation_payload": {
+                    "schema_version": "data_curation_input.v1",
+                    "record_count": 1,
+                    "records": [{"messages": [{"role": "user", "content": "Hi"}]}],
+                },
+                "curation_human_readable": "Sub-Agent 2 Curation Input\nRecord count: 1",
+                "human_readable": "Mode C source report",
+            }
+        )
+
+        result = _fake_model(root, total_cost=0.0)
+        result["weights_path"] = str(run_dir)
+        return result
+
+    monkeypatch.setattr(server_app, "invoke_manager_graph", fake_invoke)
+    client = TestClient(server_app.app)
+
+    response = client.post(
+        "/api/runs",
+        json={
+            "prompt": "Fine tune while preserving DataGen evidence under run root",
+            "budget": 25,
+            "task_type": "fine-tuning",
+        },
+    )
+
+    assert response.status_code == 200
+    run_id = response.json()["run_id"]
+    state = _wait_for_status(client, run_id, "complete")
+    files = {item["name"]: item for item in state["artifacts"]["files"]}
+
+    assert not external_dir.exists()
+    assert files["data_manifest"]["exists"] is True
+    assert files["data_manifest"]["path"].endswith(
+        f"outputs/api-runs/{run_id}/data_generator/artifacts/artifact_manifest.json"
+    )
+    assert files["data_debug_context"]["downloadPath"] == (
+        f"/runs/{run_id}/artifacts/data_debug_context"
+    )
+    assert client.get(f"/api/runs/{run_id}/artifacts/data_manifest").status_code == 200
+    assert client.get(f"/api/runs/{run_id}/artifacts/data_debug_context").status_code == 200
+
+
 def test_running_run_refreshes_logs_iterations_metrics_and_artifacts(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     ready = threading.Event()

@@ -81,13 +81,14 @@ def build_subagent2_handoff_payload(handoff: dict[str, Any]) -> dict[str, Any]:
 
 
 def _resolve_output_dir(handoff: dict[str, Any]) -> Path:
+    root = get_output_root()
+    if root is not None:
+        # API/background runs must keep evidence under the run root for safe downloads.
+        return root / "data_generator" / "artifacts"
+
     configured = os.getenv("DATA_GENERATOR_ARTIFACT_DIR", "").strip()
     if configured:
         return Path(configured)
-
-    root = get_output_root()
-    if root is not None:
-        return root / "data_generator" / "artifacts"
 
     root = Path("artifacts") / "data_generator"
     run_stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
