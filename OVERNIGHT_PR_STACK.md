@@ -376,5 +376,13 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
 - The refreshed local guard composition including #91 and #102 passed focused
   AutoResearch/Tinker guard validation (`132 passed, 3 skipped`) and full
   no-live validation (`322 passed, 8 skipped, 5 warnings`).
+- #102 was updated again after composed-suite ordering exposed stale Tinker
+  cancel/spend state across module reloads. Its test fixture now restores the
+  previous `src.tinker_api.tinker_api` module object and the cached parent
+  package attribute after each mocked import. Branch validation passed
+  (`27 passed`), the refreshed guard composition passed selected validation
+  (`152 passed, 3 skipped`) plus full no-live validation (`322 passed, 8
+  skipped, 5 warnings`), and the product UI composition passed the selected
+  backend/API suite (`153 passed, 3 skipped`) plus frontend build.
 
 Current conservative live spend: `$94.14 / $100.00`.
