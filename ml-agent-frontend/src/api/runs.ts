@@ -18,14 +18,24 @@ interface CreateRunRequest {
   data_path?: string | null;
 }
 
+function envFlagEnabled(value: string | undefined): boolean {
+  return ['1', 'true', 'yes', 'on'].includes(value?.trim().toLowerCase() ?? '');
+}
+
+export function isSimulationModeConfigured(): boolean {
+  return envFlagEnabled(import.meta.env.VITE_USE_SIMULATION);
+}
+
 export function getApiBaseUrl(): string | null {
+  if (isSimulationModeConfigured()) return null;
+
   const value = import.meta.env.VITE_API_BASE_URL?.trim();
-  if (!value) return null;
-  return value.replace(/\/$/, '');
+  const configured = value || '/api';
+  return configured.replace(/\/$/, '');
 }
 
 export function isBackendApiConfigured(): boolean {
-  return getApiBaseUrl() !== null;
+  return !isSimulationModeConfigured();
 }
 
 export function resolveApiHrefFromBase(
