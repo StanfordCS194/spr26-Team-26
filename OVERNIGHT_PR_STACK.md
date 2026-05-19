@@ -296,9 +296,10 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
 - #99 is stacked on #98 and adds the parallel local-file API dry-run smoke.
   Together #98/#99 cover the two user-data entry paths that should work without
   live credentials: Hugging Face source and existing local JSONL.
-- #100 is a sibling stacked integration PR against `codex/local-leaf-stack-smoke`
-  for the no-data path. Local composition of #98/#99/#100 keeps all three
-  product entry-path smokes and passes the full no-live Python suite (`289
-  passed, 8 skipped`).
+- #100 is now stacked on #99 for the no-data path, making the API dry-run smoke
+  chain linear: #98 Hugging Face source -> #99 local JSONL -> #100 no-data Mode
+  C. Local composition of all three passed the full no-live Python suite (`289
+  passed, 8 skipped`), and #100 focused validation after retargeting passed
+  (`21 passed`).
 
 Current conservative live spend: `$94.14 / $100.00`.
