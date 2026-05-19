@@ -8,6 +8,7 @@ added later once observability emits run-scoped events.
 from __future__ import annotations
 
 import json
+import os
 import threading
 import uuid
 from dataclasses import dataclass, field
@@ -19,6 +20,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.manager.manager import invoke_manager_graph
+from src.runtime_context import output_root
 from src.server.schemas import (
     IterationView,
     LogEntryView,
@@ -38,6 +40,7 @@ STAGE_LABELS = [
     "AutoResearch",
     "Finalization",
 ]
+RUN_OUTPUT_ROOT = Path(os.getenv("MANAGER_RUN_OUTPUT_ROOT", "outputs/api-runs"))
 
 
 app = FastAPI(title="Nemoral ML Agent API")
@@ -54,6 +57,7 @@ app.add_middleware(
 class _RunRecord:
     run_id: str
     request: RunRequest
+    output_dir: Path
     status: str = "running"
     stage: int = 0
     cost_spent: float = 0.0
@@ -183,11 +187,12 @@ def _run_manager(record: _RunRecord) -> None:
         _append_log(record, "Manager", "Manager graph is running")
 
     try:
-        result = invoke_manager_graph(
-            record.request.prompt,
-            record.request.budget,
-            record.request.data_path,
-        )
+        with output_root(record.output_dir):
+            result = invoke_manager_graph(
+                record.request.prompt,
+                record.request.budget,
+                record.request.data_path,
+            )
     except Exception as exc:  # surfaced to the browser as a failed run state
         with _LOCK:
             _fail_current_stage(record, str(exc))
@@ -226,7 +231,13 @@ def create_run(request: RunRequest) -> RunCreated:
         raise HTTPException(status_code=400, detail="data_path does not exist")
 
     run_id = str(uuid.uuid4())
-    record = _RunRecord(run_id=run_id, request=request, stages=_initial_stages())
+    output_dir = RUN_OUTPUT_ROOT / run_id
+    record = _RunRecord(
+        run_id=run_id,
+        request=request,
+        output_dir=output_dir,
+        stages=_initial_stages(),
+    )
     with _LOCK:
         _RUNS[run_id] = record
 

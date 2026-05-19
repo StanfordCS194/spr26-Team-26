@@ -7,6 +7,8 @@ from typing import Any
 from uuid import uuid4
 from datetime import datetime, timezone
 
+from src.runtime_context import get_output_root
+
 
 def save_subagent2_artifacts(handoff: dict[str, Any]) -> dict[str, str]:
     """
@@ -82,6 +84,10 @@ def _resolve_output_dir(handoff: dict[str, Any]) -> Path:
     configured = os.getenv("DATA_GENERATOR_ARTIFACT_DIR", "").strip()
     if configured:
         return Path(configured)
+
+    root = get_output_root()
+    if root is not None:
+        return root / "data_generator" / "artifacts"
 
     root = Path("artifacts") / "data_generator"
     run_stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")

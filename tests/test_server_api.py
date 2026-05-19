@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import time
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from src.runtime_context import get_output_root
 from src.server import app as server_app
 
 
@@ -77,11 +79,36 @@ def test_health_check():
 
 
 def test_create_run_completes_with_manager_result(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     calls = []
+    roots = []
 
     def fake_invoke(prompt, budget, data_path=None):
         calls.append((prompt, budget, data_path))
-        return _fake_model(tmp_path)
+        root = get_output_root()
+        assert root is not None
+        roots.append(root)
+
+        from src.manager.manager import build_orchestration_config, log_decision
+
+        log_decision(
+            "server_run",
+            "run-scoped output test",
+            build_orchestration_config(
+                {
+                    "task_type": "text-classification",
+                    "data_format": "jsonl",
+                    "training_type": "SFT",
+                    "suggested_base_model": None,
+                    "hyperparameters": {},
+                    "notes": "test",
+                },
+                prompt,
+                budget,
+                False,
+            ),
+        )
+        return _fake_model(root)
 
     monkeypatch.setattr(server_app, "invoke_manager_graph", fake_invoke)
     client = TestClient(server_app.app)
@@ -103,6 +130,10 @@ def test_create_run_completes_with_manager_result(tmp_path, monkeypatch):
     assert calls == [
         ("Fine tune a small chat assistant on support tickets", 25.0, None)
     ]
+    assert len(roots) == 1
+    assert roots[0] == Path("outputs/api-runs") / run_id
+    assert (roots[0] / "decisions.jsonl").is_file()
+    assert not Path("decisions.jsonl").exists()
     assert state["costSpent"] == 1.25
     assert state["metrics"][0]["loss"] == 0.29
     assert state["metrics"][0]["accuracy"] == 0.775
@@ -110,8 +141,11 @@ def test_create_run_completes_with_manager_result(tmp_path, monkeypatch):
     assert state["result"]["weights_path"] == "outputs/experiments/run/model"
 
 
-def test_create_run_surfaces_manager_failure(monkeypatch):
+def test_create_run_surfaces_manager_failure(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
     def fail_invoke(prompt, budget, data_path=None):
+        assert get_output_root() is not None
         raise RuntimeError("DataGen did not produce a trainable dataset")
 
     monkeypatch.setattr(server_app, "invoke_manager_graph", fail_invoke)
@@ -132,7 +166,9 @@ def test_create_run_surfaces_manager_failure(monkeypatch):
     assert state["logs"][0]["type"] == "error"
 
 
-def test_missing_data_path_is_rejected_before_background_run(monkeypatch):
+def test_missing_data_path_is_rejected_before_background_run(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
     def fail_invoke(prompt, budget, data_path=None):
         raise AssertionError("manager should not be called for missing data_path")
 

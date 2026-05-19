@@ -11,7 +11,9 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 
+from src.runtime_context import get_output_root
 from src.types import (
     DatasetResult,
     ManagerState,
@@ -175,8 +177,17 @@ def log_decision(step: str, rationale: str, config: OrchestrationConfig) -> None
         "rationale": rationale,
         "config_snapshot": dict(config),
     }
-    with open(LOG_PATH, "a") as f:
+    log_path = _decision_log_path()
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(log_path, "a") as f:
         f.write(json.dumps(entry) + "\n")
+
+
+def _decision_log_path() -> Path:
+    root = get_output_root()
+    if root is not None:
+        return root / "decisions.jsonl"
+    return Path(os.environ.get("DECISIONS_LOG", LOG_PATH))
 
 
 def reason_about_task(prompt: str, budget: float, has_data: bool) -> TaskReasoning:
