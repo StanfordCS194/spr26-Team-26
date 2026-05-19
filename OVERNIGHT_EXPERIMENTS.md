@@ -55,6 +55,7 @@ Budget cap: $100 total.
 | stack-017 | 2026-05-19 08:25 | #66 | Tinker plan metric validation | none | passed | $0.00 | $48.54 | Draft PR #66 opened. DecisionEngine Tinker plans now use `eval_metric=primary_metric` so plan metadata matches the Tinker heldout-loss evaluator. Validation cluster passed `106 passed, 4 skipped`, plus compileall and diff check. |
 | stack-018 | 2026-05-19 08:27 | local only #55-#66 stack | unpublished full-stack non-live validation | none | passed | $0.00 | $48.54 | Merged #66 into the local unpublished integration stack. Compileall passed and broad non-live suite excluding live Tinker/HF retrieval passed `208 passed, 7 skipped`. |
 | hf-002 | 2026-05-19 08:40 | #67 | live HF retrieval harness validation | Hugging Face public dataset pull | passed | $0.00 | $48.54 | Draft PR #67 opened. A tiny opt-in run with `LIVE_HF_SMALL_DATASET_COUNT=1` and `DATA_GENERATOR_MAX_ROWS_PER_DATASET=3` first exposed, then validated, the row-cap remainder fix: `1 passed, 5 deselected`; local focused suite passed `21 passed, 3 skipped`. |
+| stack-019 | 2026-05-19 08:43 | local only #55-#67 stack | unpublished full-stack non-live validation | none | passed | $0.00 | $48.54 | Merged #67 into the local unpublished integration stack. Broad non-live suite with live Tinker excluded passed `212 passed, 9 skipped`; the previously ignored live HF file now runs local checks and skips live cases by default. |
 
 ## Spend Ledger
 

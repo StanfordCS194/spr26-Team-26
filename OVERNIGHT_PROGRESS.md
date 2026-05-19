@@ -91,3 +91,4 @@ Operating rules:
 - 2026-05-19 08:25 PDT — Draft PR #66 opened: DecisionEngine Tinker plans now advertise `eval_metric=primary_metric`, matching the heldout-loss evaluator instead of stale task-level `accuracy`. Validation cluster `106 passed, 4 skipped`; compileall and diff check passed.
 - 2026-05-19 08:27 PDT — Local unpublished stack including #66 passed compileall and the broad non-live suite excluding live Tinker/HF retrieval (`208 passed, 7 skipped`).
 - 2026-05-19 08:40 PDT — Draft PR #67 opened: Mode B live Hugging Face retrieval tests are now explicit opt-in, small live caps are configurable, and row-cap distribution preserves remainders across dataset splits. Tiny live HF probe passed with 1 dataset / 3 rows; no paid spend.
+- 2026-05-19 08:43 PDT — Local unpublished stack including #67 passed broad non-live suite with only live Tinker excluded (`212 passed, 9 skipped`).

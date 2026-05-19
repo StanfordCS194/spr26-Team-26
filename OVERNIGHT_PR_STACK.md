@@ -1,6 +1,6 @@
 # Overnight PR Stack
 
-Updated: 2026-05-19 08:40 PDT
+Updated: 2026-05-19 08:43 PDT
 
 Purpose: give reviewers a merge/review order for the draft PR stack without
 having to infer dependencies from GitHub.
@@ -58,7 +58,7 @@ having to infer dependencies from GitHub.
 ## Latest Local Stack Validation
 
 Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
-#62, #63, #64, #65, and #66 on top of #51.
+#62, #63, #64, #65, #66, and #67 on top of #51.
 
 - `python3 -m compileall src`
 - Broad non-live suite excluding live Tinker and live Hugging Face retrieval:
@@ -76,5 +76,7 @@ Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
   excluding live Tinker/HF retrieval with `208 passed, 7 skipped`.
 - #67 focused suite passed with `21 passed, 3 skipped`; tiny opt-in live HF
   smoke passed with one dataset and a three-row cap.
+- Local stack after adding #67 passed the broad non-live suite with only live
+  Tinker excluded: `212 passed, 9 skipped`.
 
 Current conservative live spend: `$48.54 / $100.00`.
