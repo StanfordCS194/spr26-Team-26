@@ -552,6 +552,113 @@ def test_log_node_labels_budget_preflight_skip(tmp_path):
         ar._DIARY_PATH = original_path
 
 
+def test_log_node_skips_eval_adaptation_without_anthropic_key(monkeypatch, tmp_path):
+    import src.autoresearch.autoresearch as ar
+
+    def fail_anthropic():
+        raise AssertionError("Anthropic should not be constructed in auto mode without a key")
+
+    events = []
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("AUTORESEARCH_EVAL_ADAPTATION", raising=False)
+    monkeypatch.setattr(ar.anthropic, "Anthropic", fail_anthropic)
+    monkeypatch.setattr(
+        ar,
+        "log_event",
+        lambda agent, level, message, metadata=None, **kwargs: events.append(
+            {"level": level, "message": message, "metadata": metadata or {}}
+        ),
+    )
+
+    original_path = ar._DIARY_PATH
+    ar._DIARY_PATH = tmp_path / "diary.jsonl"
+    suite = {"primary_metric": "accuracy", "metrics": ["accuracy"],
+             "test_split_path": "", "use_llm_grading": False}
+    try:
+        state = _make_state(
+            eval_suite=suite,
+            diary=[
+                {"iteration": i, "hypothesis": "", "patch": "", "cost_usd": 0.0,
+                 "metrics": {}, "decision": "REVERTED", "notes": f"revert {i}"}
+                for i in range(1, 10)
+            ],
+            iteration=9,
+            current_config={"learning_rate": 1e-4},
+            current_patch=json.dumps({"learning_rate": 2e-4}),
+            last_description="Increase learning rate.",
+            last_delta={"absolute": -0.01, "relative_pct": -2.0, "improved": False},
+            last_result={
+                "job_id": "candidate",
+                "status": "COMPLETED",
+                "metrics": {"train_loss": 0.4, "val_loss": 0.5,
+                            "test_loss": 0.6, "primary_metric": 0.65},
+                "model_path": "candidate-model",
+                "cost_usd": 0.01,
+                "logs_path": "candidate.jsonl",
+            },
+        )
+
+        out = ar.log_node(state)
+
+        assert out["iteration"] == 10
+        assert out["eval_suite"] == suite
+        assert any("skipped eval suite update" in event["message"] for event in events)
+        assert events[-1]["metadata"]["reason"] == "ANTHROPIC_API_KEY is not configured"
+    finally:
+        ar._DIARY_PATH = original_path
+
+
+def test_log_node_required_eval_adaptation_calls_adaptor(monkeypatch, tmp_path):
+    import src.autoresearch.autoresearch as ar
+
+    calls = []
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("AUTORESEARCH_EVAL_ADAPTATION", "required")
+    monkeypatch.setattr(ar, "log_event", lambda *args, **kwargs: None)
+
+    def fake_adapt_eval_suite(suite, weaknesses):
+        calls.append({"suite": suite, "weaknesses": weaknesses})
+        return {**suite, "metrics": suite["metrics"] + ["hard_case"]}
+
+    monkeypatch.setattr(ar, "adapt_eval_suite", fake_adapt_eval_suite)
+
+    original_path = ar._DIARY_PATH
+    ar._DIARY_PATH = tmp_path / "diary.jsonl"
+    suite = {"primary_metric": "accuracy", "metrics": ["accuracy"],
+             "test_split_path": "", "use_llm_grading": False}
+    try:
+        state = _make_state(
+            eval_suite=suite,
+            diary=[
+                {"iteration": i, "hypothesis": "", "patch": "", "cost_usd": 0.0,
+                 "metrics": {}, "decision": "REVERTED", "notes": f"revert {i}"}
+                for i in range(1, 10)
+            ],
+            iteration=9,
+            current_config={"learning_rate": 1e-4},
+            current_patch=json.dumps({"learning_rate": 2e-4}),
+            last_description="Increase learning rate.",
+            last_delta={"absolute": -0.01, "relative_pct": -2.0, "improved": False},
+            last_result={
+                "job_id": "candidate",
+                "status": "COMPLETED",
+                "metrics": {"train_loss": 0.4, "val_loss": 0.5,
+                            "test_loss": 0.6, "primary_metric": 0.65},
+                "model_path": "candidate-model",
+                "cost_usd": 0.01,
+                "logs_path": "candidate.jsonl",
+            },
+        )
+
+        out = ar.log_node(state)
+
+        assert calls
+        assert calls[0]["weaknesses"][-1] == "-2.0% \u2014 no improvement"
+        assert out["eval_suite"]["metrics"] == ["accuracy", "hard_case"]
+    finally:
+        ar._DIARY_PATH = original_path
+
+
 def test_completed_high_finite_sft_loss_flows_to_evaluate():
     import src.autoresearch.autoresearch as ar
 

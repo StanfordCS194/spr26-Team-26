@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from pathlib import Path
 from typing import Any, Literal, Mapping
 from uuid import uuid4
@@ -61,6 +62,7 @@ _TINKER_HYPERPARAMETER_ALIASES = {
     "epochs": "num_epochs",
     "max_seq_len": "max_seq_length",
 }
+_EVAL_ADAPTATION_ENV = "AUTORESEARCH_EVAL_ADAPTATION"
 
 
 def _diary_path() -> Path:
@@ -93,6 +95,30 @@ def _canonicalize_tinker_hyperparameters(config: Mapping[str, Any]) -> dict[str,
             canonical[canonical_key] = canonical[legacy_key]
         canonical.pop(legacy_key, None)
     return canonical
+
+
+def _eval_adaptation_setting() -> Literal["auto", "off", "required"]:
+    """Return the configured eval-suite adaptation mode."""
+    raw = os.getenv(_EVAL_ADAPTATION_ENV, "auto").strip().lower()
+    if raw in {"", "auto"}:
+        return "auto"
+    if raw in {"0", "false", "no", "off", "disabled"}:
+        return "off"
+    if raw in {"1", "true", "yes", "on", "required"}:
+        return "required"
+    raise ValueError(
+        f"{_EVAL_ADAPTATION_ENV} must be one of: auto, off, required"
+    )
+
+
+def _eval_adaptation_skip_reason() -> str | None:
+    """Return None when LLM eval adaptation may run, otherwise a skip reason."""
+    setting = _eval_adaptation_setting()
+    if setting == "off":
+        return f"{_EVAL_ADAPTATION_ENV}=off"
+    if setting == "auto" and not os.getenv("ANTHROPIC_API_KEY"):
+        return "ANTHROPIC_API_KEY is not configured"
+    return None
 
 
 def _current_config_for_plan(
@@ -517,13 +543,22 @@ def log_node(state: AutoResearchState) -> dict:
         ]
         if recent_reverts:
             weaknesses = [r["notes"] for r in recent_reverts]
-            updated_suite = adapt_eval_suite(state["eval_suite"], weaknesses)
-            log_event(
-                AgentName.AUTORESEARCH,
-                LogLevel.INFO,
-                f"ADAPT: eval suite updated after {iteration_number} iterations",
-                metadata={"weaknesses": weaknesses},
-            )
+            skip_reason = _eval_adaptation_skip_reason()
+            if skip_reason:
+                log_event(
+                    AgentName.AUTORESEARCH,
+                    LogLevel.WARN,
+                    f"ADAPT: skipped eval suite update after {iteration_number} iterations",
+                    metadata={"reason": skip_reason, "weaknesses": weaknesses},
+                )
+            else:
+                updated_suite = adapt_eval_suite(state["eval_suite"], weaknesses)
+                log_event(
+                    AgentName.AUTORESEARCH,
+                    LogLevel.INFO,
+                    f"ADAPT: eval suite updated after {iteration_number} iterations",
+                    metadata={"weaknesses": weaknesses},
+                )
 
     return {
         "diary": updated_diary,
