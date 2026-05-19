@@ -77,13 +77,26 @@ async function requestJson<T>(path: string, options?: RequestInit): Promise<T> {
 
   const headers = new Headers(options?.headers);
   headers.set('Content-Type', 'application/json');
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...options,
-    headers,
-  });
+  const url = `${baseUrl}${path}`;
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+    });
+  } catch {
+    throw new Error(
+      `Manager API is not reachable at ${baseUrl}. Start the backend, set VITE_API_BASE_URL to its /api prefix, or set VITE_USE_SIMULATION=1 for a static demo.`
+    );
+  }
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(body || `Request failed with status ${response.status}`);
+    const detail = body.trim() && !body.trim().startsWith('<')
+      ? body.trim()
+      : `Manager API request failed with status ${response.status}.`;
+    throw new Error(
+      `${detail} Check that the Manager API is running and VITE_API_BASE_URL points to its /api prefix.`
+    );
   }
   return response.json() as Promise<T>;
 }
