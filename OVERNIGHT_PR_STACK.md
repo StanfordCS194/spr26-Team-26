@@ -1,6 +1,6 @@
 # Overnight PR Stack
 
-Updated: 2026-05-19 08:50 PDT
+Updated: 2026-05-19 09:17 PDT
 
 Purpose: give reviewers a merge/review order for the draft PR stack without
 having to infer dependencies from GitHub.
@@ -32,6 +32,7 @@ having to infer dependencies from GitHub.
    - #42 `codex/e2e-manager-datagen-tinker-boundary` -> #40
    - #44 `codex/mode-c-web-structuring` -> #40
    - #46 `codex/manager-datagen-validation-gate` -> #40
+   - #73 `codex/manager-json-robustness` -> #46
    - #50 `codex/frontend-manager-api-bridge` -> #46
    - #52 `codex/preserve-chat-messages-curation` -> #40
    - #58 `codex/curation-small-splits` -> #52
@@ -63,7 +64,7 @@ having to infer dependencies from GitHub.
 ## Latest Local Stack Validation
 
 Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
-#62, #63, #64, #65, #66, #67, #68, #69, #70, #71, and #72 on top of #51.
+#62, #63, #64, #65, #66, #67, #68, #69, #70, #71, #72, and #73 on top of #51.
 
 - `python3 -m compileall src`
 - Full non-live suite with live Tinker/HF cases skipped by default:
@@ -101,5 +102,10 @@ Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
   still record zero because no SDK call happened.
 - Live #72 budget-floor validation completed with baseline + one candidate
   Tinker run and stopped at the exact software budget `$2.24`.
+- #73 hardens Manager reasoning parsing for fenced JSON responses. Focused
+  branch tests passed (`14 passed, 1 skipped`), local stack Manager/full-stack
+  contract tests passed (`15 passed, 1 skipped`), and the live Manager Mode B
+  validation reached baseline + one candidate Tinker run before stopping at
+  the exact `$2.24` software budget.
 
-Current conservative live spend: `$63.54 / $100.00`.
+Current conservative live spend: `$68.64 / $100.00`.
