@@ -15,6 +15,8 @@ from src.data_generator.mode_c.synthetic import (
 )
 from src.types import DataSchema, OrchestrationConfig, RawData, ValidationReport
 
+DEFAULT_WEB_STRUCTURING_RECORDS = 24
+
 
 @dataclass(frozen=True)
 class WebStructuringResult:
@@ -30,7 +32,7 @@ def structure_web_sources_for_sft(
     *,
     teacher_client: Any = None,
     teacher_model: str = DEFAULT_TEACHER_MODEL,
-    max_records: int = 24,
+    max_records: int | None = None,
 ) -> WebStructuringResult:
     """Turn raw web pages into trainable chat/SFT records when a teacher exists.
 
@@ -56,10 +58,11 @@ def structure_web_sources_for_sft(
             "Mode C web structuring requires a teacher client or ANTHROPIC_API_KEY.",
         )
 
+    target_records = _target_web_structuring_records(config, max_records)
     try:
         message = client.messages.create(
             model=teacher_model,
-            max_tokens=max(1600, min(max_records, len(source_pages) * 3) * 320),
+            max_tokens=max(1600, min(target_records, len(source_pages) * 3) * 320),
             temperature=0.4,
             system=(
                 "You convert acquired public web source excerpts into supervised "
@@ -68,7 +71,12 @@ def structure_web_sources_for_sft(
             messages=[
                 {
                     "role": "user",
-                    "content": _structuring_prompt(config, schema, source_pages, max_records),
+                    "content": _structuring_prompt(
+                        config,
+                        schema,
+                        source_pages,
+                        target_records,
+                    ),
                 }
             ],
         )
@@ -89,7 +97,7 @@ def structure_web_sources_for_sft(
                 "teacher_model": teacher_model,
                 "teacher_used": True,
                 "source_record_count": len(source_pages),
-                "requested_records": max_records,
+                "requested_records": target_records,
             },
         },
         schema,
@@ -102,6 +110,46 @@ def structure_web_sources_for_sft(
         validation_report=validation,
         teacher_used=True,
     )
+
+
+def _target_web_structuring_records(
+    config: Mapping[str, Any],
+    explicit_max_records: int | None,
+) -> int:
+    if explicit_max_records is not None:
+        return _positive_int(explicit_max_records, DEFAULT_WEB_STRUCTURING_RECORDS)
+
+    for env_name in (
+        "DATA_GENERATOR_WEB_STRUCTURING_MAX_RECORDS",
+        "DATA_GENERATOR_SYNTHETIC_EXAMPLES",
+    ):
+        value = os.getenv(env_name)
+        if value:
+            return _positive_int(value, DEFAULT_WEB_STRUCTURING_RECORDS)
+
+    procedure = config.get("training_procedure", {})
+    if isinstance(procedure, Mapping):
+        hyperparams = procedure.get("hyperparameters", {})
+        if isinstance(hyperparams, Mapping):
+            for key in (
+                "web_structuring_examples",
+                "synthetic_examples",
+                "n_examples",
+                "num_examples",
+            ):
+                value = hyperparams.get(key)
+                if value is not None:
+                    return _positive_int(value, DEFAULT_WEB_STRUCTURING_RECORDS)
+
+    return DEFAULT_WEB_STRUCTURING_RECORDS
+
+
+def _positive_int(value: Any, default: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
 
 
 def _unstructured_result(
