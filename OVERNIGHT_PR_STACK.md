@@ -240,6 +240,11 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   `/api` when `VITE_API_BASE_URL=/api`, while still supporting full-origin API
   bases. Branch and composed-stack validation passed frontend lint,
   `VITE_API_BASE_URL=/api npm run build`, and a direct resolver contract check.
+- #90 keeps Mode C web structuring `auto` trainable when teacher structuring is
+  unavailable or produces zero valid rows. It falls back to synthetic chat/SFT
+  rows, preserves web source URLs and structuring issues in metadata/report, and
+  leaves `required` mode strict. Branch no-live suite passed (`200 passed,
+  6 skipped`); composed stack through #90 passed (`262 passed, 6 skipped`).
 - #49 now also updates root `README.md` and `Home.md` to describe the current
   Tinker chat/SFT V1 scope instead of stale image-classification, pretraining,
   and REST-job promises. Spec-site lint/build passed after the docs refresh.
