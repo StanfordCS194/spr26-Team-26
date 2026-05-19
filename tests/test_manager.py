@@ -130,6 +130,23 @@ def test_reason_about_task_local_mode_overrides_available_key(monkeypatch):
     assert result["data_format"] == "jsonl with messages or input/output fields"
 
 
+def test_reason_about_task_no_spend_overrides_claude_mode(monkeypatch):
+    monkeypatch.setenv("NO_SPEND", "1")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "present-but-not-used")
+    monkeypatch.setenv("MANAGER_REASONER", "claude")
+
+    def fail_anthropic():
+        raise AssertionError("NO_SPEND should not construct Anthropic")
+
+    monkeypatch.setattr("anthropic.Anthropic", fail_anthropic)
+
+    result = reason_about_task("Classify support tickets by urgency", 5.0, False)
+
+    assert result["task_type"] == "text-classification"
+    assert result["training_type"] == "SFT"
+    assert "Local deterministic planner" in result["notes"]
+
+
 def test_reason_about_task_invalid_reasoner_mode_fails(monkeypatch):
     monkeypatch.setenv("MANAGER_REASONER", "maybe")
 

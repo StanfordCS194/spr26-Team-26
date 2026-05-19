@@ -239,13 +239,17 @@ def _manager_reasoner_mode() -> str:
 
 def _use_local_reasoner() -> bool:
     mode = _manager_reasoner_mode()
+    if _env_flag_enabled("NO_SPEND"):
+        return True
     if mode == "local":
         return True
     if mode == "claude":
         return False
-    if os.getenv("NO_SPEND", "").strip().lower() in {"1", "true", "yes", "on"}:
-        return True
     return not bool(os.getenv("ANTHROPIC_API_KEY"))
+
+
+def _env_flag_enabled(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _local_task_reasoning(prompt: str, budget: float, has_data: bool) -> TaskReasoning:
