@@ -73,6 +73,7 @@ def run_decision_engine(
         lora = None
         script_path = write_pretrain_script(task, dataset, config)
 
+    backend = "tinker_sft"
     return TrainingPlan(
         strategy=strategy,
         base_model=model_id,
@@ -80,8 +81,8 @@ def run_decision_engine(
         estimated_cost=cost["estimated_usd"],
         estimated_time_min=cost["estimated_time_min"],
         training_script_path=script_path,
-        eval_metric=task["eval_metric"],
-        backend="tinker_sft",
+        eval_metric="primary_metric" if backend == "tinker_sft" else task["eval_metric"],
+        backend=backend,
         dataset_path=dataset["dataset"]["path"],
         dataset=dataset["dataset"],
     )

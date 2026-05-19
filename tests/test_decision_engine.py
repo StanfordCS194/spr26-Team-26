@@ -104,7 +104,8 @@ def test_run_decision_engine_returns_training_plan(tmp_path, monkeypatch):
     dataset = _make_dataset(train_size=42)
     plan = run_decision_engine(config, dataset)
     assert plan["strategy"] in ("fine-tune", "pre-train")
-    assert plan["eval_metric"] == "accuracy"
+    assert plan["eval_metric"] == "primary_metric"
+    assert plan["backend"] == "tinker_sft"
     assert os.path.exists(plan["training_script_path"])
     assert plan["estimated_cost"] > 0
     assert plan["dataset_path"] == dataset["dataset"]["path"]
