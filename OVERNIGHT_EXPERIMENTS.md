@@ -27,10 +27,14 @@ Budget cap: $100 total.
 | tinker-006 | 2026-05-19 07:13 | #57 | live loss metric validation | Tinker | passed | $0.50 | $10.79 | 1-step `Qwen/Qwen3.5-9B` validation after #57 fix reported real `train_loss=24.81933307647705`. Local Tinker cost report: `$0.000025`. |
 | datagen-007 | 2026-05-19 07:19 | #58 | curation split validation | none | passed | $0.00 | $10.79 | Local tests prove 3-9 record curated datasets reserve val/test rows; adjacent DataGen/Manager suite passed `43 passed, 4 skipped`. |
 | stack-005 | 2026-05-19 07:22 | local only #55/#56/#57/#58 | unpublished stack composition smoke | none | passed | $0.00 | $10.79 | Throwaway worktree merged active leaf PRs on top of #51 without pushing; compileall passed; non-live suite excluding live Tinker/HF passed `193 passed, 6 skipped`. |
+| tinker-007 | 2026-05-19 07:22 | local only #55/#56/#57/#58 | live corrected-stack AutoResearch smoke | Tinker | exposed AutoResearch bug | $1.00 | $11.79 | Baseline plus one candidate, both 1 step on `Qwen/Qwen3.5-9B`; real loss reached AutoResearch (`24.8193`), but old absolute-loss early stop reverted before evaluation and double-counted the iteration. Local Tinker cost report: `$0.00005`. |
+| stack-006 | 2026-05-19 07:22 | local only #55/#56/#57/#58 | verified stack composition smoke | none | passed | $0.00 | $11.79 | Recreated the throwaway stack as a real local branch and verified the leaf commits were present; compileall passed; broad non-live suite excluding live Tinker/HF passed `197 passed, 7 skipped`. |
+| stack-007 | 2026-05-19 07:22 | #59 | AutoResearch early-stop validation | none | passed | $0.00 | $11.79 | PR #59 focused tests passed (`29 passed`); broader AutoResearch/Tinker cluster passed `65 passed`; local integration stack with #59 passed compileall and `200 passed, 7 skipped`. |
+| tinker-008 | 2026-05-19 07:22 | local only #55/#56/#57/#58/#59 | live AutoResearch rerun after early-stop fix | Tinker | passed | $1.00 | $12.79 | Baseline plus one candidate, both 1 step on `Qwen/Qwen3.5-9B`; candidate reached `EVALUATE`, reverted normally on tie, and final `n_iterations=1`. Local Tinker cost report: `$0.00005`. |
 
 ## Spend Ledger
 
-Current estimated cumulative spend: **$10.79 / $100.00**
+Current estimated cumulative spend: **$12.79 / $100.00**
 
 Notes:
 - Tinker billing may not be available through the local code, so per-run spend will be estimated conservatively from run type and observed duration unless a real cost is exposed.
