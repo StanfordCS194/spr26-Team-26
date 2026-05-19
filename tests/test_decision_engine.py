@@ -12,6 +12,7 @@ from src.decision_engine.decision_engine import (
     write_finetune_script,
     write_pretrain_script,
 )
+from src.tinker_api.sft_runner import DEFAULT_TINKER_MODEL
 from src.types import DatasetResult, OrchestrationConfig, StandardDataset, ValidationReport
 
 
@@ -142,7 +143,9 @@ def test_run_decision_engine_returns_training_plan(tmp_path, monkeypatch):
     config = _make_config("text-classification", budget=50.0)
     dataset = _make_dataset(train_size=42)
     plan = run_decision_engine(config, dataset)
-    assert plan["strategy"] in ("fine-tune", "pre-train")
+    assert plan["strategy"] == "fine-tune"
+    assert plan["base_model"] == DEFAULT_TINKER_MODEL
+    assert plan["lora_config"] is not None
     assert plan["eval_metric"] == "primary_metric"
     assert plan["backend"] == "tinker_sft"
     assert os.path.exists(plan["training_script_path"])
@@ -150,6 +153,21 @@ def test_run_decision_engine_returns_training_plan(tmp_path, monkeypatch):
     assert plan["estimated_run_cost_usd"] == plan["estimated_cost"]
     assert plan["dataset_path"] == dataset["dataset"]["path"]
     assert plan["dataset"] == dataset["dataset"]
+
+
+def test_run_decision_engine_keeps_low_budget_plan_on_tinker_sft(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    config = _make_config("text-classification", budget=0.01)
+    dataset = _make_dataset(train_size=42)
+
+    plan = run_decision_engine(config, dataset)
+
+    assert plan["strategy"] == "fine-tune"
+    assert plan["backend"] == "tinker_sft"
+    assert plan["base_model"] == DEFAULT_TINKER_MODEL
+    assert plan["lora_config"] is not None
+    assert plan["estimated_cost"] > config["compute_budget"]
+    assert "SimpleModel" not in open(plan["training_script_path"]).read()
 
 
 def test_run_decision_engine_sets_bounded_run_cost(tmp_path, monkeypatch):
