@@ -11,6 +11,8 @@ def test_manager_to_real_autoresearch_graph_with_fake_tinker_offline(
     tmp_path,
     monkeypatch,
 ):
+    fake_run_cost = 1.20
+    fake_budget = fake_run_cost * 2
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("DATA_GENERATOR_SYNTHETIC_OFFLINE", "1")
     monkeypatch.setenv("DATA_GENERATOR_MODE_C_BACKEND", "synthetic")
@@ -99,7 +101,7 @@ def test_manager_to_real_autoresearch_graph_with_fake_tinker_offline(
             "status": "COMPLETED",
             "metrics": metrics,
             "model_path": str(run_dir),
-            "cost_usd": 0.01,
+            "cost_usd": fake_run_cost,
             "logs_path": str(run_dir / "metrics.jsonl"),
         }
 
@@ -108,11 +110,11 @@ def test_manager_to_real_autoresearch_graph_with_fake_tinker_offline(
 
     state = {
         "prompt": "classify short support tickets by whether they require escalation",
-        "budget": 0.02,
+        "budget": fake_budget,
         "data_path": None,
         "has_data": False,
         "task_reasoning": None,
-        "config": _offline_mode_c_config(),
+        "config": _offline_mode_c_config(compute_budget=fake_budget),
         "result": None,
     }
 
@@ -120,7 +122,7 @@ def test_manager_to_real_autoresearch_graph_with_fake_tinker_offline(
 
     result = out["result"]
     assert result["n_iterations"] == 1
-    assert result["cost"]["total_usd"] == 0.02
+    assert result["cost"]["total_usd"] == fake_budget
     assert result["cost"]["termination_reason"] == "budget_limit"
     assert result["metrics"]["scalar"] == 0.8
     assert len(runner_calls) == 2
@@ -137,11 +139,11 @@ def test_manager_to_real_autoresearch_graph_with_fake_tinker_offline(
     assert json.loads(Path("configs/current.json").read_text())["learning_rate"] == 2e-4
 
 
-def _offline_mode_c_config():
+def _offline_mode_c_config(compute_budget: float = 1.5):
     return {
         "data": False,
         "prompt": "classify short support tickets by whether they require escalation",
-        "compute_budget": 0.02,
+        "compute_budget": compute_budget,
         "training_procedure": {
             "task_type": "text-classification",
             "data_format": "chat jsonl",
