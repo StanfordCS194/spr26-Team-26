@@ -293,5 +293,12 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   `main` because its API-level HF dry-run smoke depends on the current draft
   stack (#92-#97 plus the earlier API/data-source/runtime branches). Diff
   against that integration base is one focused test in `tests/test_server_api.py`.
+- #99 is stacked on #98 and adds the parallel local-file API dry-run smoke.
+  Together #98/#99 cover the two user-data entry paths that should work without
+  live credentials: Hugging Face source and existing local JSONL.
+- #100 is a sibling stacked integration PR against `codex/local-leaf-stack-smoke`
+  for the no-data path. Local composition of #98/#99/#100 keeps all three
+  product entry-path smokes and passes the full no-live Python suite (`289
+  passed, 8 skipped`).
 
 Current conservative live spend: `$94.14 / $100.00`.
