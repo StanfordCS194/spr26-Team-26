@@ -9,10 +9,11 @@ Budget cap: $100 total.
 | datagen-001 | 2026-05-19 05:29 | #40 | live web/synthetic scout | Tavily, Anthropic | passed | $0.32 | $2.82 | Tavily sanity plus tiny Mode C web acquisition used 2 Tavily requests; tiny Claude synthetic path generated 8 valid records. |
 | datagen-002 | 2026-05-19 05:32 | #40 | live synthetic validation | Anthropic | passed | $0.30 | $3.12 | Re-ran tiny strict Claude synthetic generation after schema-label validation hardening: 8 records, validation passed. |
 | tinker-002 | 2026-05-19 05:36 | #40/#35 | live partial pipeline | Tinker | passed | $2.50 | $5.62 | Mode C synthetic/offline -> curation JSONL -> DecisionEngine -> 5-step Tinker. Local Tinker cost report: `$0.000138`; conservative ledger keeps smoke estimate. |
+| datagen-003 | 2026-05-19 05:38 | #40 | live web curation guard | Tavily | passed | $0.02 | $5.64 | Two tiny Tavily queries total after first crawl miss; final run got 3 results, 2 pages, and curation rejected targetless web records. |
 
 ## Spend Ledger
 
-Current estimated cumulative spend: **$5.62 / $100.00**
+Current estimated cumulative spend: **$5.64 / $100.00**
 
 Notes:
 - Tinker billing may not be available through the local code, so per-run spend will be estimated conservatively from run type and observed duration unless a real cost is exposed.
