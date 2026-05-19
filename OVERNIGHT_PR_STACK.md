@@ -1,6 +1,6 @@
 # Overnight PR Stack
 
-Updated: 2026-05-19 09:17 PDT
+Updated: 2026-05-19 09:25 PDT
 
 Purpose: give reviewers a merge/review order for the draft PR stack without
 having to infer dependencies from GitHub.
@@ -34,6 +34,7 @@ having to infer dependencies from GitHub.
    - #46 `codex/manager-datagen-validation-gate` -> #40
    - #73 `codex/manager-json-robustness` -> #46
    - #50 `codex/frontend-manager-api-bridge` -> #46
+   - #74 `codex/api-run-output-isolation` -> #50
    - #52 `codex/preserve-chat-messages-curation` -> #40
    - #58 `codex/curation-small-splits` -> #52
    - #64 `codex/curation-source-splits` -> #58
@@ -107,5 +108,10 @@ Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
   contract tests passed (`15 passed, 1 skipped`), and the live Manager Mode B
   validation reached baseline + one candidate Tinker run before stopping at
   the exact `$2.24` software budget.
+- #74 adds run-scoped output routing for API/background Manager runs. It is
+  stacked on #50 because it depends on the FastAPI bridge. Validation passed
+  targeted API/runtime tests, broad no-live branch tests with the old ungated
+  HF retrieval file ignored (`176 passed, 7 skipped`), frontend lint, and
+  frontend build.
 
 Current conservative live spend: `$68.64 / $100.00`.
