@@ -848,7 +848,6 @@ def _estimated_run_cost_from_state(state: AutoResearchState) -> float:
         hyperparameters.get("estimated_run_cost_usd")
         if isinstance(hyperparameters, Mapping)
         else None,
-        plan.get("estimated_cost"),
     )
     for value in candidates:
         if value is None:
