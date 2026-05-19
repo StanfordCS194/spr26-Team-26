@@ -328,6 +328,21 @@ def _latest_experiment_dir(record: _RunRecord) -> Path | None:
     return dirs[-1] if dirs else None
 
 
+def _has_complete_experiment_artifacts(run_dir: Path) -> bool:
+    return all(
+        (run_dir / filename).is_file()
+        for name, (_, filename, _) in ARTIFACT_DEFINITIONS.items()
+        if name != "diary" and filename is not None
+    )
+
+
+def _latest_artifact_experiment_dir(record: _RunRecord) -> Path | None:
+    for run_dir in reversed(_experiment_dirs(record)):
+        if _has_complete_experiment_artifacts(run_dir):
+            return run_dir
+    return None
+
+
 def _metric_point(row: dict[str, Any], iteration: int) -> MetricPoint | None:
     loss = row.get("val_loss", row.get("train_loss"))
     score = row.get("primary_metric")
@@ -390,12 +405,13 @@ def _refresh_record_from_files(record: _RunRecord) -> None:
         record.metrics = metrics
 
     latest_experiment = _latest_experiment_dir(record)
+    artifact_experiment = _latest_artifact_experiment_dir(record)
     _refresh_stage_from_files(record, latest_experiment)
-    if latest_experiment and record.result is None:
+    if artifact_experiment and record.result is None:
         record.artifacts = _artifacts_from_result(
             record,
             {
-                "weights_path": str(latest_experiment),
+                "weights_path": str(artifact_experiment),
                 "research_diary_path": str(diary_path) if diary_path.exists() else None,
             },
         )

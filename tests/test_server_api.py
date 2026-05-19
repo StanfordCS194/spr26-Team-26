@@ -14,6 +14,53 @@ from src.runtime_context import get_output_root
 from src.server import app as server_app
 
 
+def _write_tinker_artifacts(
+    run_dir: Path,
+    *,
+    run_id: str,
+    state_path: str,
+    sampler_path: str | None = None,
+    train_loss: float = 0.31,
+    val_loss: float = 0.29,
+    test_loss: float = 0.33,
+    primary_metric: float = 0.775,
+    sample_text: str = "sample completion",
+) -> None:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    checkpoints = {"state_path": state_path}
+    if sampler_path:
+        checkpoints["sampler_path"] = sampler_path
+    (run_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "status": "COMPLETED",
+                "checkpoints": checkpoints,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "metrics.json").write_text(
+        json.dumps(
+            {
+                "train_loss": train_loss,
+                "val_loss": val_loss,
+                "test_loss": test_loss,
+                "primary_metric": primary_metric,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "metrics.jsonl").write_text(
+        json.dumps({"step": 1, "val_loss": val_loss, "primary_metric": primary_metric}) + "\n",
+        encoding="utf-8",
+    )
+    (run_dir / "sample.json").write_text(
+        json.dumps({"text": sample_text}),
+        encoding="utf-8",
+    )
+
+
 def _fake_model(tmp_path, *, total_cost=1.25, with_artifacts=False):
     diary_path = tmp_path / "diary.jsonl"
     diary_path.write_text(
@@ -36,39 +83,12 @@ def _fake_model(tmp_path, *, total_cost=1.25, with_artifacts=False):
     weights_path = "outputs/experiments/run/model"
     if with_artifacts:
         run_dir = tmp_path / "experiments" / "tinker-run"
-        run_dir.mkdir(parents=True, exist_ok=True)
         weights_path = str(run_dir)
-        (run_dir / "manifest.json").write_text(
-            json.dumps(
-                {
-                    "run_id": "tinker-run",
-                    "status": "COMPLETED",
-                    "checkpoints": {
-                        "state_path": "tinker://state/abc",
-                        "sampler_path": "tinker://sampler/abc",
-                    },
-                }
-            ),
-            encoding="utf-8",
-        )
-        (run_dir / "metrics.json").write_text(
-            json.dumps(
-                {
-                    "train_loss": 0.31,
-                    "val_loss": 0.29,
-                    "test_loss": 0.33,
-                    "primary_metric": 0.775,
-                }
-            ),
-            encoding="utf-8",
-        )
-        (run_dir / "metrics.jsonl").write_text(
-            json.dumps({"step": 1, "val_loss": 0.29}) + "\n",
-            encoding="utf-8",
-        )
-        (run_dir / "sample.json").write_text(
-            json.dumps({"text": "sample completion"}),
-            encoding="utf-8",
+        _write_tinker_artifacts(
+            run_dir,
+            run_id="tinker-run",
+            state_path="tinker://state/abc",
+            sampler_path="tinker://sampler/abc",
         )
     return {
         "weights_path": weights_path,
@@ -257,15 +277,13 @@ def test_running_run_refreshes_logs_iterations_metrics_and_artifacts(tmp_path, m
             + "\nnot-json-yet",
             encoding="utf-8",
         )
-        run_dir = root / "experiments" / "live-progress"
-        run_dir.mkdir(parents=True, exist_ok=True)
-        (run_dir / "metrics.jsonl").write_text(
-            json.dumps({"step": 1, "val_loss": 0.4, "primary_metric": 0.714}) + "\n",
-            encoding="utf-8",
-        )
-        (run_dir / "manifest.json").write_text(
-            json.dumps({"run_id": "live-progress", "checkpoints": {"state_path": "tinker://state/progress"}}),
-            encoding="utf-8",
+        _write_tinker_artifacts(
+            root / "experiments" / "live-progress",
+            run_id="live-progress",
+            state_path="tinker://state/progress",
+            val_loss=0.4,
+            primary_metric=0.714,
+            sample_text="progress sample",
         )
         ready.set()
         assert release.wait(timeout=5)
@@ -299,6 +317,143 @@ def test_running_run_refreshes_logs_iterations_metrics_and_artifacts(tmp_path, m
     metrics_log = client.get(f"/api/runs/{run_id}/artifacts/metrics_log")
     assert metrics_log.status_code == 200
     assert '"step": 1' in metrics_log.text
+
+    release.set()
+    assert _wait_for_status(client, run_id, "complete")["status"] == "complete"
+
+
+def test_running_run_keeps_previous_artifacts_when_newer_experiment_is_incomplete(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    first_ready = threading.Event()
+    create_incomplete = threading.Event()
+    incomplete_ready = threading.Event()
+    release = threading.Event()
+
+    def fake_invoke(prompt, budget, data_path=None):
+        root = get_output_root()
+        assert root is not None
+        _write_tinker_artifacts(
+            root / "experiments" / "complete-a",
+            run_id="complete-a",
+            state_path="tinker://state/a",
+            val_loss=0.4,
+            primary_metric=0.714,
+        )
+        first_ready.set()
+        assert create_incomplete.wait(timeout=5)
+        time.sleep(0.02)
+        incomplete_dir = root / "experiments" / "in-progress-b"
+        incomplete_dir.mkdir(parents=True, exist_ok=True)
+        (incomplete_dir / "metrics.jsonl").write_text(
+            json.dumps({"step": 1, "val_loss": 0.8, "primary_metric": 0.556}) + "\n",
+            encoding="utf-8",
+        )
+        incomplete_ready.set()
+        assert release.wait(timeout=5)
+        return _fake_model(root, total_cost=0.5, with_artifacts=True)
+
+    monkeypatch.setattr(server_app, "invoke_manager_graph", fake_invoke)
+    client = TestClient(server_app.app)
+
+    response = client.post(
+        "/api/runs",
+        json={
+            "prompt": "Fine tune while keeping stable artifact links",
+            "budget": 25,
+            "task_type": "fine-tuning",
+        },
+    )
+
+    assert response.status_code == 200
+    run_id = response.json()["run_id"]
+    assert first_ready.wait(timeout=5)
+
+    state = client.get(f"/api/runs/{run_id}").json()
+    assert state["status"] == "running"
+    assert state["artifacts"]["modelPath"].endswith("experiments/complete-a")
+    assert state["artifacts"]["checkpoints"]["state_path"] == "tinker://state/a"
+    assert client.get(f"/api/runs/{run_id}/artifacts/manifest").status_code == 200
+
+    create_incomplete.set()
+    assert incomplete_ready.wait(timeout=5)
+    state = client.get(f"/api/runs/{run_id}").json()
+    assert state["status"] == "running"
+    assert state["metrics"][-1]["loss"] == 0.8
+    assert state["artifacts"]["modelPath"].endswith("experiments/complete-a")
+    assert state["artifacts"]["checkpoints"]["state_path"] == "tinker://state/a"
+    manifest_response = client.get(f"/api/runs/{run_id}/artifacts/manifest")
+    assert manifest_response.status_code == 200
+    assert manifest_response.json()["checkpoints"]["state_path"] == "tinker://state/a"
+
+    release.set()
+    assert _wait_for_status(client, run_id, "complete")["status"] == "complete"
+
+
+def test_running_run_switches_artifacts_after_newer_experiment_completes(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    first_ready = threading.Event()
+    create_second = threading.Event()
+    second_ready = threading.Event()
+    release = threading.Event()
+
+    def fake_invoke(prompt, budget, data_path=None):
+        root = get_output_root()
+        assert root is not None
+        _write_tinker_artifacts(
+            root / "experiments" / "complete-a",
+            run_id="complete-a",
+            state_path="tinker://state/a",
+        )
+        first_ready.set()
+        assert create_second.wait(timeout=5)
+        time.sleep(0.02)
+        _write_tinker_artifacts(
+            root / "experiments" / "complete-b",
+            run_id="complete-b",
+            state_path="tinker://state/b",
+            val_loss=0.2,
+            primary_metric=0.833,
+            sample_text="newer sample",
+        )
+        second_ready.set()
+        assert release.wait(timeout=5)
+        return _fake_model(root, total_cost=0.5, with_artifacts=True)
+
+    monkeypatch.setattr(server_app, "invoke_manager_graph", fake_invoke)
+    client = TestClient(server_app.app)
+
+    response = client.post(
+        "/api/runs",
+        json={
+            "prompt": "Fine tune while switching completed artifact links",
+            "budget": 25,
+            "task_type": "fine-tuning",
+        },
+    )
+
+    assert response.status_code == 200
+    run_id = response.json()["run_id"]
+    assert first_ready.wait(timeout=5)
+
+    state = client.get(f"/api/runs/{run_id}").json()
+    assert state["artifacts"]["modelPath"].endswith("experiments/complete-a")
+    assert state["artifacts"]["checkpoints"]["state_path"] == "tinker://state/a"
+
+    create_second.set()
+    assert second_ready.wait(timeout=5)
+    state = client.get(f"/api/runs/{run_id}").json()
+    assert state["status"] == "running"
+    assert state["artifacts"]["modelPath"].endswith("experiments/complete-b")
+    assert state["artifacts"]["checkpoints"]["state_path"] == "tinker://state/b"
+    manifest_response = client.get(f"/api/runs/{run_id}/artifacts/manifest")
+    assert manifest_response.status_code == 200
+    assert manifest_response.json()["checkpoints"]["state_path"] == "tinker://state/b"
 
     release.set()
     assert _wait_for_status(client, run_id, "complete")["status"] == "complete"
