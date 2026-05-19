@@ -192,5 +192,8 @@ on top of #51.
   experiment has manifest, metrics, metrics_log, and sample files. It composes
   cleanly with #82 and the later unpublished stack; the composed no-live suite
   passed with `253 passed, 6 skipped`.
+- A live cancellation rerun after composing #83 confirmed the intended browser
+  contract: no placeholder artifact bundle during `cancelling`, then real
+  downloadable artifacts at terminal `cancelled`.
 
-Current conservative live spend: `$81.14 / $100.00`.
+Current conservative live spend: `$83.64 / $100.00`.

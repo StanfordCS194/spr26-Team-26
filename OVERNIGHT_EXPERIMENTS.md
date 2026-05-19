@@ -86,10 +86,11 @@ Budget cap: $100 total.
 | stack-038 | 2026-05-19 10:28 | #82 | API artifact download path fix | none | passed | $0.00 | $78.64 | Draft PR #82 opened on #77. Artifact `downloadPath` values now match the actual FastAPI route under `/api/runs/...`, and the test fetches the artifact through the advertised link. Validation passed compileall, branch API tests (`11 passed`), composed API tests (`15 passed`), and composed stack no-live suite (`257 passed, 9 skipped`). |
 | api-live-003 | 2026-05-19 10:32 | local only #55-#82 stack | live API cancellation validation | Tinker, Anthropic, Hugging Face public dataset pull | passed with artifact flicker found | $2.50 | $81.14 | `TestClient` POST to `/api/runs` with `hf://SetFit/sst2`, `$2.50` software budget, then `POST /api/runs/{run_id}/cancel` during baseline Tinker. Terminal API status was `cancelled`, `result` stayed null, and manifest/metrics/metrics_log/sample downloads returned 200 after cancellation. During cancelling, API state briefly exposed placeholder artifact paths for a newly-created run dir before files existed; this is the next API artifact-refresh fix. |
 | stack-039 | 2026-05-19 10:36 | #83 | API artifact refresh stabilization | none | passed | $0.00 | $81.14 | Draft PR #83 opened on #78. Metrics/stage still stream from newest experiment dirs, while artifact links wait for a complete manifest/metrics/metrics_log/sample set. Validation passed branch compileall, API tests (`17 passed`), branch no-live suite (`196 passed, 6 skipped`), and composed stack no-live suite after #82/later leaves (`253 passed, 6 skipped`). |
+| api-live-004 | 2026-05-19 10:37 | local only #55-#83 stack | live API cancellation artifact stability | Tinker, Anthropic, Hugging Face public dataset pull | passed | $2.50 | $83.64 | Reran the cancellation path after #83. The cancel snapshot and subsequent `cancelling` polls kept `artifacts` unset while only partial experiment files existed. Terminal `cancelled` exposed manifest/metrics/metrics_log/sample, and all four `/api/runs/...` downloads returned 200. |
 
 ## Spend Ledger
 
-Current estimated cumulative spend: **$81.14 / $100.00**
+Current estimated cumulative spend: **$83.64 / $100.00**
 
 Notes:
 - Tinker billing may not be available through the local code, so per-run spend will be estimated conservatively from run type and observed duration unless a real cost is exposed.
