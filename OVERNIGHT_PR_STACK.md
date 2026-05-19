@@ -393,5 +393,19 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   credentials and live opt-ins produced `7 skipped`, and the refreshed guard
   composition still passed the full no-live suite (`322 passed, 8 skipped, 5
   warnings`).
+- #49 was updated again to clean stale source-level proposal-loop docstrings.
+  The docs now distinguish the legacy proposal-only CLI scaffold from the full
+  LangGraph path that owns SDK-native Tinker execution/evaluation/decisions.
+  Validation passed `compileall` and proposal-loop tests (`23 passed, 3
+  skipped`).
+- #102 was updated again so `TINKER_BACKEND=dry-run` normalizes to the same
+  no-live guard as `TINKER_BACKEND=dry_run`. Focused low-level Tinker API guard
+  validation passed (`29 passed`).
+- #107 is a new stacked draft PR on #104 for cancellation semantics in the
+  SDK-native Tinker runner. It keeps active job registration through
+  finalization, skips post-cancel live SDK save/sample/heldout calls, mirrors
+  cancellation in dry-run/NO_SPEND, and adds FastAPI cancellation coverage.
+  Branch validation passed the Tinker runner suite (`32 passed, 1 skipped`) and
+  full server API suite with required optional deps (`21 passed`).
 
 Current conservative live spend: `$94.14 / $100.00`.
