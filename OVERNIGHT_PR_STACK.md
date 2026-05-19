@@ -226,5 +226,14 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
 - #87 makes cancelled-run artifacts visible in the frontend when the backend
   exposes them and lowers the UI budget minimum to `$1` for cheap smoke runs.
   Frontend lint/build passed on the branch and in the composed stack.
+- #88 passes the API/frontend `task_type` selection into Manager planning as a
+  normalized operator hint. It deliberately does not override the inferred ML
+  task, because `fine-tuning` is a workflow choice rather than a concrete task
+  type. Branch validation passed compileall, focused API/Manager tests
+  (`31 passed, 1 skipped`), and broad no-live tests (`197 passed, 6 skipped`).
+  The unpublished composition branch now includes #88 after resolving overlap
+  with #84 by preserving both `interactive_data_prompt` and `task_type_hint`;
+  focused API/Manager tests passed (`37 passed, 1 skipped`) and the full
+  no-live Python suite passed (`261 passed, 6 skipped`).
 
 Current conservative live spend: `$94.14 / $100.00`.
