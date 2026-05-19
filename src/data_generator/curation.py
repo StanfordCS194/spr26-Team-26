@@ -31,24 +31,28 @@ def curate_handoff_to_dataset_result(
     config = handoff.get("config") if isinstance(handoff.get("config"), Mapping) else {}
     records, record_source = _records_from_handoff(handoff)
 
-    curated: list[dict[str, Any]] = []
+    curated_with_splits: list[tuple[dict[str, Any], str | None]] = []
     issues: list[str] = []
     for index, record in enumerate(records):
         if not isinstance(record, Mapping):
             issues.append(f"row {index}: record must be an object")
             continue
         try:
-            curated.append(
-                curate_record(
-                    record,
-                    mode=mode,
-                    config=config,
-                    record_source=record_source,
+            curated_with_splits.append(
+                (
+                    curate_record(
+                        record,
+                        mode=mode,
+                        config=config,
+                        record_source=record_source,
+                    ),
+                    _source_split(record),
                 )
             )
         except ValueError as exc:
             issues.append(f"row {index}: {exc}")
 
+    curated, split_counts = _apply_source_splits(curated_with_splits)
     output_path = Path(output_dir) / filename
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w") as fh:
@@ -76,7 +80,7 @@ def curate_handoff_to_dataset_result(
     dataset: StandardDataset = {
         "path": os.path.abspath(output_path),
         "format": "jsonl",
-        **_split_counts(len(curated)),
+        **split_counts,
     }
     validation_report: ValidationReport = {
         "passed": bool(curated) and upstream_passed,
@@ -214,6 +218,52 @@ def _split_counts(n_records: int) -> dict[str, int]:
         "val_size": val_size,
         "test_size": test_size,
     }
+
+
+def _apply_source_splits(
+    curated_with_splits: Sequence[tuple[dict[str, Any], str | None]],
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    if not curated_with_splits:
+        return [], _split_counts(0)
+    if not any(split for _record, split in curated_with_splits):
+        curated = [record for record, _split in curated_with_splits]
+        return curated, _split_counts(len(curated))
+
+    train: list[dict[str, Any]] = []
+    val: list[dict[str, Any]] = []
+    test: list[dict[str, Any]] = []
+    for record, split in curated_with_splits:
+        if split == "val":
+            val.append(record)
+        elif split == "test":
+            test.append(record)
+        else:
+            train.append(record)
+
+    ordered = [*train, *val, *test]
+    return ordered, {
+        "train_size": len(train),
+        "val_size": len(val),
+        "test_size": len(test),
+    }
+
+
+def _source_split(record: Mapping[str, Any]) -> str | None:
+    split = record.get("split")
+    metadata = record.get("metadata")
+    if split is None and isinstance(metadata, Mapping):
+        split = metadata.get("split")
+    if split is None:
+        return None
+
+    normalized = str(split).strip().lower()
+    if normalized in {"train", "training"}:
+        return "train"
+    if normalized in {"validation", "valid", "val", "dev", "eval"}:
+        return "val"
+    if normalized in {"test", "testing"}:
+        return "test"
+    return None
 
 
 def _validation_issues(

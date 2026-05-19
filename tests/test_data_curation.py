@@ -150,6 +150,40 @@ def test_curate_handoff_keeps_validation_split_for_small_datasets(tmp_path):
     assert result["dataset"]["test_size"] == 1
 
 
+def test_curate_handoff_preserves_source_split_order_and_counts(tmp_path):
+    handoff = {
+        "mode_used": "B",
+        "raw_data": {
+            "records": [
+                {"input": "validation row", "output": "v", "split": "validation"},
+                {"input": "test row", "output": "t", "metadata": {"split": "test"}},
+                {"input": "train row", "output": "tr", "split": "train"},
+                {"input": "dev row", "output": "d", "metadata": {"split": "dev"}},
+                {"input": "unknown row", "output": "u"},
+            ]
+        },
+    }
+
+    result = curate_handoff_to_dataset_result(handoff, output_dir=str(tmp_path))
+
+    assert result["validation_report"]["passed"] is True
+    assert result["dataset"]["train_size"] == 2
+    assert result["dataset"]["val_size"] == 2
+    assert result["dataset"]["test_size"] == 1
+    rows = [
+        json.loads(line)
+        for line in open(result["dataset"]["path"]).read().splitlines()
+        if line.strip()
+    ]
+    assert rows == [
+        {"input": "train row", "output": "tr"},
+        {"input": "unknown row", "output": "u"},
+        {"input": "validation row", "output": "v"},
+        {"input": "dev row", "output": "d"},
+        {"input": "test row", "output": "t"},
+    ]
+
+
 def test_curate_handoff_preserves_upstream_validation(tmp_path):
     handoff = {
         "mode_used": "C",
