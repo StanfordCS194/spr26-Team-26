@@ -180,5 +180,12 @@ on top of #51.
 - #82 fixes API-provided artifact download links to match the mounted FastAPI
   route. The unpublished composition branch includes #82 and still passes API
   tests plus the full no-live Python suite (`257 passed, 9 skipped`).
+- Live cancellation validation on the unpublished composition branch passed:
+  the API cancelled an active baseline Tinker run, returned terminal
+  `cancelled`, and kept result null while still exposing downloadable artifacts
+  after the runner finished its safe boundary. It also exposed the next API
+  artifact-refresh issue: while a newer experiment directory exists but has not
+  written files yet, live refresh can temporarily replace working artifact links
+  with placeholder/missing files.
 
-Current conservative live spend: `$78.64 / $100.00`.
+Current conservative live spend: `$81.14 / $100.00`.
