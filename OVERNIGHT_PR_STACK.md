@@ -330,5 +330,10 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   creation, `requests.get`, and Tinker SDK loading. Local composition through
   #104 again passed the focused guard cluster (`81 passed`) and full no-live
   suite (`308 passed, 8 skipped`).
+- #105 is stacked on #89 and closes the frontend's default simulation gap. The
+  app now targets the real Manager API at `/api` unless
+  `VITE_USE_SIMULATION=1` is set; the README documents default backend dev,
+  alternate API bases, and explicit static demo mode. Frontend lint and three
+  build modes passed.
 
 Current conservative live spend: `$94.14 / $100.00`.
