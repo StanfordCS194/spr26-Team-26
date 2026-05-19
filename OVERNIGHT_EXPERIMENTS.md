@@ -25,6 +25,7 @@ Budget cap: $100 total.
 | datagen-006 | 2026-05-19 07:04 | #51 stack | live web structuring partial | Tavily, Anthropic | passed | $0.35 | $9.29 | One Tavily query -> 3 results -> 2 crawled pages -> 6 Claude-structured chat/SFT rows -> curation passed. |
 | tinker-005 | 2026-05-19 07:07 | #51 stack/#43 | live web-data Tinker smoke | Tinker | passed with metric bug | $1.00 | $10.29 | 2-step `Qwen/Qwen3.5-9B` run on live web-structured JSONL completed and saved checkpoint/sample, but runner reported bogus zero loss. Local Tinker cost report: `$0.000047`. |
 | tinker-006 | 2026-05-19 07:13 | #57 | live loss metric validation | Tinker | passed | $0.50 | $10.79 | 1-step `Qwen/Qwen3.5-9B` validation after #57 fix reported real `train_loss=24.81933307647705`. Local Tinker cost report: `$0.000025`. |
+| datagen-007 | 2026-05-19 07:19 | #58 | curation split validation | none | passed | $0.00 | $10.79 | Local tests prove 3-9 record curated datasets reserve val/test rows; adjacent DataGen/Manager suite passed `43 passed, 4 skipped`. |
 
 ## Spend Ledger
 

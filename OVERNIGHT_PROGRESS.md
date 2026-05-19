@@ -57,3 +57,4 @@ Operating rules:
 - 2026-05-19 07:04 PDT — Bounded live web -> structuring -> curation partial passed: 1 Tavily query, 3 search results, 2 crawled pages, 6 Claude-structured chat/SFT rows, curation passed.
 - 2026-05-19 07:07 PDT — Live 2-step Tinker run on the web-structured JSONL completed and saved a checkpoint/sample, but exposed bogus zero losses from the runner.
 - 2026-05-19 07:14 PDT — Draft PR #57 opened: Tinker SFT runner now reads cookbook/live `metrics["loss:sum"]` and raises if no recognized loss metric exists. Live 1-step validation now reports nonzero loss (`24.8193`) instead of `0.0`.
+- 2026-05-19 07:19 PDT — Draft PR #58 opened: curation now reserves validation/test rows for 3-9 record datasets. This fixes the `val_size=0` behavior observed in the 6-row live web-structured smoke.
