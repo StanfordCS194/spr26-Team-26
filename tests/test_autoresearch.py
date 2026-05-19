@@ -251,14 +251,14 @@ def test_check_early_stop_true_on_inf_loss():
     assert check_early_stop(metrics) is True
 
 
-def test_check_early_stop_true_on_exploding_loss():
+def test_check_early_stop_false_on_high_finite_sft_loss():
     metrics = {
         "train_loss": 15.0,
         "val_loss": 14.0,
         "test_loss": 14.5,
         "primary_metric": 0.10,
     }
-    assert check_early_stop(metrics) is True
+    assert check_early_stop(metrics) is False
 
 
 def test_check_early_stop_true_on_accuracy_collapse():
@@ -267,6 +267,16 @@ def test_check_early_stop_true_on_accuracy_collapse():
         "val_loss": 0.45,
         "test_loss": 0.50,
         "primary_metric": 0.001,
+    }
+    assert check_early_stop(metrics) is True
+
+
+def test_check_early_stop_true_on_nonfinite_primary_metric():
+    metrics = {
+        "train_loss": 0.4,
+        "val_loss": 0.45,
+        "test_loss": 0.50,
+        "primary_metric": float("nan"),
     }
     assert check_early_stop(metrics) is True
 
@@ -450,6 +460,62 @@ def test_log_node_uses_pre_patch_config_for_kept_diff(tmp_path):
         assert "+ learning_rate: 0.0002" in out["diary"][0]["patch"]
     finally:
         ar._DIARY_PATH = original_path
+
+
+def test_log_node_records_early_stop_once(tmp_path):
+    import src.autoresearch.autoresearch as ar
+
+    original_path = ar._DIARY_PATH
+    ar._DIARY_PATH = tmp_path / "diary.jsonl"
+    try:
+        state = _make_state(
+            eval_suite={"primary_metric": "primary_metric", "metrics": [], "test_split_path": "",
+                        "use_llm_grading": False},
+            current_config={"learning_rate": 1e-4, "batch_size": 4},
+            current_patch=json.dumps({"learning_rate": 2e-4}),
+            original_content=None,
+            last_description="Increase learning rate.",
+            last_delta=None,
+            last_result={
+                "job_id": "candidate",
+                "status": "COMPLETED",
+                "metrics": {"train_loss": float("inf"), "val_loss": 0.4,
+                            "test_loss": 0.5, "primary_metric": 0.70},
+                "model_path": "candidate-model",
+                "cost_usd": 0.01,
+                "logs_path": "candidate.jsonl",
+            },
+        )
+
+        out = ar.log_node(state)
+
+        assert out["iteration"] == 1
+        assert len(out["diary"]) == 1
+        assert out["diary"][0]["iteration"] == 1
+        assert out["diary"][0]["decision"] == "REVERTED"
+        assert "Early-stopped" in out["diary"][0]["notes"]
+        lines = [l for l in ar._DIARY_PATH.read_text().splitlines() if l.strip()]
+        assert len(lines) == 1
+    finally:
+        ar._DIARY_PATH = original_path
+
+
+def test_completed_high_finite_sft_loss_flows_to_evaluate():
+    import src.autoresearch.autoresearch as ar
+
+    state = _make_state(
+        last_result={
+            "job_id": "candidate",
+            "status": "COMPLETED",
+            "metrics": {"train_loss": 24.8, "val_loss": 24.8,
+                        "test_loss": 24.8, "primary_metric": 0.0387},
+            "model_path": "candidate-model",
+            "cost_usd": 0.01,
+            "logs_path": "candidate.jsonl",
+        },
+    )
+
+    assert ar.early_stop_edge(state) == "evaluate"
 
 
 # ─── continue_edge ────────────────────────────────────────────────────────────

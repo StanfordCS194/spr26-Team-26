@@ -324,7 +324,7 @@ def run_node(state: AutoResearchState) -> dict:
 
 
 def revert_and_continue_node(state: AutoResearchState) -> dict:
-    """LangGraph node (early stop path). Calls revert_patch(), logs REVERTED, increments iteration. Returns: { current_script, diary, iteration }."""
+    """LangGraph node (early stop path). Reverts the patch before normal logging."""
     revert_patch(str(_CONFIG_PATH), state["original_content"])
 
     log_event(
@@ -337,27 +337,10 @@ def revert_and_continue_node(state: AutoResearchState) -> dict:
         },
     )
 
-    # Build and persist the diary entry for this early-stopped iteration.
-    # last_result always exists here because run_node already wrote it.
-    patch_dict = json.loads(state.get("current_patch", "{}"))
-    diff = _patch_to_diff(patch_dict, state["current_config"])
-    record: IterationRecord = {
-        "iteration": state["iteration"] + 1,
-        "hypothesis": state.get("last_description", str(patch_dict)),
-        "patch": diff,
-        "cost_usd": state["last_result"]["cost_usd"],
-        "metrics": state["last_result"]["metrics"],
-        "decision": "REVERTED",
-        "notes": "Early-stopped: catastrophic failure (NaN/exploding loss/accuracy collapse)",
-    }
-    updated_diary = log_iteration(state["diary"], record)
-
     return {
         "current_script": state["plan"]["training_script_path"],
         "original_content": None,
-        "last_delta": None,  # signals early-stop path to log_node
-        "diary": updated_diary,
-        "iteration": state["iteration"] + 1,
+        "last_delta": None,  # signals early-stop path to log_node.
     }
 
 
@@ -447,6 +430,9 @@ def log_node(state: AutoResearchState) -> dict:
         if state["last_delta"] is not None and state["last_delta"]["improved"]:
             decision = "KEPT"
             notes = f"+{state['last_delta']['relative_pct']:.1f}% on {state['eval_suite']['primary_metric']}"
+        elif _last_result_was_early_stopped(state):
+            decision = "REVERTED"
+            notes = "Early-stopped: catastrophic failure (NaN/Inf loss or primary metric collapse)"
         else:
             decision = "REVERTED"
             delta_pct = state["last_delta"]["relative_pct"] if state["last_delta"] else 0.0
@@ -507,6 +493,17 @@ def early_stop_edge(state: AutoResearchState) -> Literal["evaluate", "revert_and
     if check_early_stop(state["last_result"]["metrics"]):
         return "revert_and_continue"
     return "evaluate"
+
+
+def _last_result_was_early_stopped(state: AutoResearchState) -> bool:
+    if state.get("last_delta") is not None:
+        return False
+    last_result = state.get("last_result")
+    if last_result is None:
+        return True
+    if last_result["status"] in {JobStatus.FAILED, JobStatus.CANCELLED}:
+        return True
+    return check_early_stop(last_result["metrics"])
 
 
 def decision_edge(state: AutoResearchState) -> Literal["keep", "revert"]:
@@ -886,18 +883,16 @@ def wait_for_experiment(job_id: str, timeout_min: int) -> ExperimentResult:
 
 
 def check_early_stop(metrics: TrainingMetrics) -> bool:
-    """Returns True on catastrophic failure: exploding loss (>10× baseline), NaN, or accuracy collapse."""
+    """Returns True on catastrophic failure: non-finite loss or primary metric collapse."""
     for key in ("train_loss", "val_loss"):
         val = metrics.get(key)
         if val is not None and (math.isnan(val) or math.isinf(val)):
             return True
 
-    train_loss = metrics.get("train_loss")
-    if train_loss is not None and train_loss > 10.0:
-        return True
-
     primary = metrics.get("primary_metric")
-    if primary is not None and primary < 0.01:
+    if primary is not None and (
+        math.isnan(primary) or math.isinf(primary) or primary < 0.01
+    ):
         return True
 
     return False
