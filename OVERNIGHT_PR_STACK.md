@@ -384,5 +384,14 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   (`152 passed, 3 skipped`) plus full no-live validation (`322 passed, 8
   skipped, 5 warnings`), and the product UI composition passed the selected
   backend/API suite (`153 passed, 3 skipped`) plus frontend build.
+- #106 is a new main-based policy guard for live tests already present on
+  `main`: live Claude proposal integration and live Hugging Face retrieval skip
+  under `NO_SPEND=1`, even if credentials are loaded. The newer live-test
+  branches were patched with the same policy: #67 for Hugging Face live
+  retrieval, #91 for Claude proposal integration, #94 for live Tinker smoke,
+  and #101 for live Mode C web tests. Targeted no-spend validation with fake
+  credentials and live opt-ins produced `7 skipped`, and the refreshed guard
+  composition still passed the full no-live suite (`322 passed, 8 skipped, 5
+  warnings`).
 
 Current conservative live spend: `$94.14 / $100.00`.
