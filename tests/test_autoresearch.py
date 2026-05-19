@@ -2,6 +2,7 @@
 
 import json
 import math
+import sys
 from pathlib import Path
 
 import pytest
@@ -452,7 +453,62 @@ def test_log_node_skips_eval_adaptation_without_anthropic_key(monkeypatch, tmp_p
         assert out["iteration"] == 10
         assert out["eval_suite"] == suite
         assert any("skipped eval suite update" in event["message"] for event in events)
-        assert events[-1]["metadata"]["reason"] == "ANTHROPIC_API_KEY is not configured"
+        assert events[-1]["metadata"]["reason"] == "AUTORESEARCH_EVAL_ADAPTATION=auto"
+    finally:
+        ar._DIARY_PATH = original_path
+
+
+def test_log_node_auto_eval_adaptation_ignores_available_key(monkeypatch, tmp_path):
+    import src.autoresearch.autoresearch as ar
+
+    def fail_adapt_eval_suite(*args, **kwargs):
+        raise AssertionError("auto eval adaptation should not run live because a key exists")
+
+    events = []
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "present-but-not-used")
+    monkeypatch.delenv("AUTORESEARCH_EVAL_ADAPTATION", raising=False)
+    monkeypatch.setattr(ar, "adapt_eval_suite", fail_adapt_eval_suite)
+    monkeypatch.setattr(
+        ar,
+        "log_event",
+        lambda agent, level, message, metadata=None, **kwargs: events.append(
+            {"level": level, "message": message, "metadata": metadata or {}}
+        ),
+    )
+
+    original_path = ar._DIARY_PATH
+    ar._DIARY_PATH = tmp_path / "diary.jsonl"
+    suite = {"primary_metric": "accuracy", "metrics": ["accuracy"],
+             "test_split_path": "", "use_llm_grading": False}
+    try:
+        state = _make_state(
+            eval_suite=suite,
+            diary=[
+                {"iteration": i, "hypothesis": "", "patch": "", "cost_usd": 0.0,
+                 "metrics": {}, "decision": "REVERTED", "notes": f"revert {i}"}
+                for i in range(1, 10)
+            ],
+            iteration=9,
+            current_config={"learning_rate": 1e-4},
+            current_patch=json.dumps({"learning_rate": 2e-4}),
+            last_description="Increase learning rate.",
+            last_delta={"absolute": -0.01, "relative_pct": -2.0, "improved": False},
+            last_result={
+                "job_id": "candidate",
+                "status": "COMPLETED",
+                "metrics": {"train_loss": 0.4, "val_loss": 0.5,
+                            "test_loss": 0.6, "primary_metric": 0.65},
+                "model_path": "candidate-model",
+                "cost_usd": 0.01,
+                "logs_path": "candidate.jsonl",
+            },
+        )
+
+        out = ar.log_node(state)
+
+        assert out["eval_suite"] == suite
+        assert any("skipped eval suite update" in event["message"] for event in events)
+        assert events[-1]["metadata"]["reason"] == "AUTORESEARCH_EVAL_ADAPTATION=auto"
     finally:
         ar._DIARY_PATH = original_path
 
@@ -739,6 +795,19 @@ def test_propose_hypothesis_canonicalizes_tinker_alias_patch(monkeypatch):
     assert '"max_seq_len":' not in captured["messages"][0]["content"]
 
 
+def test_propose_hypothesis_no_spend_blocks_anthropic_client(monkeypatch):
+    import src.autoresearch.autoresearch as ar
+
+    def fail_client():
+        raise AssertionError("Anthropic client should not be constructed")
+
+    monkeypatch.setenv("NO_SPEND", "1")
+    monkeypatch.setattr(ar.anthropic, "Anthropic", fail_client)
+
+    with pytest.raises(RuntimeError, match="NO_SPEND=1"):
+        ar.propose_hypothesis({"learning_rate": 1e-4}, [], _minimal_task())
+
+
 def test_propose_hypothesis_still_rejects_unsupported_tinker_patch(monkeypatch):
     import src.autoresearch.autoresearch as ar
 
@@ -769,6 +838,42 @@ def test_propose_hypothesis_still_rejects_unsupported_tinker_patch(monkeypatch):
             _minimal_task(),
             allowed_params=["learning_rate", "num_epochs"],
         )
+
+
+def test_adapt_eval_suite_no_spend_blocks_anthropic_client(monkeypatch):
+    import src.autoresearch.autoresearch as ar
+
+    def fail_client():
+        raise AssertionError("Anthropic client should not be constructed")
+
+    monkeypatch.setenv("NO_SPEND", "1")
+    monkeypatch.setattr(ar.anthropic, "Anthropic", fail_client)
+
+    suite = {
+        "primary_metric": "accuracy",
+        "metrics": ["accuracy"],
+        "test_split_path": "",
+        "use_llm_grading": False,
+    }
+    with pytest.raises(RuntimeError, match="NO_SPEND=1"):
+        ar.adapt_eval_suite(suite, ["weakness"])
+
+
+def test_cli_no_spend_rejects_claude_strategy_before_api_key_check(monkeypatch):
+    import src.autoresearch.__main__ as cli
+
+    monkeypatch.setenv("NO_SPEND", "1")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "present-but-no-spend")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["python -m src.autoresearch", "--strategy", "claude", "--n-iters", "1"],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main()
+
+    assert exc_info.value.code == 1
 
 
 def test_keep_node_canonicalizes_tinker_alias_patch():
