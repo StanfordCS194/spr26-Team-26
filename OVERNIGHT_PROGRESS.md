@@ -27,3 +27,5 @@ Operating rules:
 - 2026-05-19 05:33 PDT — Pushed #40 commit `ba5e901` and updated the draft PR description with current validation and remaining E2E fake-Tinker boundary gap.
 - 2026-05-19 05:36 PDT — Bounded live partial pipeline passed: Mode C synthetic/offline DataGen -> curation JSONL -> DecisionEngine `tinker_sft` plan -> 5-step live Tinker on `Qwen/Qwen3.5-9B`. Tinker local cost report was `$0.000138`, ledger books conservative $2.50.
 - 2026-05-19 05:38 PDT — Tiny live web curation guard passed after one retry: 3 Tavily results, 2 crawled pages, 2 targetless web records, curation refused to create trainable rows.
+- 2026-05-19 05:39 PDT — Rechecked #40 Vercel failures. `npx vercel inspect ... --logs` still cannot find the failing `ml-agent-demo` / `spr26-team-26` deployments under the current Vercel context; green spec-site projects remain separate.
+- 2026-05-19 05:40 PDT — Draft PR #42 opened: test-only offline Manager -> DataGen -> curation -> DecisionEngine -> AutoResearch baseline -> fake Tinker boundary test, stacked on #40.
