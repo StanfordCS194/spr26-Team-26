@@ -34,6 +34,20 @@ function StageIcon({ status }: { status: PipelineStage['status'] }) {
       </span>
     );
   }
+  if (status === 'failed') {
+    return (
+      <span style={{ ...base, background: 'rgba(239, 68, 68, 0.12)', color: 'var(--danger)', border: '0.5px solid var(--danger)' }}>
+        !
+      </span>
+    );
+  }
+  if (status === 'cancelled') {
+    return (
+      <span style={{ ...base, background: 'rgba(245, 158, 11, 0.12)', color: 'var(--warning)', border: '0.5px solid var(--warning)' }}>
+        x
+      </span>
+    );
+  }
   return (
     <span style={{ ...base, background: 'transparent', color: 'var(--text-muted)', border: '0.5px solid var(--border)' }}>
       ○
@@ -44,6 +58,13 @@ function StageIcon({ status }: { status: PipelineStage['status'] }) {
 export default function PipelineProgress({ stages, costSpent, budget }: Props) {
   const pct = budget > 0 ? Math.min((costSpent / budget) * 100, 100) : 0;
   const barColor = pct >= 70 ? 'var(--danger)' : pct >= 50 ? 'var(--warning)' : 'var(--accent)';
+  const stageColor = (status: PipelineStage['status']) => {
+    if (status === 'in-progress') return 'var(--accent)';
+    if (status === 'failed') return 'var(--danger)';
+    if (status === 'cancelled') return 'var(--warning)';
+    if (status === 'complete') return 'var(--text-secondary)';
+    return 'var(--text-muted)';
+  };
 
   return (
     <section style={{ marginBottom: '1.5rem' }}>
@@ -79,7 +100,7 @@ export default function PipelineProgress({ stages, costSpent, budget }: Props) {
               <span
                 style={{
                   fontSize: '11px',
-                  color: stage.status === 'in-progress' ? 'var(--accent)' : stage.status === 'complete' ? 'var(--text-secondary)' : 'var(--text-muted)',
+                  color: stageColor(stage.status),
                   textAlign: 'center',
                   whiteSpace: 'nowrap',
                   transition: 'color 0.3s',

@@ -124,6 +124,7 @@ def _is_terminal(record: _RunRecord) -> bool:
 def _mark_cancelled(record: _RunRecord, message: str = "Run cancelled") -> None:
     record.status = "cancelled"
     record.error = None
+    _mark_current_stage_terminal(record, "cancelled")
     _append_log(record, "Manager", message, "warning")
 
 
@@ -193,9 +194,24 @@ def _complete_all_stages(record: _RunRecord) -> None:
     ]
 
 
+def _mark_current_stage_terminal(record: _RunRecord, status: str) -> None:
+    def stage_status(item: PipelineStage) -> str:
+        if item.id < record.stage:
+            return "complete"
+        if item.id == record.stage:
+            return status
+        return "pending"
+
+    record.stages = [
+        PipelineStage(id=item.id, label=item.label, status=stage_status(item))
+        for item in record.stages
+    ]
+
+
 def _fail_current_stage(record: _RunRecord, message: str) -> None:
     record.status = "failed"
     record.error = message
+    _mark_current_stage_terminal(record, "failed")
     _append_log(record, "Manager", message, "error")
 
 

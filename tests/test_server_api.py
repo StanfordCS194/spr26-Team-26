@@ -604,6 +604,7 @@ def test_cancel_running_run_stops_at_safe_boundary(tmp_path, monkeypatch):
     assert is_cancelled("server-active-job")
     state = _wait_for_status(client, run_id, "cancelled")
     assert state["status"] == "cancelled"
+    assert state["stages"][state["stage"]]["status"] == "cancelled"
     assert state["result"] is None
     assert any("cancel" in item["message"].lower() for item in state["logs"])
 
@@ -732,6 +733,7 @@ def test_create_run_surfaces_manager_failure(tmp_path, monkeypatch):
     assert response.status_code == 200
     state = _wait_for_status(client, response.json()["run_id"], "failed")
     assert "DataGen did not produce a trainable dataset" in state["error"]
+    assert state["stages"][state["stage"]]["status"] == "failed"
     assert state["logs"][0]["type"] == "error"
 
 

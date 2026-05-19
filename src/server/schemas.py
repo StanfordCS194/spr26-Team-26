@@ -22,7 +22,7 @@ class RunCreated(BaseModel):
 class PipelineStage(BaseModel):
     id: int
     label: str
-    status: Literal["pending", "in-progress", "complete"]
+    status: Literal["pending", "in-progress", "complete", "failed", "cancelled"]
 
 
 class MetricPoint(BaseModel):

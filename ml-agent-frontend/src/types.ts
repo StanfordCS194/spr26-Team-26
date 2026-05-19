@@ -1,4 +1,4 @@
-export type StageStatus = 'pending' | 'in-progress' | 'complete';
+export type StageStatus = 'pending' | 'in-progress' | 'complete' | 'failed' | 'cancelled';
 export type TaskType = 'classification' | 'regression' | 'fine-tuning';
 export type LogType = 'default' | 'success' | 'warning' | 'error';
 export type IterationStatus = 'KEPT' | 'REVERTED' | 'PENDING';
