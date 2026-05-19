@@ -10,9 +10,13 @@ from src.data_generator.artifacts import save_subagent2_artifacts
 from src.data_generator.graph import invoke_data_generator_graph
 
 
+def _env_truthy(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 @pytest.mark.skipif(
-    not os.getenv("TAVILY_API_KEY"),
-    reason="Requires TAVILY_API_KEY for real Tavily search",
+    _env_truthy("NO_SPEND") or not os.getenv("TAVILY_API_KEY"),
+    reason="NO_SPEND=1 or TAVILY_API_KEY missing for real Tavily search",
 )
 def test_mode_c_mixed_sources_real_search_crawl_and_artifact(monkeypatch):
     """
