@@ -449,6 +449,45 @@ def test_autoresearch_baseline_preflight_skips_unaffordable_run(monkeypatch, tmp
     assert "estimated run cost" in manifest["budget_skip_reason"]
 
 
+def test_autoresearch_records_estimated_cost_floor(monkeypatch, tmp_path):
+    import src.autoresearch.autoresearch as ar
+    from src.cost_manager.cost_manager import CostManager
+
+    data_path = _write_jsonl(tmp_path / "train.jsonl", [{"input": "x", "output": "y"}])
+
+    def fake_runner(config, dataset, *, run_id=None, max_steps=None, **kwargs):
+        run_dir = tmp_path / "estimated-floor"
+        run_dir.mkdir()
+        (run_dir / "metrics.json").write_text(
+            json.dumps({"train_loss": 0.3, "val_loss": 0.3, "test_loss": 0.3})
+        )
+        return {
+            "job_id": run_id,
+            "status": "COMPLETED",
+            "metrics": {
+                "train_loss": 0.3,
+                "val_loss": 0.3,
+                "test_loss": 0.3,
+                "primary_metric": 1 / 1.3,
+            },
+            "model_path": str(run_dir),
+            "cost_usd": 0.01,
+            "logs_path": str(run_dir / "metrics.jsonl"),
+        }
+
+    monkeypatch.setattr(ar, "run_tinker_sft_experiment", fake_runner)
+    state = _autoresearch_state(str(data_path))
+    state["config"]["compute_budget"] = 2.0
+    state["cost_manager"] = CostManager(2.0)
+    state["plan"]["estimated_run_cost_usd"] = 1.0
+
+    result = ar.baseline_node(state)
+
+    assert result["baseline_result"]["cost_usd"] == 1.0
+    assert state["cost_manager"].spent_usd == 1.0
+    assert result["should_stop"] is False
+
+
 def _write_jsonl(path: Path, rows: list[dict]) -> Path:
     path.write_text("".join(json.dumps(row) + "\n" for row in rows))
     return path

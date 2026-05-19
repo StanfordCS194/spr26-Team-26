@@ -1008,7 +1008,33 @@ def _record_experiment_cost(
     cost_manager = state.get("cost_manager")
     if cost_manager is None or not hasattr(cost_manager, "record_spend"):
         return None
-    return cost_manager.record_spend(float(result.get("cost_usd", 0.0)), category=category)
+    accounted_cost = _accounted_experiment_cost(state, result)
+    result["cost_usd"] = accounted_cost
+    return cost_manager.record_spend(accounted_cost, category=category)
+
+
+def _accounted_experiment_cost(
+    state: AutoResearchState,
+    result: ExperimentResult,
+) -> float:
+    actual_cost = max(0.0, float(result.get("cost_usd", 0.0)))
+    if _experiment_result_was_budget_skipped(result):
+        return actual_cost
+    return max(actual_cost, _estimated_run_cost_from_state(state))
+
+
+def _experiment_result_was_budget_skipped(result: ExperimentResult) -> bool:
+    try:
+        manifest_path = Path(result["model_path"]) / "manifest.json"
+    except (KeyError, TypeError):
+        return False
+    if not manifest_path.exists():
+        return False
+    try:
+        manifest = json.loads(manifest_path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return False
+    return bool(manifest.get("budget_preflight_skipped"))
 
 
 def submit_experiment(
