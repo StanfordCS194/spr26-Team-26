@@ -1,6 +1,6 @@
 # Overnight PR Stack
 
-Updated: 2026-05-19 07:45 PDT
+Updated: 2026-05-19 08:00 PDT
 
 Purpose: give reviewers a merge/review order for the draft PR stack without
 having to infer dependencies from GitHub.
@@ -20,6 +20,7 @@ having to infer dependencies from GitHub.
    - #43 `codex/tinker-single-assistant-rendering` -> #35
    - #57 `codex/tinker-live-loss-metrics` -> #43
    - #60 `codex/tinker-mean-final-metrics` -> #57
+   - #62 `codex/tinker-heldout-eval` -> #60
 4. DataGen/Manager chain:
    - #40 `codex/datagen-integration` -> #35
    - #42 `codex/e2e-manager-datagen-tinker-boundary` -> #40
@@ -52,10 +53,12 @@ having to infer dependencies from GitHub.
 ## Latest Local Stack Validation
 
 Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, and
-#61 on top of #51.
+#61 on top of #51. #62 has been opened on the Tinker runner chain and should be
+folded into the next unpublished stack smoke before additional live runs.
 
 - `python3 -m compileall src`
 - Broad non-live suite excluding live Tinker and live Hugging Face retrieval:
   `202 passed, 7 skipped`
 
 Latest conservative live spend: `$33.29 / $100.00`.
+Current conservative live spend after the web graph AutoResearch run: `$38.54 / $100.00`.
