@@ -96,6 +96,25 @@ def test_reason_about_task_parses_fenced_json_response(monkeypatch):
     assert result["suggested_base_model"] == "bert-base-uncased"
 
 
+def test_reason_about_task_includes_task_type_hint(monkeypatch):
+    monkeypatch.setenv("MANAGER_REASONER", "claude")
+    mock_response = MagicMock()
+    mock_response.content = [MagicMock(text=json.dumps(MOCK_REASONING))]
+
+    with patch("anthropic.Anthropic") as MockClient:
+        client = MockClient.return_value
+        client.messages.create.return_value = mock_response
+        reason_about_task(
+            "predict support ticket resolution time",
+            12.5,
+            True,
+            task_type_hint="regression",
+        )
+
+    payload = client.messages.create.call_args.kwargs["messages"][0]["content"]
+    assert "Requested UI task type: regression" in payload
+
+
 def test_reason_about_task_uses_local_fallback_without_anthropic_key(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("MANAGER_REASONER", raising=False)
@@ -128,6 +147,63 @@ def test_reason_about_task_local_mode_overrides_available_key(monkeypatch):
 
     assert result["task_type"] == "summarization"
     assert result["data_format"] == "jsonl with messages or input/output fields"
+
+
+def test_local_reasoner_uses_classification_hint(monkeypatch):
+    monkeypatch.setenv("MANAGER_REASONER", "local")
+
+    def fail_anthropic():
+        raise AssertionError("local planner should not construct Anthropic")
+
+    monkeypatch.setattr("anthropic.Anthropic", fail_anthropic)
+
+    result = reason_about_task(
+        "predict support ticket resolution time",
+        5.0,
+        True,
+        task_type_hint="classification",
+    )
+
+    assert result["task_type"] == "text-classification"
+    assert "Operator task hint: classification" in result["notes"]
+
+
+def test_local_reasoner_uses_regression_hint_as_custom_supervised(monkeypatch):
+    monkeypatch.setenv("MANAGER_REASONER", "local")
+
+    def fail_anthropic():
+        raise AssertionError("local planner should not construct Anthropic")
+
+    monkeypatch.setattr("anthropic.Anthropic", fail_anthropic)
+
+    result = reason_about_task(
+        "classify support tickets by sentiment",
+        5.0,
+        True,
+        task_type_hint="regression",
+    )
+
+    assert result["task_type"] == "custom"
+    assert "Operator task hint: regression" in result["notes"]
+
+
+def test_local_reasoner_fine_tuning_hint_keeps_prompt_inference(monkeypatch):
+    monkeypatch.setenv("MANAGER_REASONER", "local")
+
+    def fail_anthropic():
+        raise AssertionError("local planner should not construct Anthropic")
+
+    monkeypatch.setattr("anthropic.Anthropic", fail_anthropic)
+
+    result = reason_about_task(
+        "Summarize customer support transcripts",
+        5.0,
+        True,
+        task_type_hint="fine-tuning",
+    )
+
+    assert result["task_type"] == "summarization"
+    assert "Operator task hint: fine-tuning" in result["notes"]
 
 
 def test_reason_about_task_no_spend_overrides_claude_mode(monkeypatch):

@@ -192,10 +192,17 @@ def log_decision(step: str, rationale: str, config: OrchestrationConfig) -> None
         f.write(json.dumps(entry) + "\n")
 
 
-def reason_about_task(prompt: str, budget: float, has_data: bool) -> TaskReasoning:
+def reason_about_task(
+    prompt: str,
+    budget: float,
+    has_data: bool,
+    *,
+    task_type_hint: str | None = None,
+) -> TaskReasoning:
     """Infer task type, training type, base model, and starting hyperparams."""
+    hint = _normalize_task_type_hint(task_type_hint)
     if _use_local_reasoner():
-        return _local_task_reasoning(prompt, budget, has_data)
+        return _local_task_reasoning(prompt, budget, has_data, task_type_hint=hint)
 
     import anthropic
 
@@ -209,6 +216,10 @@ def reason_about_task(prompt: str, budget: float, has_data: bool) -> TaskReasoni
         "  suggested_base_model: str or null (HuggingFace model ID, e.g. 'bert-base-uncased')\n"
         "  hyperparameters: dict with keys learning_rate, batch_size, epochs, max_seq_len\n"
         "  notes: str (one sentence reasoning summary)\n"
+        "If a requested UI task type is provided, treat it as an operator hint: "
+        "classification usually maps to text-classification, regression may be "
+        "a custom supervised task, and fine-tuning means infer the concrete task "
+        "from the objective and data.\n"
         "Respond with raw JSON only. No markdown, no explanation."
     )
     user_msg = (
@@ -216,6 +227,8 @@ def reason_about_task(prompt: str, budget: float, has_data: bool) -> TaskReasoni
         f"Budget: ${budget:.2f}\n"
         f"User has existing data: {has_data}"
     )
+    if hint:
+        user_msg += f"\nRequested UI task type: {hint}"
     message = client.messages.create(
         model="claude-haiku-4-5",
         max_tokens=512,
@@ -252,9 +265,23 @@ def _env_flag_enabled(name: str) -> bool:
     return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _local_task_reasoning(prompt: str, budget: float, has_data: bool) -> TaskReasoning:
+def _normalize_task_type_hint(task_type_hint: str | None) -> str | None:
+    if task_type_hint is None:
+        return None
+    value = str(task_type_hint).strip().lower()
+    return value if value in {"classification", "regression", "fine-tuning"} else None
+
+
+def _local_task_reasoning(
+    prompt: str,
+    budget: float,
+    has_data: bool,
+    *,
+    task_type_hint: str | None = None,
+) -> TaskReasoning:
     """Deterministic fallback planner for no-live Manager runs."""
-    task_type = _infer_local_task_type(prompt)
+    hint = _normalize_task_type_hint(task_type_hint)
+    task_type = _infer_local_task_type(prompt, task_type_hint=hint)
     data_format = (
         "jsonl with messages or input/output fields"
         if has_data
@@ -279,11 +306,18 @@ def _local_task_reasoning(prompt: str, budget: float, has_data: bool) -> TaskRea
         notes=(
             "Local deterministic planner used because live Manager reasoning "
             "was not enabled."
+            + (f" Operator task hint: {hint}." if hint else "")
         ),
     )
 
 
-def _infer_local_task_type(prompt: str) -> str:
+def _infer_local_task_type(prompt: str, *, task_type_hint: str | None = None) -> str:
+    hint = _normalize_task_type_hint(task_type_hint)
+    if hint == "classification":
+        return "text-classification"
+    if hint == "regression":
+        return "custom"
+
     text = prompt.lower()
     if any(term in text for term in ("translate", "translation")):
         return "translation"
