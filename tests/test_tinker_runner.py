@@ -177,6 +177,7 @@ def test_autoresearch_run_node_calls_tinker_runner(monkeypatch, tmp_path):
         captured["config"] = config
         captured["dataset"] = dataset
         captured["max_steps"] = max_steps
+        captured["run_id"] = kwargs.get("run_id")
         run_dir = tmp_path / "run"
         run_dir.mkdir()
         (run_dir / "metrics.json").write_text(
@@ -203,8 +204,48 @@ def test_autoresearch_run_node_calls_tinker_runner(monkeypatch, tmp_path):
 
     assert result["last_result"]["job_id"] == "fake-run"
     assert captured["max_steps"] == 5
+    assert captured["run_id"].startswith("autoresearch-iteration-")
     assert captured["dataset"]["dataset"]["path"] == str(data_path)
     assert captured["config"].model_name == "Qwen/Qwen3.5-9B"
+
+
+def test_autoresearch_run_node_wraps_tinker_runner_with_cost_manager(monkeypatch, tmp_path):
+    import src.autoresearch.autoresearch as ar
+
+    data_path = _write_jsonl(tmp_path / "train.jsonl", [{"input": "x", "output": "y"}])
+    cost_manager = _FakeCostManager()
+    captured = {}
+
+    def fake_runner(config, dataset, *, run_id=None, max_steps=None, **kwargs):
+        captured["run_id"] = run_id
+        run_dir = tmp_path / "run-cost"
+        run_dir.mkdir()
+        (run_dir / "metrics.json").write_text(
+            json.dumps({"train_loss": 0.4, "val_loss": 0.4, "test_loss": 0.4})
+        )
+        return {
+            "job_id": run_id,
+            "status": "COMPLETED",
+            "metrics": {
+                "train_loss": 0.4,
+                "val_loss": 0.4,
+                "test_loss": 0.4,
+                "primary_metric": 1 / 1.4,
+            },
+            "model_path": str(run_dir),
+            "cost_usd": 0.01,
+            "logs_path": str(run_dir / "metrics.jsonl"),
+        }
+
+    monkeypatch.setattr(ar, "run_tinker_sft_experiment", fake_runner)
+    state = _autoresearch_state(str(data_path))
+    state["cost_manager"] = cost_manager
+
+    result = ar.run_node(state)
+
+    assert result["last_result"]["job_id"] == captured["run_id"]
+    assert cost_manager.started == [captured["run_id"]]
+    assert cost_manager.stopped == 1
 
 
 def _write_jsonl(path: Path, rows: list[dict]) -> Path:
@@ -259,7 +300,20 @@ def _autoresearch_state(dataset_path: str) -> dict:
         "iteration": 0,
         "no_improve_streak": 0,
         "should_stop": False,
+        "cost_manager": None,
     }
+
+
+class _FakeCostManager:
+    def __init__(self):
+        self.started = []
+        self.stopped = 0
+
+    def start(self, job_id):
+        self.started.append(job_id)
+
+    def stop(self):
+        self.stopped += 1
 
 
 class _FakeFuture:

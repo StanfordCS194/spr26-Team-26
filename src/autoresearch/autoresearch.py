@@ -14,6 +14,7 @@ import json
 import math
 from pathlib import Path
 from typing import Any, Literal
+from uuid import uuid4
 
 import anthropic
 
@@ -121,6 +122,7 @@ def invoke_autoresearch_graph(
     initial_state: AutoResearchState = {
         "plan": plan,
         "config": config,
+        "cost_manager": cost_manager,
         "eval_suite": None,
         "current_script": plan["training_script_path"],
         "current_config": config["training_procedure"]["hyperparameters"],
@@ -223,11 +225,7 @@ def baseline_node(state: AutoResearchState) -> dict:
         "BASELINE: submitting unmodified training script",
     )
 
-    experiment = run_tinker_sft_experiment(
-        _training_config_from_state(state),
-        _dataset_result_from_plan(state["plan"]),
-        max_steps=_max_steps_from_state(state),
-    )
+    experiment = _run_tinker_experiment_for_state(state, phase="baseline")
     baseline_score = run_evals(experiment["model_path"], state["eval_suite"])
 
     log_event(
@@ -305,11 +303,7 @@ def run_node(state: AutoResearchState) -> dict:
         metadata={"iteration": state["iteration"] + 1},
     )
 
-    result = run_tinker_sft_experiment(
-        _training_config_from_state(state),
-        _dataset_result_from_plan(state["plan"]),
-        max_steps=_max_steps_from_state(state),
-    )
+    result = _run_tinker_experiment_for_state(state, phase="iteration")
 
     log_event(
         AgentName.AUTORESEARCH,
@@ -735,6 +729,27 @@ def _max_steps_from_state(state: AutoResearchState) -> int:
         if value is not None:
             return max(1, int(value))
     return DEFAULT_LIVE_SMOKE_STEPS
+
+
+def _run_tinker_experiment_for_state(
+    state: AutoResearchState,
+    *,
+    phase: str,
+) -> ExperimentResult:
+    run_id = f"autoresearch-{phase}-{state['iteration']}-{uuid4().hex[:8]}"
+    cost_manager = state.get("cost_manager")
+    if cost_manager is not None:
+        cost_manager.start(run_id)
+    try:
+        return run_tinker_sft_experiment(
+            _training_config_from_state(state),
+            _dataset_result_from_plan(state["plan"]),
+            run_id=run_id,
+            max_steps=_max_steps_from_state(state),
+        )
+    finally:
+        if cost_manager is not None:
+            cost_manager.stop()
 
 
 def submit_experiment(

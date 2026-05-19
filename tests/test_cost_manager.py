@@ -4,6 +4,7 @@ import threading
 import pytest
 from unittest.mock import patch
 from src.cost_manager.cost_manager import (
+    CostManager,
     check_budget_status,
     generate_cost_report,
     save_checkpoint,
@@ -35,6 +36,21 @@ def test_start_cost_monitor_returns_thread():
     assert isinstance(thread, threading.Thread)
     assert thread.is_alive()
     thread.stop_event.set()  # type: ignore[attr-defined]
+    thread.join(timeout=1)
+
+
+def test_cost_manager_stop_signals_monitor_thread():
+    with patch("src.cost_manager.cost_manager.poll_spend", return_value=0.0):
+        manager = CostManager(50.0)
+        manager.start("job-456")
+        thread = manager._thread
+        assert isinstance(thread, threading.Thread)
+        assert thread.is_alive()
+
+        manager.stop()
+
+    assert manager._thread is None
+    assert not thread.is_alive()
 
 
 def test_save_checkpoint_returns_path(tmp_path):

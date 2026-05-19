@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import os
 import threading
-import time
 
 from src.types import BudgetStatus, CostBreakdown
 
@@ -41,7 +40,8 @@ def start_cost_monitor(
                     return
             except Exception:
                 pass  # don't crash the monitor on transient errors
-            time.sleep(poll_interval_sec)
+            if stop_event.wait(poll_interval_sec):
+                return
 
     thread = threading.Thread(target=_monitor, daemon=True, name=f"cost-monitor-{job_id}")
     thread.stop_event = stop_event  # type: ignore[attr-defined]
@@ -105,8 +105,13 @@ class CostManager:
         self._thread: threading.Thread | None = None
 
     def start(self, job_id: str) -> None:
+        self.stop()
         self._thread = start_cost_monitor(job_id, self.budget)
 
     def stop(self) -> None:
         if self._thread:
+            stop_event = getattr(self._thread, "stop_event", None)
+            if stop_event is not None:
+                stop_event.set()
             self._thread.join(timeout=5)
+            self._thread = None

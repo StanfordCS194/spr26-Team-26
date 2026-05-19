@@ -6,7 +6,7 @@ See spec-site/content/spec.ts for the canonical definitions.
 
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import Any, TypedDict
 
 
 # ENUMS
@@ -276,6 +276,7 @@ class DataGenState(TypedDict):
 class AutoResearchState(TypedDict):
     plan: TrainingPlan
     config: OrchestrationConfig
+    cost_manager: Any
     eval_suite: EvalSuite | None
     current_script: str        # path to the training script (never mutated by PROPOSE)
     current_config: dict       # live hyperparams; updated by keep_node after each KEPT patch
