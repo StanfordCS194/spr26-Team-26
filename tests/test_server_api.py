@@ -138,6 +138,7 @@ def _fake_model(tmp_path, *, total_cost=1.25, with_artifacts=False):
             run_id="tinker-run",
             state_path="tinker://state/abc",
             sampler_path="tinker://sampler/abc",
+            backend="tinker_sft",
         )
     return {
         "weights_path": weights_path,
@@ -283,7 +284,7 @@ def test_create_run_surfaces_artifacts_and_allowlisted_downloads(tmp_path, monke
     assert artifacts["checkpoints"]["state_path"] == "tinker://state/abc"
     assert artifacts["metrics"]["val_loss"] == 0.29
     assert artifacts["sample"]["text"] == "sample completion"
-    assert state["provenance"]["trainingBackend"] == "tinker"
+    assert state["provenance"]["trainingBackend"] == "tinker_sft"
     assert state["provenance"]["spendMode"] == "live"
     assert "Tinker" in state["provenance"]["liveServices"]
 

@@ -645,7 +645,7 @@ def _provenance_for_record(record: _RunRecord) -> RunProvenanceView:
     configured_backend = os.getenv("TINKER_BACKEND", "").strip().replace("-", "_").lower()
 
     live_services: list[str] = []
-    if not no_spend and backend_key == "tinker":
+    if not no_spend and backend_key in {"tinker", "tinker_sft"}:
         live_services.append("Tinker")
 
     format_meta = _data_format_meta(data_debug)

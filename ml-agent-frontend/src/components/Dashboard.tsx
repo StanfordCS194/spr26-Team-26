@@ -99,7 +99,7 @@ function spendModeLabel(value?: string | null) {
 function backendLabel(value?: string | null) {
   const normalized = value?.replace('-', '_').toLowerCase();
   if (normalized === 'dry_run') return 'Tinker dry-run';
-  if (normalized === 'tinker') return 'Live Tinker';
+  if (normalized === 'tinker' || normalized === 'tinker_sft') return 'Live Tinker';
   return value ? titleCaseToken(value) : null;
 }
 
