@@ -31,3 +31,4 @@ Operating rules:
 - 2026-05-19 05:40 PDT — Draft PR #42 opened: test-only offline Manager -> DataGen -> curation -> DecisionEngine -> AutoResearch baseline -> fake Tinker boundary test, stacked on #40.
 - 2026-05-19 05:43 PDT — Draft PR #39 updated by worker: CostManager now has in-process spend accounting and AutoResearch records baseline/iteration Tinker costs into it.
 - 2026-05-19 05:45 PDT — Draft PR #43 opened: Tinker SFT runner now uses `LAST_ASSISTANT_MESSAGE` per assistant target, eliminating the live cookbook renderer warning. Live 2-step Tinker smoke passed.
+- 2026-05-19 05:48 PDT — Draft PR #44 opened: Mode C web sources can now be teacher-structured into schema-valid chat/SFT rows, while raw/unstructured web pages remain invalid for training.

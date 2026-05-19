@@ -16,3 +16,4 @@
 - 2026-05-19 05:32 PDT — Keep the full live HF retrieval suite out of broad smoke commands. It enumerates and downloads many datasets and is a separate external validation, not a cheap overnight regression check.
 - 2026-05-19 05:36 PDT — For live Tinker smoke budgeting, use conservative $2.50 ledger entries even when local token/cost reports are much lower. This keeps the $100 cap safe until authoritative billing is exposed.
 - 2026-05-19 05:45 PDT — Use `LAST_ASSISTANT_MESSAGE` for Tinker chat/SFT V1 and split multi-assistant conversations into one target per assistant turn. This follows the cookbook-safe path for renderers without the extension property.
+- 2026-05-19 05:48 PDT — Web acquisition and web structuring remain separate stages. Raw web pages are source material only; teacher structuring must produce schema-valid SFT rows before curation/training can proceed.
