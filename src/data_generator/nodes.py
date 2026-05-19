@@ -10,6 +10,7 @@ from src.data_generator.mode_b import (
     fetch_hf_datasets,
     parse_explicit_hf_dataset_ids,
 )
+from src.data_generator.mode_c import acquire_synthetic_dataset
 from src.types import DataGenState
 
 
@@ -58,12 +59,22 @@ def acquire_hf_data_node(state: DataGenState) -> dict:
     }
 
 
+def acquire_web_data_node(state: DataGenState) -> dict:
+    """Synthetic Mode C acquisition node kept for non-web fallback/tests."""
+    result = acquire_synthetic_dataset(state["config"])
+    return {
+        "schema": result.schema,
+        "raw_data": result.raw_data,
+        "validation_report": result.validation_report,
+    }
+
+
 def build_handoff_node(state: DataGenState) -> dict:
     """
     Final handoff from first sub-agent to second sub-agent.
 
-    This does not structure/clean/split/validate the dataset.
-    It only packages acquired raw data + provenance.
+    This packages acquired raw data, curation-facing normalized records, and
+    provenance. The actual trainable JSONL is written by the curation gate.
     """
     raw_data = state.get("raw_data") or {}
     mode = state.get("mode")
@@ -81,13 +92,19 @@ def build_handoff_node(state: DataGenState) -> dict:
             "curation_human_readable": curation_human_readable,
             "raw_data": raw_data,
             "human_readable": preserved_human_readable,
+            "schema": state.get("schema"),
+            "validation_report": state.get("validation_report"),
             "hf_candidates": state.get("hf_candidates", []),
             "selected_candidate": state.get("selected_candidate"),
             "web_plan": state.get("web_plan"),
             "web_search_results": state.get("web_search_results", []),
+            "mode_c_fallback": state.get("mode_c_fallback"),
+            "web_acquisition_error": state.get("web_acquisition_error"),
             "source_metadata": {
                 "data_path": state.get("data_path"),
                 "mode": mode,
+                "mode_c_fallback": state.get("mode_c_fallback"),
+                "web_acquisition_error": state.get("web_acquisition_error"),
                 "raw_format": raw_data.get("format_meta"),
                 "curation_contract_version": curation_payload.get("schema_version"),
                 "curation_record_count": len(curation_payload.get("records", [])),

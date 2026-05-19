@@ -277,6 +277,8 @@ class DataGenState(TypedDict, total=False):
     web_search_results: list[dict]
     web_pages: list[dict]
     human_readable: str | None
+    mode_c_fallback: str | None
+    web_acquisition_error: str | None
 
 
 class AutoResearchState(TypedDict):

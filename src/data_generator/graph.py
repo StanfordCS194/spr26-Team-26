@@ -93,6 +93,8 @@ def invoke_data_generator_graph(config: OrchestrationConfig, data_path: str | No
         "web_search_results": [],
         "web_pages": [],
         "human_readable": None,
+        "mode_c_fallback": None,
+        "web_acquisition_error": None,
     }
 
     final_state = graph.invoke(initial_state)
