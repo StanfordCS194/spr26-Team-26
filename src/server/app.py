@@ -60,6 +60,38 @@ ARTIFACT_DEFINITIONS = {
     "sample": ("Sample", "sample.json", "application/json"),
     "diary": ("Research Diary", None, "application/x-ndjson"),
 }
+DATA_GENERATOR_ARTIFACT_DEFINITIONS = {
+    "data_manifest": (
+        "Data Manifest",
+        "manifest",
+        "artifact_manifest.json",
+        "application/json",
+    ),
+    "data_handoff": (
+        "Data Handoff",
+        "handoff_payload",
+        "raw_handoff_data.json",
+        "application/json",
+    ),
+    "data_curation_report": (
+        "Data Curation Report",
+        "curation_human_readable",
+        "human_readable.md",
+        "text/markdown",
+    ),
+    "data_debug_context": (
+        "Data Debug Context",
+        "debug_context",
+        "debug_context.json",
+        "application/json",
+    ),
+    "data_source_report": (
+        "Data Source Report",
+        "source_human_readable",
+        "source_human_readable.md",
+        "text/markdown",
+    ),
+}
 
 
 app = FastAPI(title="Nemoral ML Agent API")
@@ -525,6 +557,79 @@ def _is_run_artifact_path(record: _RunRecord, path: Path | None) -> bool:
     return True
 
 
+def _is_run_artifact_dir(record: _RunRecord, path: Path | None) -> bool:
+    if path is None or not path.is_dir():
+        return False
+    try:
+        path.resolve().relative_to(record.output_dir.resolve())
+    except ValueError:
+        return False
+    return True
+
+
+def _path_is_within(path: Path, parent: Path) -> bool:
+    try:
+        path.resolve().relative_to(parent.resolve())
+    except ValueError:
+        return False
+    return True
+
+
+def _latest_data_generator_manifest(record: _RunRecord) -> tuple[dict[str, Any] | None, Path | None]:
+    latest = _read_json_if_exists(record.output_dir / "data_generator" / "latest_run.json")
+    if not latest:
+        return None, None
+
+    manifest_path = _resolve_reported_path(record, latest.get("manifest_path"))
+    if (
+        not _is_run_artifact_path(record, manifest_path)
+        or manifest_path is None
+        or manifest_path.name != "artifact_manifest.json"
+    ):
+        return None, None
+    return _read_json_if_exists(manifest_path), manifest_path
+
+
+def _data_generator_artifact_dir(
+    record: _RunRecord,
+    manifest: dict[str, Any],
+    manifest_path: Path,
+) -> Path | None:
+    artifact_dir = _resolve_reported_path(record, manifest.get("artifact_dir"))
+    if not _is_run_artifact_dir(record, artifact_dir):
+        artifact_dir = manifest_path.parent
+    return artifact_dir if _is_run_artifact_dir(record, artifact_dir) else None
+
+
+def _data_generator_artifact_paths(record: _RunRecord) -> dict[str, Path]:
+    manifest, manifest_path = _latest_data_generator_manifest(record)
+    if not manifest or manifest_path is None:
+        return {}
+
+    artifact_dir = _data_generator_artifact_dir(record, manifest, manifest_path)
+    if artifact_dir is None:
+        return {}
+
+    files = manifest.get("files")
+    files = files if isinstance(files, dict) else {}
+    paths: dict[str, Path] = {"data_manifest": manifest_path}
+
+    for name, (_, manifest_key, filename, _) in DATA_GENERATOR_ARTIFACT_DEFINITIONS.items():
+        if name == "data_manifest":
+            continue
+        reported = files.get(manifest_key)
+        path = _resolve_reported_path(record, reported) if reported else artifact_dir / filename
+        if (
+            _is_run_artifact_path(record, path)
+            and path is not None
+            and path.name == filename
+            and _path_is_within(path, artifact_dir)
+        ):
+            paths[name] = path
+
+    return paths
+
+
 def _artifacts_from_result(record: _RunRecord, result: dict[str, Any]) -> RunArtifactsView:
     model_path = _resolve_reported_path(record, result.get("weights_path"))
     diary_path = _resolve_reported_path(record, result.get("research_diary_path"))
@@ -552,6 +657,24 @@ def _artifacts_from_result(record: _RunRecord, result: dict[str, Any]) -> RunArt
             artifact_paths[name] = path
             artifact_content_types[name] = content_type
 
+    data_paths = _data_generator_artifact_paths(record)
+    if data_paths:
+        for name, (label, _, _, content_type) in DATA_GENERATOR_ARTIFACT_DEFINITIONS.items():
+            path = data_paths.get(name)
+            downloadable = _is_run_artifact_path(record, path)
+            view = _artifact_view(
+                run_id=record.run_id,
+                name=name,
+                label=label,
+                path=path,
+                content_type=content_type,
+                downloadable=downloadable,
+            )
+            files.append(view)
+            if downloadable and path is not None:
+                artifact_paths[name] = path
+                artifact_content_types[name] = content_type
+
     manifest = _read_json_if_exists(artifact_paths.get("manifest"))
     checkpoints = manifest.get("checkpoints", {}) if manifest else {}
     metrics = _read_json_if_exists(artifact_paths.get("metrics"))
@@ -577,14 +700,9 @@ def _latest_tinker_manifest(record: _RunRecord) -> tuple[dict[str, Any] | None, 
 
 
 def _latest_data_generator_debug(record: _RunRecord) -> tuple[dict[str, Any] | None, Path | None]:
-    latest = _read_json_if_exists(record.output_dir / "data_generator" / "latest_run.json")
-    if not latest:
+    debug_path = _data_generator_artifact_paths(record).get("data_debug_context")
+    if debug_path is None:
         return None, None
-
-    manifest_path = _resolve_reported_path(record, latest.get("manifest_path"))
-    manifest = _read_json_if_exists(manifest_path)
-    files = manifest.get("files", {}) if manifest else {}
-    debug_path = _resolve_reported_path(record, files.get("debug_context"))
     return _read_json_if_exists(debug_path), debug_path
 
 
@@ -813,7 +931,10 @@ def get_run_artifact(run_id: str, artifact_name: str) -> FileResponse:
         record = _RUNS.get(run_id)
         if record is None:
             raise HTTPException(status_code=404, detail="run not found")
-        if artifact_name not in ARTIFACT_DEFINITIONS:
+        if (
+            artifact_name not in ARTIFACT_DEFINITIONS
+            and artifact_name not in DATA_GENERATOR_ARTIFACT_DEFINITIONS
+        ):
             raise HTTPException(status_code=404, detail="artifact not found")
         _refresh_record_from_files(record)
         path = record.artifact_paths.get(artifact_name)

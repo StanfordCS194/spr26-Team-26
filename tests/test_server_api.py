@@ -76,6 +76,22 @@ def _write_data_generator_debug_artifacts(
     artifact_dir.mkdir(parents=True, exist_ok=True)
     debug_path = artifact_dir / "debug_context.json"
     manifest_path = artifact_dir / "artifact_manifest.json"
+    handoff_path = artifact_dir / "raw_handoff_data.json"
+    report_path = artifact_dir / "human_readable.md"
+    source_report_path = artifact_dir / "source_human_readable.md"
+    handoff_path.write_text(
+        json.dumps(
+            {
+                "target_subagent": "data_curation",
+                "action": "curate_dataset",
+                "mode_used": mode_used,
+                "curation_payload": {"record_count": 1},
+            }
+        ),
+        encoding="utf-8",
+    )
+    report_path.write_text("# Curation report\n\n1 trainable row.\n", encoding="utf-8")
+    source_report_path.write_text("# Source report\n\nSynthetic fallback.\n", encoding="utf-8")
     debug_path.write_text(
         json.dumps(
             {
@@ -99,7 +115,13 @@ def _write_data_generator_debug_artifacts(
         json.dumps(
             {
                 "mode_used": mode_used,
-                "files": {"debug_context": str(debug_path)},
+                "artifact_dir": str(artifact_dir),
+                "files": {
+                    "handoff_payload": str(handoff_path),
+                    "curation_human_readable": str(report_path),
+                    "debug_context": str(debug_path),
+                    "source_human_readable": str(source_report_path),
+                },
             }
         ),
         encoding="utf-8",
@@ -351,6 +373,147 @@ def test_run_state_surfaces_provenance_from_manifests(tmp_path, monkeypatch):
     assert provenance["liveServices"] == []
     assert any(item.endswith("manifest.json") for item in provenance["evidence"])
     assert any(item.endswith("debug_context.json") for item in provenance["evidence"])
+
+    files = {item["name"]: item for item in state["artifacts"]["files"]}
+    assert files["data_manifest"]["exists"] is True
+    assert files["data_handoff"]["exists"] is True
+    assert files["data_curation_report"]["exists"] is True
+    assert files["data_debug_context"]["downloadPath"] == (
+        f"/runs/{response.json()['run_id']}/artifacts/data_debug_context"
+    )
+    debug_response = client.get(
+        f"/api/runs/{response.json()['run_id']}/artifacts/data_debug_context"
+    )
+    assert debug_response.status_code == 200
+    assert debug_response.json()["mode_used"] == "C"
+    source_report_response = client.get(
+        f"/api/runs/{response.json()['run_id']}/artifacts/data_source_report"
+    )
+    assert source_report_response.status_code == 200
+    assert "Synthetic fallback" in source_report_response.text
+
+
+def test_data_generator_artifact_downloads_are_allowlisted(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    def fake_invoke(prompt, budget, data_path=None):
+        root = get_output_root()
+        assert root is not None
+        run_dir = root / "experiments" / "dry-run"
+        _write_tinker_artifacts(
+            run_dir,
+            run_id="dry-run",
+            state_path="dry-run://state/abc",
+            backend="dry_run",
+        )
+
+        secret = tmp_path / "secret.json"
+        secret.write_text('{"secret": true}\n', encoding="utf-8")
+        artifact_dir = root / "data_generator" / "artifacts"
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        manifest_path = artifact_dir / "artifact_manifest.json"
+        safe_debug_path = artifact_dir / "debug_context.json"
+        safe_debug_path.write_text('{"mode_used": "C"}\n', encoding="utf-8")
+        hidden_path = artifact_dir / "hidden.json"
+        hidden_path.write_text('{"hidden": true}\n', encoding="utf-8")
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "mode_used": "C",
+                    "artifact_dir": str(artifact_dir),
+                    "files": {
+                        "debug_context": str(secret),
+                        "handoff_payload": str(hidden_path),
+                        "secret": str(hidden_path),
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (root / "data_generator" / "latest_run.json").write_text(
+            json.dumps({"mode_used": "C", "manifest_path": str(manifest_path)}),
+            encoding="utf-8",
+        )
+
+        result = _fake_model(root, total_cost=0.0)
+        result["weights_path"] = str(run_dir)
+        return result
+
+    monkeypatch.setattr(server_app, "invoke_manager_graph", fake_invoke)
+    client = TestClient(server_app.app)
+
+    response = client.post(
+        "/api/runs",
+        json={
+            "prompt": "Fine tune with guarded DataGen artifact downloads",
+            "budget": 25,
+            "task_type": "fine-tuning",
+        },
+    )
+
+    assert response.status_code == 200
+    run_id = response.json()["run_id"]
+    state = _wait_for_status(client, run_id, "complete")
+    files = {item["name"]: item for item in state["artifacts"]["files"]}
+
+    assert files["data_manifest"]["downloadPath"] == f"/runs/{run_id}/artifacts/data_manifest"
+    assert files["data_debug_context"]["exists"] is False
+    assert files["data_debug_context"]["downloadPath"] is None
+    assert files["data_handoff"]["exists"] is False
+    assert files["data_handoff"]["downloadPath"] is None
+    assert "secret" not in files
+    assert client.get(f"/api/runs/{run_id}/artifacts/data_manifest").status_code == 200
+    assert client.get(f"/api/runs/{run_id}/artifacts/data_debug_context").status_code == 404
+    assert client.get(f"/api/runs/{run_id}/artifacts/secret").status_code == 404
+
+
+def test_data_generator_manifest_path_must_stay_inside_run(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    def fake_invoke(prompt, budget, data_path=None):
+        root = get_output_root()
+        assert root is not None
+        run_dir = root / "experiments" / "dry-run"
+        _write_tinker_artifacts(
+            run_dir,
+            run_id="dry-run",
+            state_path="dry-run://state/abc",
+            backend="dry_run",
+        )
+
+        external_manifest = tmp_path / "external_manifest.json"
+        external_manifest.write_text(
+            json.dumps({"files": {"debug_context": str(tmp_path / "secret.json")}}),
+            encoding="utf-8",
+        )
+        (root / "data_generator").mkdir(parents=True, exist_ok=True)
+        (root / "data_generator" / "latest_run.json").write_text(
+            json.dumps({"mode_used": "C", "manifest_path": str(external_manifest)}),
+            encoding="utf-8",
+        )
+
+        result = _fake_model(root, total_cost=0.0)
+        result["weights_path"] = str(run_dir)
+        return result
+
+    monkeypatch.setattr(server_app, "invoke_manager_graph", fake_invoke)
+    client = TestClient(server_app.app)
+
+    response = client.post(
+        "/api/runs",
+        json={
+            "prompt": "Fine tune with an escaped DataGen manifest",
+            "budget": 25,
+            "task_type": "fine-tuning",
+        },
+    )
+
+    assert response.status_code == 200
+    run_id = response.json()["run_id"]
+    state = _wait_for_status(client, run_id, "complete")
+    files = {item["name"]: item for item in state["artifacts"]["files"]}
+    assert "data_manifest" not in files
+    assert client.get(f"/api/runs/{run_id}/artifacts/data_manifest").status_code == 404
 
 
 def test_running_run_refreshes_logs_iterations_metrics_and_artifacts(tmp_path, monkeypatch):
