@@ -29,6 +29,7 @@ having to infer dependencies from GitHub.
    - #60 `codex/tinker-mean-final-metrics` -> #57
    - #62 `codex/tinker-heldout-eval` -> #60
    - #65 `codex/tinker-heldout-batches` -> #62
+   - #81 `codex/tinker-runner-strict-json` -> #65
 4. DataGen/Manager chain:
    - #40 `codex/datagen-integration` -> #35
    - #42 `codex/e2e-manager-datagen-tinker-boundary` -> #40
@@ -172,5 +173,8 @@ on top of #51.
   budget-preflight skip metrics no longer serialize `Infinity`. The unpublished
   composition branch includes #80 and still passes compileall plus the full
   no-live Python suite (`255 passed, 9 skipped`).
+- #81 applies the same strict-artifact principle inside the Tinker runner for
+  non-finite SDK training/heldout losses. The unpublished composition branch
+  includes #81 and passes the full no-live Python suite (`257 passed, 9 skipped`).
 
 Current conservative live spend: `$78.64 / $100.00`.
