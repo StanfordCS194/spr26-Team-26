@@ -699,7 +699,7 @@ def test_create_run_local_jsonl_reaches_tinker_dry_run_without_live_credentials(
     monkeypatch.setenv("MANAGER_REASONER", "local")
     monkeypatch.setenv("AUTORESEARCH_PROPOSER", "local")
     monkeypatch.setenv("AUTORESEARCH_EVAL_ADAPTATION", "off")
-    monkeypatch.setenv("TINKER_BACKEND", "dry_run")
+    monkeypatch.delenv("TINKER_BACKEND", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("TINKER_API_KEY", raising=False)
 
@@ -756,7 +756,7 @@ def test_create_run_hf_data_path_reaches_tinker_dry_run_without_live_credentials
     monkeypatch.setenv("AUTORESEARCH_EVAL_ADAPTATION", "off")
     monkeypatch.setenv("DATA_GENERATOR_OFFLINE", "1")
     monkeypatch.setenv("DATA_GENERATOR_MAX_ROWS_PER_DATASET", "6")
-    monkeypatch.setenv("TINKER_BACKEND", "dry_run")
+    monkeypatch.delenv("TINKER_BACKEND", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("TINKER_API_KEY", raising=False)
 
@@ -813,7 +813,7 @@ def test_create_run_without_data_path_reaches_mode_c_tinker_dry_run_without_live
     monkeypatch.setenv("DATA_GENERATOR_SYNTHETIC_OFFLINE", "1")
     monkeypatch.setenv("DATA_GENERATOR_MODE_C_BACKEND", "synthetic")
     monkeypatch.setenv("DATA_GENERATOR_MAX_ROWS_PER_DATASET", "6")
-    monkeypatch.setenv("TINKER_BACKEND", "dry_run")
+    monkeypatch.delenv("TINKER_BACKEND", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("TINKER_API_KEY", raising=False)
     monkeypatch.delenv("TAVILY_API_KEY", raising=False)
