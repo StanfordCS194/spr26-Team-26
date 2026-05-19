@@ -16,9 +16,9 @@ const RESULT_TOOLTIPS: Record<string, { label: string; body: string }> = {
     label: 'Validation Accuracy',
     body: 'The model\'s correct-prediction rate on held-out data it has never seen. This is the more honest measure of real-world performance.',
   },
-  'Total Cost': {
-    label: 'Total Compute Cost',
-    body: 'The full cost of this training run across all pipeline stages, billed against your original budget cap.',
+  'Budget Used': {
+    label: 'Budget Accounted',
+    body: 'The amount counted against this run\'s budget cap. Dry-run and no-spend runs use reserved or estimated budget, not provider-billed spend.',
   },
 };
 
@@ -53,7 +53,7 @@ export default function FinalResults({ state, onReset }: Props) {
   const results = [
     { label: 'Final F1', value: bestIter ? bestIter.f1.toFixed(3) : '—' },
     { label: 'Val Accuracy', value: lastMetric ? `${(lastMetric.accuracy * 100).toFixed(1)}%` : '—' },
-    { label: 'Total Cost', value: `$${state.costSpent.toFixed(2)}` },
+    { label: 'Budget Used', value: `$${state.costSpent.toFixed(2)}` },
   ];
   const compactPath = (value?: string | null) => {
     if (!value) return '—';
@@ -199,22 +199,6 @@ export default function FinalResults({ state, onReset }: Props) {
             placement="top"
           />
         </span>
-        <button
-          onClick={() => alert('Deploy endpoint: configure in production')}
-          style={{
-            padding: '0.5rem 1rem',
-            background: 'var(--success-dim)',
-            border: '0.5px solid var(--success)',
-            borderRadius: '6px',
-            color: 'var(--success)',
-            fontSize: '13px',
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-          }}
-          aria-label="Deploy model"
-        >
-          Deploy Model
-        </button>
         <button
           onClick={onReset}
           style={{

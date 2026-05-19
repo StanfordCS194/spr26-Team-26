@@ -17,8 +17,8 @@ const TOOLTIPS: Record<string, { label: string; body: string }> = {
     body: 'The model\'s correct-prediction rate on held-out data it has never seen. This is the more honest measure of real-world performance.',
   },
   cost: {
-    label: 'Accumulated Cost',
-    body: 'Total compute spend so far across all pipeline stages. Updates in real time so you can monitor burn against your budget.',
+    label: 'Budget Accounted',
+    body: 'Amount counted against the run budget so far. Dry-run and no-spend runs use reserved or estimated budget, not provider-billed spend.',
   },
   iter: {
     label: 'Experiment Iterations',
@@ -75,7 +75,7 @@ export default function MetricsGrid({ metrics, costSpent }: Props) {
     >
       <MetricCard label="Training Loss" value={loss} tooltipKey="loss" />
       <MetricCard label="Val Accuracy" value={accuracy} tooltipKey="accuracy" />
-      <MetricCard label="Cost Spent" value={cost} tooltipKey="cost" />
+      <MetricCard label="Budget Used" value={cost} tooltipKey="cost" />
       <MetricCard label="Iterations" value={iter} tooltipKey="iter" />
     </div>
   );

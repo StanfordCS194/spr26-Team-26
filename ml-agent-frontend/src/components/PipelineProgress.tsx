@@ -109,8 +109,8 @@ export default function PipelineProgress({ stages, costSpent, budget }: Props) {
           <div style={{ display: 'flex', alignItems: 'center' }}>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Budget</span>
             <Tooltip
-              label="Live Budget Usage"
-              body="Tracks how much of your cost cap has been spent so far. Turns amber at 50% and red at 70% as a warning before the limit is hit."
+              label="Budget Usage"
+              body="Tracks budget-accounted usage against the run cap. Dry-run and no-spend runs use reserved or estimated budget, not provider-billed spend."
               placement="bottom"
             />
           </div>

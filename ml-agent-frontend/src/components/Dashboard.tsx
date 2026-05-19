@@ -79,7 +79,7 @@ function CancelledArtifacts({ state, onReset }: Props) {
   const results = [
     { label: 'Checkpoint F1', value: bestIter ? bestIter.f1.toFixed(3) : '—' },
     { label: 'Val Accuracy', value: lastMetric ? `${(lastMetric.accuracy * 100).toFixed(1)}%` : '—' },
-    { label: 'Cost Spent', value: `$${state.costSpent.toFixed(2)}` },
+    { label: 'Budget Used', value: `$${state.costSpent.toFixed(2)}` },
   ];
 
   return (
