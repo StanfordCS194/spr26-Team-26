@@ -368,6 +368,18 @@ def test_no_spend_guards_block_sdk_helpers_before_construction_or_use(
     assert "blocked-job" not in api._token_ledger
 
     _assert_live_tinker_call_blocked(
+        api,
+        lambda: api.run_training_loop(
+            training_client, [batch], learning_rate=1e-4, job_id="blocked-loop"
+        ),
+        reason,
+    )
+    training_client.forward_backward.assert_not_called()
+    training_client.optim_step.assert_not_called()
+    training_client.save_weights_for_sampler.assert_not_called()
+    assert "blocked-loop" not in api._token_ledger
+
+    _assert_live_tinker_call_blocked(
         api, lambda: api.save_checkpoint(training_client, name="ckpt"), reason
     )
     training_client.save_weights_and_get_sampling_client.assert_not_called()

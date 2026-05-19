@@ -192,6 +192,7 @@ def run_training_loop(
     Saves a final checkpoint when done or cancelled.
     Returns ``{"steps": int, "tokens": int, "cancelled": bool}``.
     """
+    _require_live_tinker_allowed("run_training_loop")
     steps = 0
     total_tokens = 0
     cancelled = False
