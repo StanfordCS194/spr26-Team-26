@@ -2,6 +2,7 @@
 
 import json
 import math
+import sys
 from pathlib import Path
 
 import pytest
@@ -739,6 +740,19 @@ def test_propose_hypothesis_canonicalizes_tinker_alias_patch(monkeypatch):
     assert '"max_seq_len":' not in captured["messages"][0]["content"]
 
 
+def test_propose_hypothesis_no_spend_blocks_anthropic_client(monkeypatch):
+    import src.autoresearch.autoresearch as ar
+
+    def fail_client():
+        raise AssertionError("Anthropic client should not be constructed")
+
+    monkeypatch.setenv("NO_SPEND", "1")
+    monkeypatch.setattr(ar.anthropic, "Anthropic", fail_client)
+
+    with pytest.raises(RuntimeError, match="NO_SPEND=1"):
+        ar.propose_hypothesis({"learning_rate": 1e-4}, [], _minimal_task())
+
+
 def test_propose_hypothesis_still_rejects_unsupported_tinker_patch(monkeypatch):
     import src.autoresearch.autoresearch as ar
 
@@ -769,6 +783,42 @@ def test_propose_hypothesis_still_rejects_unsupported_tinker_patch(monkeypatch):
             _minimal_task(),
             allowed_params=["learning_rate", "num_epochs"],
         )
+
+
+def test_adapt_eval_suite_no_spend_blocks_anthropic_client(monkeypatch):
+    import src.autoresearch.autoresearch as ar
+
+    def fail_client():
+        raise AssertionError("Anthropic client should not be constructed")
+
+    monkeypatch.setenv("NO_SPEND", "1")
+    monkeypatch.setattr(ar.anthropic, "Anthropic", fail_client)
+
+    suite = {
+        "primary_metric": "accuracy",
+        "metrics": ["accuracy"],
+        "test_split_path": "",
+        "use_llm_grading": False,
+    }
+    with pytest.raises(RuntimeError, match="NO_SPEND=1"):
+        ar.adapt_eval_suite(suite, ["weakness"])
+
+
+def test_cli_no_spend_rejects_claude_strategy_before_api_key_check(monkeypatch):
+    import src.autoresearch.__main__ as cli
+
+    monkeypatch.setenv("NO_SPEND", "1")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "present-but-no-spend")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["python -m src.autoresearch", "--strategy", "claude", "--n-iters", "1"],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main()
+
+    assert exc_info.value.code == 1
 
 
 def test_keep_node_canonicalizes_tinker_alias_patch():

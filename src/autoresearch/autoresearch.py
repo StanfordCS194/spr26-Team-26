@@ -70,6 +70,11 @@ def _env_truthy(name: str) -> bool:
     return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _raise_if_no_spend_live_llm(operation: str) -> None:
+    if _env_truthy(_NO_SPEND_ENV):
+        raise RuntimeError(f"{operation} is disabled when {_NO_SPEND_ENV}=1")
+
+
 def _patch_to_diff(patch_dict: dict, current_config: dict) -> str:
     """Build a human-readable diff string from a patch dict and the pre-patch config."""
     lines = []
@@ -691,6 +696,7 @@ def propose_hypothesis(
     allowed_params: list[str] | None = None,
 ) -> Hypothesis:
     """Calls Claude API (claude-haiku-4-5-20251001) to generate a single testable hypothesis as a code/config diff."""
+    _raise_if_no_spend_live_llm("Claude hypothesis proposal")
     client = anthropic.Anthropic()
     recent = diary[-5:] if len(diary) > 5 else diary
     prompt_config = (
@@ -1274,6 +1280,7 @@ def create_eval_suite(task: TaskAnalysis, dataset: DatasetResult) -> EvalSuite:
 
 def adapt_eval_suite(suite: EvalSuite, weaknesses: list[str]) -> EvalSuite:
     """Adds harder eval examples targeting systematic weaknesses detected across recent iterations."""
+    _raise_if_no_spend_live_llm("Claude eval suite adaptation")
     client = anthropic.Anthropic()
 
     user = f"""You are an ML evaluation expert reviewing an AutoResearch experiment loop.
