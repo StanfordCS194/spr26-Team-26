@@ -1,6 +1,6 @@
 # Overnight PR Stack
 
-Updated: 2026-05-19 10:58 PDT
+Updated: 2026-05-19 11:04 PDT
 
 Purpose: give reviewers a merge/review order for the draft PR stack without
 having to infer dependencies from GitHub.
@@ -44,6 +44,8 @@ having to infer dependencies from GitHub.
    - #82 `codex/api-artifact-download-path` -> #77
    - #78 `codex/api-progress-cancel` -> #77
    - #83 `codex/api-artifact-stable-refresh` -> #78
+   - #86 `codex/api-preserve-terminal-metrics` -> #83
+   - #87 `codex/frontend-cancelled-artifacts-budget` -> #83
    - #52 `codex/preserve-chat-messages-curation` -> #40
    - #58 `codex/curation-small-splits` -> #52
    - #64 `codex/curation-source-splits` -> #58
@@ -75,9 +77,9 @@ having to infer dependencies from GitHub.
 
 ## Latest Local Stack Validation
 
-Unpublished local stack currently includes #55 through #85, including the API,
+Unpublished local stack currently includes #55 through #87, including the API,
 DataGen, AutoResearch, Tinker, Manager, and frontend leaves listed above. The
-latest composed validation after #85 passed with `260 passed, 6 skipped`.
+latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
 
 - `python3 -m compileall src`
 - Full non-live suite with live Tinker/HF cases skipped by default:
@@ -217,5 +219,12 @@ latest composed validation after #85 passed with `260 passed, 6 skipped`.
   The capped live no-data API rerun completed with requested caps `[8, 8, 8]`,
   5 curated rows, baseline plus one Tinker candidate, and five working artifact
   downloads.
+- #86 preserves streamed API metrics when a run reaches terminal complete state;
+  the fallback summary metric remains for runs without streamed points. It
+  composes cleanly with the local stack; focused API tests passed (`17 passed`)
+  and the full composed no-live suite remained `260 passed, 6 skipped`.
+- #87 makes cancelled-run artifacts visible in the frontend when the backend
+  exposes them and lowers the UI budget minimum to `$1` for cheap smoke runs.
+  Frontend lint/build passed on the branch and in the composed stack.
 
 Current conservative live spend: `$94.14 / $100.00`.
