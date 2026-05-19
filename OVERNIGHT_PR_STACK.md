@@ -1,6 +1,6 @@
 # Overnight PR Stack
 
-Updated: 2026-05-19 08:27 PDT
+Updated: 2026-05-19 08:40 PDT
 
 Purpose: give reviewers a merge/review order for the draft PR stack without
 having to infer dependencies from GitHub.
@@ -33,6 +33,7 @@ having to infer dependencies from GitHub.
    - #52 `codex/preserve-chat-messages-curation` -> #40
    - #58 `codex/curation-small-splits` -> #52
    - #64 `codex/curation-source-splits` -> #58
+   - #67 `codex/hf-live-test-controls` -> #64
 5. Integration/docs:
    - #51 `codex/full-stack-contract-smoke` -> #48
    - #49 `codex/spec-tinker-sdk-docs` -> #51
@@ -73,5 +74,7 @@ Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
   split 17/2/3 and `batch_size=2`.
 - Local stack after adding #66 passed compileall and the broad non-live suite
   excluding live Tinker/HF retrieval with `208 passed, 7 skipped`.
+- #67 focused suite passed with `21 passed, 3 skipped`; tiny opt-in live HF
+  smoke passed with one dataset and a three-row cap.
 
 Current conservative live spend: `$48.54 / $100.00`.

@@ -54,6 +54,7 @@ Budget cap: $100 total.
 | tinker-017 | 2026-05-19 08:23 | local only #65 stack | live batched heldout validation | Tinker | passed | $2.50 | $48.54 | Direct runner smoke on the 22-row web DataGen `DatasetResult`: `Qwen/Qwen3.5-9B`, 1 step, split 17 train / 2 val / 3 test, `batch_size=2`. Completed with heldout `val_loss=10.51830530166626`, `test_loss=10.068393389383951`. Artifacts at `outputs/overnight/live-heldout-batches/live-heldout-batches-1779203847`. |
 | stack-017 | 2026-05-19 08:25 | #66 | Tinker plan metric validation | none | passed | $0.00 | $48.54 | Draft PR #66 opened. DecisionEngine Tinker plans now use `eval_metric=primary_metric` so plan metadata matches the Tinker heldout-loss evaluator. Validation cluster passed `106 passed, 4 skipped`, plus compileall and diff check. |
 | stack-018 | 2026-05-19 08:27 | local only #55-#66 stack | unpublished full-stack non-live validation | none | passed | $0.00 | $48.54 | Merged #66 into the local unpublished integration stack. Compileall passed and broad non-live suite excluding live Tinker/HF retrieval passed `208 passed, 7 skipped`. |
+| hf-002 | 2026-05-19 08:40 | #67 | live HF retrieval harness validation | Hugging Face public dataset pull | passed | $0.00 | $48.54 | Draft PR #67 opened. A tiny opt-in run with `LIVE_HF_SMALL_DATASET_COUNT=1` and `DATA_GENERATOR_MAX_ROWS_PER_DATASET=3` first exposed, then validated, the row-cap remainder fix: `1 passed, 5 deselected`; local focused suite passed `21 passed, 3 skipped`. |
 
 ## Spend Ledger
 
