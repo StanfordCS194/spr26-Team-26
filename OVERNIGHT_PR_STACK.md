@@ -1,6 +1,6 @@
 # Overnight PR Stack
 
-Updated: 2026-05-19 14:39 PDT
+Updated: 2026-05-19 14:46 PDT
 
 Purpose: give reviewers a merge/review order for the draft PR stack without
 having to infer dependencies from GitHub.
@@ -429,7 +429,13 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   Tinker manifests and DataGen debug artifacts, and the dashboard renders it as
   provenance badges. Branch validation passed compileall, no-network server API
   tests (`18 passed`), frontend lint/build, and a simulation browser smoke with
-  no new console errors.
+  no new console errors. It was then updated so `backend="tinker_sft"` is
+  recognized as live Tinker in both API and UI labels.
+- #111 is a new stacked draft PR on #110 for DataGen evidence artifacts. API
+  run artifacts now include allowlisted DataGen manifest/raw-handoff/curation
+  report/debug/source-report downloads when present, with path escape and
+  unknown-key tests. Branch validation passed compileall and no-network server
+  API tests (`20 passed`).
 - #92 was updated after audit to close the local/no-spend half of #88's API
   task-type hint. The local Manager planner now accepts `task_type_hint`:
   `classification -> text-classification`, `regression -> custom`, and
