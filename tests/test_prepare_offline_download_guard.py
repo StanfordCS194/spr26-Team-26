@@ -96,3 +96,29 @@ def test_download_data_offline_guard_accepts_common_truthy_values(
         prepare_module.download_data(num_shards=1, download_workers=1)
 
     assert "NO_SPEND=1" in str(excinfo.value)
+
+
+def test_download_single_shard_offline_guard_blocks_direct_download(
+    tmp_path, monkeypatch, prepare_module
+):
+    monkeypatch.setenv("NO_SPEND", "1")
+    monkeypatch.setattr(prepare_module, "DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(prepare_module.requests, "get", _fail_requests_get)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        prepare_module.download_single_shard(0)
+
+    message = str(excinfo.value)
+    assert "NO_SPEND=1" in message
+    assert "shard_00000.parquet" in message
+
+
+def test_download_single_shard_offline_guard_allows_cached_shard(
+    tmp_path, monkeypatch, prepare_module
+):
+    monkeypatch.setenv("NO_SPEND", "1")
+    monkeypatch.setattr(prepare_module, "DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(prepare_module.requests, "get", _fail_requests_get)
+    (tmp_path / prepare_module._shard_filename(0)).write_bytes(b"cached")
+
+    assert prepare_module.download_single_shard(0) is True

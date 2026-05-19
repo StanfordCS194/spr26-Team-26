@@ -89,12 +89,27 @@ def _format_missing_shards(missing_ids, limit=8):
     return ", ".join(filenames)
 
 
+def _raise_if_download_blocked(missing_ids):
+    blockers = _active_download_blockers()
+    if not blockers:
+        return
+
+    blocker_text = " or ".join(f"{name}=1" for name in blockers)
+    missing_text = _format_missing_shards(missing_ids)
+    raise RuntimeError(
+        f"Data download disabled by {blocker_text}; missing required cached shards "
+        f"at {DATA_DIR}: {missing_text}. Pre-populate the cache or unset the offline/no-spend guard."
+    )
+
+
 def download_single_shard(index):
     """Download one parquet shard with retries. Returns True on success."""
     filename = _shard_filename(index)
     filepath = _shard_path(index)
     if os.path.exists(filepath):
         return True
+
+    _raise_if_download_blocked([index])
 
     url = f"{BASE_URL}/{filename}"
     max_attempts = 5
@@ -135,14 +150,7 @@ def download_data(num_shards, download_workers=8):
         print(f"Data: all {len(ids)} shards already downloaded at {DATA_DIR}")
         return
 
-    blockers = _active_download_blockers()
-    if blockers:
-        blocker_text = " or ".join(f"{name}=1" for name in blockers)
-        missing_text = _format_missing_shards(missing)
-        raise RuntimeError(
-            f"Data download disabled by {blocker_text}; missing required cached shards "
-            f"at {DATA_DIR}: {missing_text}. Pre-populate the cache or unset the offline/no-spend guard."
-        )
+    _raise_if_download_blocked(missing)
 
     needed = len(ids) - existing
     print(f"Data: downloading {needed} shards ({existing} already exist)...")
