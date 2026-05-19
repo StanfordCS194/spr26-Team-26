@@ -1,6 +1,6 @@
 # Overnight PR Stack
 
-Updated: 2026-05-19 08:08 PDT
+Updated: 2026-05-19 08:10 PDT
 
 Purpose: give reviewers a merge/review order for the draft PR stack without
 having to infer dependencies from GitHub.
@@ -54,12 +54,11 @@ having to infer dependencies from GitHub.
 ## Latest Local Stack Validation
 
 Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
-and #62 on top of #51. #63 has been opened on the AutoResearch chain and should
-be included in the next local stack smoke.
+#62, and #63 on top of #51.
 
 - `python3 -m compileall src`
 - Broad non-live suite excluding live Tinker and live Hugging Face retrieval:
-  `204 passed, 7 skipped`
+  `206 passed, 7 skipped`
 - Live #62 heldout smoke on the 22-row web DataGen dataset completed with
   split 17/2/3, saved checkpoints, `val_loss=3.5944`, and `test_loss=8.8181`.
 
