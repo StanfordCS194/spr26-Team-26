@@ -107,9 +107,59 @@ def test_run_tinker_sft_experiment_writes_artifacts(tmp_path, monkeypatch):
     manifest = json.loads((run_dir / "manifest.json").read_text())
     assert manifest["checkpoints"]["state_path"].startswith("tinker://state/")
     assert manifest["checkpoints"]["sampler_path"].startswith("tinker://sampler/")
+    assert manifest["train_on_what"] == "last_assistant_message"
+    assert manifest["training_examples"] == 2
     assert json.loads((run_dir / "sample.json").read_text())["text"] == "sample text"
     assert state.training_client.forward_backward_calls == 2
     assert state.training_client.optim_step_calls == 2
+    assert {call["train_on_what"] for call in state.conversions} == {
+        "last_assistant_message"
+    }
+
+
+def test_run_tinker_sft_experiment_splits_multi_assistant_conversations(
+    tmp_path,
+    monkeypatch,
+):
+    state = _install_fake_tinker_stack(monkeypatch, losses=[0.5])
+    from src.tinker_api.sft_runner import run_tinker_sft_experiment
+
+    data_path = _write_jsonl(
+        tmp_path / "train.jsonl",
+        [
+            {
+                "messages": [
+                    {"role": "system", "content": "Be brief."},
+                    {"role": "user", "content": "First"},
+                    {"role": "assistant", "content": "One"},
+                    {"role": "user", "content": "Second"},
+                    {"role": "assistant", "content": "Two"},
+                ]
+            },
+        ],
+    )
+
+    result = run_tinker_sft_experiment(
+        TrainingConfig(model_name="Qwen/Qwen3.5-9B", batch_size=4),
+        str(data_path),
+        run_id="multi-assistant-run",
+        max_steps=1,
+        output_dir=str(tmp_path / "experiments"),
+    )
+
+    run_dir = tmp_path / "experiments" / "multi-assistant-run"
+    manifest = json.loads((run_dir / "manifest.json").read_text())
+    assert result["status"] == "COMPLETED"
+    assert manifest["training_examples"] == 2
+    assert len(state.conversions) == 4
+    converted_targets = {
+        call["conversation"][-1]["content"]
+        for call in state.conversions
+    }
+    assert converted_targets == {"One", "Two"}
+    assert {call["train_on_what"] for call in state.conversions} == {
+        "last_assistant_message"
+    }
 
 
 def test_run_tinker_sft_experiment_stops_on_cancel_and_writes_artifacts(tmp_path, monkeypatch):
@@ -296,10 +346,12 @@ class _FakeTrainingClient:
         self.losses = list(losses)
         self.forward_backward_calls = 0
         self.optim_step_calls = 0
+        self.batches = []
         self.sampling_client = _FakeSamplingClient()
 
     def forward_backward(self, batch, loss_fn):
         self.forward_backward_calls += 1
+        self.batches.append(batch)
         loss = self.losses[min(self.forward_backward_calls - 1, len(self.losses) - 1)]
         return _FakeFuture(types.SimpleNamespace(loss=loss))
 
@@ -358,14 +410,25 @@ def _install_fake_tinker_stack(monkeypatch, losses):
     model_info = types.ModuleType("tinker_cookbook.model_info")
     model_info.get_recommended_renderer_name = MagicMock(side_effect=KeyError("missing"))
     renderers = types.ModuleType("tinker_cookbook.renderers")
-    renderers.TrainOnWhat = types.SimpleNamespace(ALL_ASSISTANT_MESSAGES="assistant")
+    renderers.TrainOnWhat = types.SimpleNamespace(
+        ALL_ASSISTANT_MESSAGES="all_assistant_messages",
+        LAST_ASSISTANT_MESSAGE="last_assistant_message",
+    )
     renderers.get_renderer = MagicMock(return_value=_FakeRenderer())
     tokenizer_utils = types.ModuleType("tinker_cookbook.tokenizer_utils")
     tokenizer_utils.get_tokenizer = MagicMock(return_value=object())
     supervised_pkg = types.ModuleType("tinker_cookbook.supervised")
     supervised_data = types.ModuleType("tinker_cookbook.supervised.data")
+    conversions = []
 
     def conversation_to_datum(conversation, renderer, max_length, train_on_what):
+        conversions.append(
+            {
+                "conversation": conversation,
+                "max_length": max_length,
+                "train_on_what": train_on_what,
+            }
+        )
         return _FakeDatum(length=len(json.dumps(conversation)))
 
     supervised_data.conversation_to_datum = conversation_to_datum
@@ -396,4 +459,8 @@ def _install_fake_tinker_stack(monkeypatch, losses):
     monkeypatch.setitem(sys.modules, "tinker_cookbook.supervised.data", supervised_data)
 
     importlib.reload(importlib.import_module("src.tinker_api.sft_runner"))
-    return types.SimpleNamespace(training_client=training_client, service_client=service_client)
+    return types.SimpleNamespace(
+        training_client=training_client,
+        service_client=service_client,
+        conversions=conversions,
+    )

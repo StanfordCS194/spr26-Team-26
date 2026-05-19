@@ -70,6 +70,9 @@ def run_tinker_sft_experiment(
         renderer_name = resolve_renderer_name(model_name, model_info)
         tokenizer = tokenizer_utils.get_tokenizer(model_name)
         renderer = renderers.get_renderer(renderer_name, tokenizer)
+        training_conversations = _expand_assistant_training_targets(conversations)
+        if not training_conversations:
+            raise ValueError("No assistant targets found after a user message.")
 
         svc = service_client if service_client is not None else tinker.ServiceClient()
         training_client = svc.create_lora_training_client(
@@ -77,9 +80,9 @@ def run_tinker_sft_experiment(
             rank=int(cfg.lora_rank or 32),
         )
 
-        train_on_what = renderers.TrainOnWhat.ALL_ASSISTANT_MESSAGES
+        train_on_what = renderers.TrainOnWhat.LAST_ASSISTANT_MESSAGE
         target_steps = _resolve_target_steps(
-            num_examples=len(conversations),
+            num_examples=len(training_conversations),
             batch_size=cfg.batch_size,
             num_epochs=cfg.num_epochs,
             max_steps=max_steps,
@@ -93,7 +96,11 @@ def run_tinker_sft_experiment(
                 status = "CANCELLED"
                 break
 
-            batch_conversations = _conversation_batch(conversations, cfg.batch_size, step)
+            batch_conversations = _conversation_batch(
+                training_conversations,
+                cfg.batch_size,
+                step,
+            )
             batch = [
                 supervised_data.conversation_to_datum(
                     conversation,
@@ -141,7 +148,9 @@ def run_tinker_sft_experiment(
             "backend": "tinker_sft",
             "model_name": model_name,
             "renderer_name": renderer_name,
+            "train_on_what": str(train_on_what),
             "dataset_path": _dataset_path_for_manifest(dataset),
+            "training_examples": len(training_conversations),
             "max_steps": max_steps,
             "completed_steps": len(metrics_history),
             "checkpoints": checkpoints,
@@ -205,6 +214,30 @@ def record_to_conversation(record: Mapping[str, Any]) -> list[dict[str, str]]:
         {"role": "user", "content": user_text},
         {"role": "assistant", "content": assistant_text},
     ]
+
+
+def _expand_assistant_training_targets(
+    conversations: Sequence[Sequence[dict[str, str]]],
+) -> list[list[dict[str, str]]]:
+    """Split multi-assistant chats into one target per assistant response.
+
+    Cookbook renderers warn against ``ALL_ASSISTANT_MESSAGES`` for renderers
+    without the extension property. Training one prefix ending in the target
+    assistant message preserves all assistant targets while using the safer
+    ``LAST_ASSISTANT_MESSAGE`` mode.
+    """
+    targets: list[list[dict[str, str]]] = []
+    for conversation in conversations:
+        prefix: list[dict[str, str]] = []
+        seen_user = False
+        for message in conversation:
+            copied = {"role": message["role"], "content": message["content"]}
+            prefix.append(copied)
+            if copied["role"] == "user":
+                seen_user = True
+            if copied["role"] == "assistant" and seen_user:
+                targets.append(list(prefix))
+    return targets
 
 
 def resolve_renderer_name(model_name: str, model_info_module: Any | None = None) -> str:
