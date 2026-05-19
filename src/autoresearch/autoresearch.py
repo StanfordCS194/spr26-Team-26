@@ -706,7 +706,7 @@ def apply_patch(script_path: str, patch: str) -> str:
     if path.suffix == ".json":
         config_dict = json.loads(original)
         patch_dict = json.loads(patch)
-        config_dict.update(patch_dict)
+        config_dict = TrainingConfig.from_dict(config_dict).apply_patch(patch_dict).to_dict()
         # Write atomically via a temp file + rename so a crash mid-write
         # never leaves a partially-written config on disk.
         tmp = path.with_suffix(".json.tmp")
@@ -761,8 +761,6 @@ def _training_config_from_state(
     include_pending_patch: bool = False,
 ) -> TrainingConfig:
     data: dict[str, Any] = dict(state["current_config"])
-    if include_pending_patch and state.get("current_patch"):
-        data.update(json.loads(state["current_patch"]))
     data.setdefault("model_name", state["plan"].get("base_model") or DEFAULT_TINKER_MODEL)
     if "max_seq_len" in data and "max_seq_length" not in data:
         data["max_seq_length"] = data["max_seq_len"]
@@ -773,7 +771,10 @@ def _training_config_from_state(
         data["lora_rank"] = lora["rank"]
     if lora and "lora_alpha" not in data:
         data["lora_alpha"] = lora["alpha"]
-    return TrainingConfig.from_dict(data)
+    config = TrainingConfig.from_dict(data)
+    if include_pending_patch and state.get("current_patch"):
+        config = config.apply_patch(json.loads(state["current_patch"]))
+    return config
 
 
 def _write_current_config(config: TrainingConfig) -> None:

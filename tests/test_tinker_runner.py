@@ -247,6 +247,23 @@ def test_autoresearch_run_node_uses_pending_proposal_patch(monkeypatch, tmp_path
     assert captured["config"].batch_size == 4
 
 
+def test_autoresearch_run_node_rejects_invalid_pending_patch(monkeypatch, tmp_path):
+    import src.autoresearch.autoresearch as ar
+
+    data_path = _write_jsonl(tmp_path / "train.jsonl", [{"input": "x", "output": "y"}])
+
+    def fail_runner(*_args, **_kwargs):
+        raise AssertionError("invalid patches should be rejected before Tinker runs")
+
+    monkeypatch.setattr(ar, "run_tinker_sft_experiment", fail_runner)
+    state = _autoresearch_state(str(data_path))
+    state["current_config"] = {"learning_rate": 1e-4, "batch_size": 4}
+    state["current_patch"] = json.dumps({"lora_rank": 3})
+
+    with pytest.raises(ValueError, match="candidates"):
+        ar.run_node(state)
+
+
 def test_autoresearch_propose_then_run_uses_proposed_config(monkeypatch, tmp_path):
     import src.autoresearch.autoresearch as ar
     from src.autoresearch.config import TrainingConfig
