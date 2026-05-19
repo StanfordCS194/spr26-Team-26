@@ -33,3 +33,5 @@ Operating rules:
 - 2026-05-19 05:45 PDT — Draft PR #43 opened: Tinker SFT runner now uses `LAST_ASSISTANT_MESSAGE` per assistant target, eliminating the live cookbook renderer warning. Live 2-step Tinker smoke passed.
 - 2026-05-19 05:48 PDT — Draft PR #44 opened: Mode C web sources can now be teacher-structured into schema-valid chat/SFT rows, while raw/unstructured web pages remain invalid for training.
 - 2026-05-19 05:49 PDT — Local full-stack merge smoke passed: #39 + #43 + #40 + #42 + #44 merged cleanly, then non-live suite passed with `181 passed, 4 skipped`.
+- 2026-05-19 05:53 PDT — Draft PR #45 opened: AutoResearch iteration runs now submit the pending proposal patch to Tinker instead of silently rerunning the baseline hyperparameters. Validation: compileall, targeted runner tests, and AutoResearch/Cost/Tinker cluster `50 passed`.
+- 2026-05-19 05:56 PDT — Draft PR #46 opened: Manager now handles no-stdin data prompts as Mode C/no-data and stops before DecisionEngine/Tinker when DataGen curation produces no trainable rows. Validation: Manager/DataGen guard suite `33 passed, 3 skipped`.

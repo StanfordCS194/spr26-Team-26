@@ -18,3 +18,5 @@
 - 2026-05-19 05:45 PDT — Use `LAST_ASSISTANT_MESSAGE` for Tinker chat/SFT V1 and split multi-assistant conversations into one target per assistant turn. This follows the cookbook-safe path for renderers without the extension property.
 - 2026-05-19 05:48 PDT — Web acquisition and web structuring remain separate stages. Raw web pages are source material only; teacher structuring must produce schema-valid SFT rows before curation/training can proceed.
 - 2026-05-19 05:49 PDT — Before spending more live budget, run a local stacked merge smoke across all active implementation PRs. The current stack merges cleanly and passes the non-live suite, so the next risk to chase is behavior, not branch compatibility.
+- 2026-05-19 05:53 PDT — Treat AutoResearch proposal application as two coordinated artifacts: persist the JSON patch for audit/revert, but pass the pending patch into the SDK-native Tinker run directly from graph state.
+- 2026-05-19 05:56 PDT — Keep empty or failed DataGen outputs from entering DecisionEngine/AutoResearch. The Manager boundary should explain untrainable data before the failure reaches Tinker.
