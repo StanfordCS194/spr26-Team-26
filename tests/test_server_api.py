@@ -137,6 +137,56 @@ def _fail_live_service(name: str):
     return _fail
 
 
+def _install_no_live_service_fences(monkeypatch):
+    monkeypatch.setattr("builtins.input", _fail_live_service("user input"))
+    monkeypatch.setattr("anthropic.Anthropic", _fail_live_service("Claude"))
+
+    try:
+        import requests
+
+        monkeypatch.setattr(requests, "get", _fail_live_service("requests.get"))
+    except Exception:
+        pass
+
+    from src.autoresearch import autoresearch as ar
+    from src.data_generator import mode_b
+    from src.data_generator.mode_c import nodes as mode_c_nodes
+    from src.data_generator.mode_c import synthetic as mode_c_synthetic
+    from src.tinker_api import sft_runner
+
+    monkeypatch.setattr(ar, "_MAX_ITERATIONS", 1)
+    monkeypatch.setattr(
+        mode_b,
+        "_fetch_with_hf_datasets",
+        _fail_live_service("Hugging Face dataset fetch"),
+    )
+    monkeypatch.setattr(
+        mode_c_nodes,
+        "search_web_sources",
+        _fail_live_service("Tavily web search"),
+    )
+    monkeypatch.setattr(
+        mode_c_nodes,
+        "crawl_and_extract_pages",
+        _fail_live_service("web crawl"),
+    )
+    monkeypatch.setattr(
+        mode_c_nodes,
+        "structure_web_sources_for_sft",
+        _fail_live_service("Mode C web teacher structuring"),
+    )
+    monkeypatch.setattr(
+        mode_c_synthetic,
+        "_anthropic_client",
+        _fail_live_service("Mode C synthetic teacher"),
+    )
+    monkeypatch.setattr(
+        sft_runner,
+        "_load_tinker_deps",
+        _fail_live_service("Tinker SDK"),
+    )
+
+
 def setup_function():
     server_app._reset_runs_for_tests()
 
@@ -653,18 +703,7 @@ def test_create_run_local_jsonl_reaches_tinker_dry_run_without_live_credentials(
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("TINKER_API_KEY", raising=False)
 
-    monkeypatch.setattr("builtins.input", _fail_live_service("user input"))
-    monkeypatch.setattr("anthropic.Anthropic", _fail_live_service("Claude"))
-
-    from src.autoresearch import autoresearch as ar
-    from src.tinker_api import sft_runner
-
-    monkeypatch.setattr(ar, "_MAX_ITERATIONS", 1)
-    monkeypatch.setattr(
-        sft_runner,
-        "_load_tinker_deps",
-        _fail_live_service("Tinker SDK"),
-    )
+    _install_no_live_service_fences(monkeypatch)
 
     client = TestClient(server_app.app)
     response = client.post(
@@ -721,18 +760,7 @@ def test_create_run_hf_data_path_reaches_tinker_dry_run_without_live_credentials
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("TINKER_API_KEY", raising=False)
 
-    monkeypatch.setattr("builtins.input", _fail_live_service("user input"))
-    monkeypatch.setattr("anthropic.Anthropic", _fail_live_service("Claude"))
-
-    from src.autoresearch import autoresearch as ar
-    from src.tinker_api import sft_runner
-
-    monkeypatch.setattr(ar, "_MAX_ITERATIONS", 1)
-    monkeypatch.setattr(
-        sft_runner,
-        "_load_tinker_deps",
-        _fail_live_service("Tinker SDK"),
-    )
+    _install_no_live_service_fences(monkeypatch)
 
     client = TestClient(server_app.app)
     response = client.post(
@@ -790,18 +818,7 @@ def test_create_run_without_data_path_reaches_mode_c_tinker_dry_run_without_live
     monkeypatch.delenv("TINKER_API_KEY", raising=False)
     monkeypatch.delenv("TAVILY_API_KEY", raising=False)
 
-    monkeypatch.setattr("builtins.input", _fail_live_service("user input"))
-    monkeypatch.setattr("anthropic.Anthropic", _fail_live_service("Claude"))
-
-    from src.autoresearch import autoresearch as ar
-    from src.tinker_api import sft_runner
-
-    monkeypatch.setattr(ar, "_MAX_ITERATIONS", 1)
-    monkeypatch.setattr(
-        sft_runner,
-        "_load_tinker_deps",
-        _fail_live_service("Tinker SDK"),
-    )
+    _install_no_live_service_fences(monkeypatch)
 
     client = TestClient(server_app.app)
     response = client.post(
