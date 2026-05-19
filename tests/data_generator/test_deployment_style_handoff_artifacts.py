@@ -127,6 +127,7 @@ def test_mode_c_saves_deployment_style_handoff_artifacts(monkeypatch, tmp_path: 
         str(_test_artifact_dir("test_mode_c_saves_deployment_style_handoff_artifacts")),
     )
     monkeypatch.setenv("DATA_GENERATOR_MOCK_SCENARIO", "mixed_sources")
+    monkeypatch.setenv("DATA_GENERATOR_MODE_C_BACKEND", "web")
 
     from src.data_generator.mode_c import nodes as mode_c_nodes
 
