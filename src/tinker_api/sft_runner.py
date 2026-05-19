@@ -402,11 +402,25 @@ def _extract_loss(*results: Any) -> float:
             return float(loss)
         metrics = getattr(result, "metrics", None)
         if isinstance(metrics, Mapping):
-            for key in ("loss", "train_loss", "mean_loss", "nll"):
+            for key in (
+                "loss",
+                "loss:mean",
+                "mean_loss",
+                "train_loss",
+                "loss:sum",
+                "nll",
+            ):
                 value = metrics.get(key)
                 if isinstance(value, (int, float)):
                     return float(value)
-    return 0.0
+    metric_keys = [
+        sorted(result.metrics.keys())
+        for result in results
+        if result is not None and isinstance(getattr(result, "metrics", None), Mapping)
+    ]
+    raise TinkerAPIError(
+        f"Tinker forward/backward result did not include a recognized loss metric: {metric_keys}"
+    )
 
 
 def _score_from_loss(loss: float | None) -> float:

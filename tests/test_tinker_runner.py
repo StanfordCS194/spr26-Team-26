@@ -162,6 +162,35 @@ def test_run_tinker_sft_experiment_splits_multi_assistant_conversations(
     }
 
 
+def test_run_tinker_sft_experiment_reads_tinker_loss_sum_metric(
+    tmp_path,
+    monkeypatch,
+):
+    _install_fake_tinker_stack(
+        monkeypatch,
+        losses=[{"loss:sum": 3.5}, {"loss:sum": 2.25}],
+    )
+    from src.tinker_api.sft_runner import run_tinker_sft_experiment
+
+    data_path = _write_jsonl(
+        tmp_path / "train.jsonl",
+        [{"input": "Question", "output": "Answer"}],
+    )
+
+    result = run_tinker_sft_experiment(
+        TrainingConfig(model_name="Qwen/Qwen3.5-9B", batch_size=1),
+        str(data_path),
+        run_id="loss-sum-run",
+        max_steps=2,
+        output_dir=str(tmp_path / "experiments"),
+    )
+
+    run_dir = tmp_path / "experiments" / "loss-sum-run"
+    metrics = json.loads((run_dir / "metrics.json").read_text())
+    assert result["metrics"]["train_loss"] == pytest.approx(2.25)
+    assert metrics["primary_metric"] == pytest.approx(1.0 / 3.25)
+
+
 def test_run_tinker_sft_experiment_stops_on_cancel_and_writes_artifacts(tmp_path, monkeypatch):
     _install_fake_tinker_stack(monkeypatch, losses=[0.5, 0.25, 0.1])
     from src.tinker_api import tinker_api
@@ -582,6 +611,8 @@ class _FakeTrainingClient:
         self.forward_backward_calls += 1
         self.batches.append(batch)
         loss = self.losses[min(self.forward_backward_calls - 1, len(self.losses) - 1)]
+        if isinstance(loss, dict):
+            return _FakeFuture(types.SimpleNamespace(metrics=loss))
         return _FakeFuture(types.SimpleNamespace(loss=loss))
 
     def optim_step(self, adam_params):
