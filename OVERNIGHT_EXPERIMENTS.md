@@ -32,10 +32,11 @@ Budget cap: $100 total.
 | stack-007 | 2026-05-19 07:22 | #59 | AutoResearch early-stop validation | none | passed | $0.00 | $11.79 | PR #59 focused tests passed (`29 passed`); broader AutoResearch/Tinker cluster passed `65 passed`; local integration stack with #59 passed compileall and `200 passed, 7 skipped`. |
 | tinker-008 | 2026-05-19 07:22 | local only #55/#56/#57/#58/#59 | live AutoResearch rerun after early-stop fix | Tinker | passed | $1.00 | $12.79 | Baseline plus one candidate, both 1 step on `Qwen/Qwen3.5-9B`; candidate reached `EVALUATE`, reverted normally on tie, and final `n_iterations=1`. Local Tinker cost report: `$0.00005`. |
 | docs-002 | 2026-05-19 07:23 | #49 | spec-site refresh | none | passed | $0.00 | $12.79 | Refreshed #49 on top of current `codex/full-stack-contract-smoke`; `npm run lint` and `npm run build` passed; PR diff remains limited to spec-site files. |
+| tinker-009 | 2026-05-19 07:29 | local only #55/#56/#57/#58/#59 | live real-proposer AutoResearch loop | Tinker, Anthropic | passed | $4.00 | $16.79 | Baseline plus three 2-step `Qwen/Qwen3.5-9B` candidates using real Claude proposals. Batch size 4 regressed (-36.1%), learning rate `0.0005` improved (+49.2%) and was kept, LoRA rank 16 tied/slightly regressed (-0.1%). Local Tinker cost report: `$0.000238`; diary at `outputs/overnight/live-autoresearch-real-proposer/1779200780/research_diary.jsonl` in the local stack worktree. |
 
 ## Spend Ledger
 
-Current estimated cumulative spend: **$12.79 / $100.00**
+Current estimated cumulative spend: **$16.79 / $100.00**
 
 Notes:
 - Tinker billing may not be available through the local code, so per-run spend will be estimated conservatively from run type and observed duration unless a real cost is exposed.

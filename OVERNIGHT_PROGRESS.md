@@ -66,3 +66,4 @@ Operating rules:
 - 2026-05-19 07:22 PDT — Merged #59 into the unpublished local stack. Compileall passed and broad non-live suite passed with `200 passed, 7 skipped`.
 - 2026-05-19 07:22 PDT — Live AutoResearch rerun after #59 passed the behavior check: baseline and candidate both reported real `24.8193` loss, candidate reached `EVALUATE`, reverted normally, and final `n_iterations` was `1`.
 - 2026-05-19 07:23 PDT — Refreshed docs PR #49 on top of its current `codex/full-stack-contract-smoke` base and reran spec-site validation. The PR diff is limited to the intended spec-site files; `npm run lint` and `npm run build` passed.
+- 2026-05-19 07:29 PDT — Ran a real-proposer live AutoResearch loop on the local integrated stack: Claude proposed three supported patches, Tinker ran baseline plus three 2-step candidates, and AutoResearch kept the `learning_rate: 0.0001 -> 0.0005` candidate after a +49.2% proxy-metric lift.
