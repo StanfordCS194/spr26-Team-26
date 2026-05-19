@@ -21,6 +21,7 @@ having to infer dependencies from GitHub.
    - #69 `codex/autoresearch-budget-preflight` -> #66
    - #70 `codex/tinker-run-cost-estimate` -> #69
    - #72 `codex/autoresearch-estimated-spend-floor` -> #70
+   - #79 `codex/tinker-hparam-aliases` -> #72
 3. Tinker runner chain:
    - #43 `codex/tinker-single-assistant-rendering` -> #35
    - #57 `codex/tinker-live-loss-metrics` -> #43
@@ -157,5 +158,9 @@ on top of #51.
   five Tinker metric points, and partial artifacts before failing on a separate
   Tinker config-name bug (`epochs` vs `num_epochs`). That bug should become the
   next scoped AutoResearch compatibility PR.
+- #79 fixes that config-name bug by canonicalizing Tinker aliases at the
+  AutoResearch proposal/search boundary. Branch validation passed focused and
+  no-live suites; next step is composing it into the unpublished full-stack
+  worktree and rerunning the live API Mode B path.
 
 Current conservative live spend: `$73.64 / $100.00`.
