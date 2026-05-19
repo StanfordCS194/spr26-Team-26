@@ -13,6 +13,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from src.data_generator.graph import invoke_data_generator_graph
+from src.data_generator import mode_b
 
 EXAMPLE_REPORT_PATH = (
     REPO_ROOT
@@ -56,6 +57,27 @@ LIVE_HF_DATASET_SEEDS = [
 
 def _env_truthy(name: str) -> bool:
     return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def test_fetch_hf_datasets_no_spend_forces_offline(monkeypatch):
+    monkeypatch.setenv("NO_SPEND", "1")
+    monkeypatch.delenv("DATA_GENERATOR_OFFLINE", raising=False)
+
+    def fail_fetch(*_args, **_kwargs):
+        raise AssertionError("NO_SPEND=1 should not call live Hugging Face loaders")
+
+    monkeypatch.setattr(mode_b, "_fetch_with_hf_datasets", fail_fetch)
+
+    raw = mode_b.fetch_hf_datasets(
+        mode_b.build_explicit_hf_candidates(["SetFit/sst2"], "text-classification")
+    )
+
+    assert raw["records"] == [
+        {
+            "source": "SetFit/sst2",
+            "content": "offline_placeholder: acquired metadata for SetFit/sst2",
+        }
+    ]
 
 
 def _extract_hf_dataset_ids_from_report(report: dict) -> list[str]:
