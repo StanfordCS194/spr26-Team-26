@@ -409,6 +409,7 @@ def test_autoresearch_baseline_node_records_cost_and_budget_stop(monkeypatch, tm
     state = _autoresearch_state(str(data_path))
     state["config"]["compute_budget"] = 0.01
     state["cost_manager"] = CostManager(0.01)
+    state["plan"]["estimated_cost"] = 0.0
 
     result = ar.baseline_node(state)
 
@@ -416,6 +417,36 @@ def test_autoresearch_baseline_node_records_cost_and_budget_stop(monkeypatch, tm
     assert result["should_stop"] is True
     assert state["cost_manager"].spent_usd == 0.02
     assert ar.continue_edge({**state, **result}) == "__end__"
+
+
+def test_autoresearch_baseline_preflight_skips_unaffordable_run(monkeypatch, tmp_path):
+    import src.autoresearch.autoresearch as ar
+    from src.cost_manager.cost_manager import CostManager
+
+    data_path = _write_jsonl(tmp_path / "train.jsonl", [{"input": "x", "output": "y"}])
+
+    def fail_runner(*args, **kwargs):
+        raise AssertionError("Tinker runner should not start when preflight rejects")
+
+    monkeypatch.setattr(ar, "run_tinker_sft_experiment", fail_runner)
+    monkeypatch.chdir(tmp_path)
+    state = _autoresearch_state(str(data_path))
+    state["config"]["compute_budget"] = 0.01
+    state["cost_manager"] = CostManager(0.01)
+    state["plan"]["estimated_cost"] = 1.0
+
+    result = ar.baseline_node(state)
+    run_dir = Path(result["baseline_result"]["model_path"])
+
+    assert result["baseline_result"]["status"] == "CANCELLED"
+    assert result["baseline_result"]["cost_usd"] == 0.0
+    assert result["baseline_score"]["scalar"] == 0.0
+    assert result["should_stop"] is True
+    assert state["cost_manager"].spent_usd == 0.0
+    assert (run_dir / "metrics.json").exists()
+    manifest = json.loads((run_dir / "manifest.json").read_text())
+    assert manifest["budget_preflight_skipped"] is True
+    assert "estimated run cost" in manifest["budget_skip_reason"]
 
 
 def _write_jsonl(path: Path, rows: list[dict]) -> Path:

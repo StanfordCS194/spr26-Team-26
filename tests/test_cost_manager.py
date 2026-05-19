@@ -69,6 +69,20 @@ def test_cost_manager_records_in_process_spend_by_category():
     assert manager.status == BudgetStatus.EXCEEDED
 
 
+def test_cost_manager_can_start_run_respects_remaining_budget():
+    manager = CostManager(1.0)
+
+    assert manager.can_start_run(0.25) is True
+    manager.record_spend(0.80)
+
+    assert manager.can_start_run(0.20) is True
+    assert manager.can_start_run(0.21) is False
+
+    manager.record_spend(0.20)
+    assert manager.remaining_budget == 0.0
+    assert manager.can_start_run(0.0) is False
+
+
 def test_cost_manager_cost_breakdown_uses_recorded_totals():
     manager = CostManager(10.0)
     manager.record_spend(1.25, category="training")

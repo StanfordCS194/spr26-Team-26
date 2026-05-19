@@ -130,6 +130,19 @@ class CostManager:
         """Returns the current in-process budget status."""
         return check_budget_status(self.spent_usd, self.budget)
 
+    def can_start_run(self, estimated_cost: float = 0.0) -> bool:
+        """Returns whether a new run can start without exceeding remaining budget."""
+        try:
+            estimate = max(0.0, float(estimated_cost))
+        except (TypeError, ValueError):
+            estimate = 0.0
+
+        if self.status == BudgetStatus.EXCEEDED:
+            return False
+        if self.remaining_budget <= 0:
+            return False
+        return estimate <= self.remaining_budget
+
     def record_spend(self, amount: float, category: str = "training") -> str:
         """Records completed in-process spend and returns the updated budget status."""
         amount = float(amount)

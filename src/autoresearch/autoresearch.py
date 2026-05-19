@@ -224,7 +224,10 @@ def baseline_node(state: AutoResearchState) -> dict:
         "best_score": baseline_score,
         "best_script": experiment["model_path"],
         "last_result": experiment,
-        "should_stop": budget_status == BudgetStatus.EXCEEDED,
+        "should_stop": (
+            budget_status == BudgetStatus.EXCEEDED
+            or experiment["status"] == JobStatus.CANCELLED
+        ),
     }
 
 
@@ -300,7 +303,10 @@ def run_node(state: AutoResearchState) -> dict:
 
     return {
         "last_result": result,
-        "should_stop": budget_status == BudgetStatus.EXCEEDED,
+        "should_stop": (
+            budget_status == BudgetStatus.EXCEEDED
+            or result["status"] == JobStatus.CANCELLED
+        ),
     }
 
 
@@ -308,10 +314,16 @@ def revert_and_continue_node(state: AutoResearchState) -> dict:
     """LangGraph node (early stop path). Reverts the patch before normal logging."""
     revert_patch(str(_CONFIG_PATH), state["original_content"])
 
+    budget_skipped = _last_result_was_budget_skipped(state)
+    reason = (
+        "budget preflight skipped iteration"
+        if budget_skipped
+        else "catastrophic failure"
+    )
     log_event(
         AgentName.AUTORESEARCH,
         LogLevel.WARN,
-        f"REVERTED (early-stop): catastrophic failure on iteration {state['iteration'] + 1}",
+        f"REVERTED (early-stop): {reason} on iteration {state['iteration'] + 1}",
         metadata={
             "iteration": state["iteration"] + 1,
             "metrics": state["last_result"]["metrics"] if state.get("last_result") else {},
@@ -413,7 +425,11 @@ def log_node(state: AutoResearchState) -> dict:
             notes = f"+{state['last_delta']['relative_pct']:.1f}% on {state['eval_suite']['primary_metric']}"
         elif _last_result_was_early_stopped(state):
             decision = "REVERTED"
-            notes = "Early-stopped: catastrophic failure (NaN/Inf loss or primary metric collapse)"
+            notes = (
+                "Skipped: budget preflight rejected the Tinker run"
+                if _last_result_was_budget_skipped(state)
+                else "Early-stopped: catastrophic failure (NaN/Inf loss or primary metric collapse)"
+            )
         else:
             decision = "REVERTED"
             delta_pct = state["last_delta"]["relative_pct"] if state["last_delta"] else 0.0
@@ -485,6 +501,23 @@ def _last_result_was_early_stopped(state: AutoResearchState) -> bool:
     if last_result["status"] in {JobStatus.FAILED, JobStatus.CANCELLED}:
         return True
     return check_early_stop(last_result["metrics"])
+
+
+def _last_result_was_budget_skipped(state: AutoResearchState) -> bool:
+    last_result = state.get("last_result")
+    if not last_result:
+        return False
+    try:
+        manifest_path = Path(last_result["model_path"]) / "manifest.json"
+    except (KeyError, TypeError):
+        return False
+    if not manifest_path.exists():
+        return False
+    try:
+        manifest = json.loads(manifest_path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return False
+    return bool(manifest.get("budget_preflight_skipped"))
 
 
 def decision_edge(state: AutoResearchState) -> Literal["keep", "revert"]:
@@ -801,12 +834,155 @@ def _max_steps_from_state(state: AutoResearchState) -> int:
     return DEFAULT_LIVE_SMOKE_STEPS
 
 
+def _estimated_run_cost_from_state(state: AutoResearchState) -> float:
+    """Returns the best available USD estimate for the next Tinker launch."""
+    plan = state.get("plan", {})
+    procedure = state.get("config", {}).get("training_procedure", {})
+    hyperparameters = (
+        procedure.get("hyperparameters", {})
+        if isinstance(procedure, Mapping)
+        else {}
+    )
+    candidates = (
+        plan.get("estimated_run_cost_usd"),
+        hyperparameters.get("estimated_run_cost_usd")
+        if isinstance(hyperparameters, Mapping)
+        else None,
+        plan.get("estimated_cost"),
+    )
+    for value in candidates:
+        if value is None:
+            continue
+        try:
+            return max(0.0, float(value))
+        except (TypeError, ValueError):
+            continue
+    return 0.0
+
+
+def _remaining_budget_from_state(state: AutoResearchState) -> float:
+    cost_manager = state.get("cost_manager")
+    if cost_manager is not None and hasattr(cost_manager, "remaining_budget"):
+        try:
+            return max(0.0, float(cost_manager.remaining_budget))
+        except (TypeError, ValueError):
+            pass
+
+    budget = state.get("config", {}).get("compute_budget", float("inf"))
+    try:
+        return max(0.0, float(budget) - _spent_usd_from_state(state))
+    except (TypeError, ValueError):
+        return float("inf")
+
+
+def _budget_preflight_skip_reason(
+    state: AutoResearchState,
+    estimated_cost: float,
+) -> str | None:
+    cost_manager = state.get("cost_manager")
+    remaining = _remaining_budget_from_state(state)
+
+    if cost_manager is not None and hasattr(cost_manager, "can_start_run"):
+        can_start = cost_manager.can_start_run(estimated_cost)
+    else:
+        can_start = remaining > 0 and estimated_cost <= remaining
+
+    if can_start:
+        return None
+    if remaining <= 0:
+        return "remaining budget is exhausted before launch"
+    if estimated_cost > remaining:
+        return (
+            f"estimated run cost ${estimated_cost:.2f} exceeds remaining "
+            f"budget ${remaining:.2f}"
+        )
+    return "budget preflight rejected launch"
+
+
+def _budget_limited_experiment_result(
+    run_id: str,
+    *,
+    reason: str,
+    estimated_cost: float,
+    remaining_budget: float,
+    output_dir: str = "outputs/experiments",
+) -> ExperimentResult:
+    run_dir = Path(output_dir) / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    loss = float("inf")
+    metrics: TrainingMetrics = {
+        "train_loss": loss,
+        "val_loss": loss,
+        "test_loss": loss,
+        "primary_metric": 0.0,
+    }
+    metrics_row = {
+        "step": 0,
+        **metrics,
+        "budget_preflight_skipped": True,
+        "reason": reason,
+    }
+    metrics_path = run_dir / "metrics.jsonl"
+    metrics_path.write_text(json.dumps(metrics_row) + "\n")
+    (run_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
+    (run_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "status": JobStatus.CANCELLED,
+                "backend": "tinker_sft",
+                "budget_preflight_skipped": True,
+                "budget_skip_reason": reason,
+                "estimated_cost_usd": round(float(estimated_cost), 6),
+                "remaining_budget_usd": round(float(remaining_budget), 6),
+                "completed_steps": 0,
+                "checkpoints": {},
+            },
+            indent=2,
+        )
+    )
+    (run_dir / "sample.json").write_text(
+        json.dumps({"prompt": [], "text": "", "tokens": [], "error": reason}, indent=2)
+    )
+    return {
+        "job_id": run_id,
+        "status": JobStatus.CANCELLED,
+        "metrics": metrics,
+        "model_path": str(run_dir),
+        "cost_usd": 0.0,
+        "logs_path": str(metrics_path),
+    }
+
+
 def _run_tinker_experiment_for_state(
     state: AutoResearchState,
     *,
     phase: str,
 ) -> ExperimentResult:
     run_id = f"autoresearch-{phase}-{state['iteration']}-{uuid4().hex[:8]}"
+    estimated_cost = _estimated_run_cost_from_state(state)
+    remaining_budget = _remaining_budget_from_state(state)
+    skip_reason = _budget_preflight_skip_reason(state, estimated_cost)
+    if skip_reason:
+        log_event(
+            AgentName.AUTORESEARCH,
+            LogLevel.WARN,
+            "BUDGET: skipped Tinker launch before spend",
+            metadata={
+                "run_id": run_id,
+                "phase": phase,
+                "estimated_cost_usd": estimated_cost,
+                "remaining_budget_usd": remaining_budget,
+                "reason": skip_reason,
+            },
+        )
+        return _budget_limited_experiment_result(
+            run_id,
+            reason=skip_reason,
+            estimated_cost=estimated_cost,
+            remaining_budget=remaining_budget,
+        )
+
     cost_manager = state.get("cost_manager")
     if cost_manager is not None and hasattr(cost_manager, "start"):
         cost_manager.start(run_id)
