@@ -1,6 +1,6 @@
 # Overnight PR Stack
 
-Updated: 2026-05-19 14:50 PDT
+Updated: 2026-05-19 14:53 PDT
 
 Purpose: give reviewers a merge/review order for the draft PR stack without
 having to infer dependencies from GitHub.
@@ -441,6 +441,12 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   available, labels client-only JSON exports as run snapshots, changes the
   fake iteration denominator to a metric-point count, and marks simulation logs
   as simulated. Branch validation passed frontend lint/build and browser smoke.
+- #113 is a new sibling draft PR on #110 for terminal pipeline stage status.
+  The API/frontend stage contract now supports `failed` and `cancelled`; the
+  server marks the active stage terminal on run failure/cancel, and the
+  dashboard renders distinct terminal-stage icons. Branch validation passed
+  compileall, no-network server API tests (`18 passed`), frontend lint/build,
+  and browser smoke.
 - #92 was updated after audit to close the local/no-spend half of #88's API
   task-type hint. The local Manager planner now accepts `task_type_hint`:
   `classification -> text-classification`, `regression -> custom`, and
