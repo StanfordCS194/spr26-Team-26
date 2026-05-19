@@ -99,6 +99,79 @@ def test_mode_a_handoff_preserves_chat_messages_through_curation(tmp_path, monke
     assert dataset["validation_report"]["passed"] is True
 
 
+def test_mode_a_plain_text_is_source_only_and_fails_curation(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    state = {
+        "config": _base_config(),
+        "data_path": "/tmp/notes.txt",
+        "mode": "A",
+        "raw_data": {
+            "records": [
+                {
+                    "input": "unlabeled note",
+                    "source_path": "/tmp/notes.txt",
+                    "row_index": 1,
+                }
+            ],
+            "format_meta": {"modality": "text", "file_type": "txt", "encoding": "utf-8"},
+        },
+        "hf_candidates": [],
+        "selected_candidate": None,
+        "web_plan": None,
+        "web_search_results": [],
+        "human_readable": None,
+    }
+
+    handoff = build_handoff_node(state)["handoff"]
+    curation_record = handoff["curation_payload"]["records"][0]
+    assert curation_record["input"] == "unlabeled note"
+    assert curation_record["output"] == ""
+
+    dataset = curate_handoff_to_dataset_result(handoff)
+
+    assert dataset["dataset"]["train_size"] == 0
+    assert dataset["validation_report"]["passed"] is False
+    assert any("missing target field" in issue for issue in dataset["validation_report"]["issues"])
+    assert any("No valid chat/SFT records" in issue for issue in dataset["validation_report"]["issues"])
+
+
+def test_mode_a_chat_requires_assistant_after_user(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    messages = [
+        {"role": "assistant", "content": "urgent"},
+        {"role": "user", "content": "Payment service is down."},
+    ]
+    state = {
+        "config": _base_config(),
+        "data_path": "/tmp/chat.jsonl",
+        "mode": "A",
+        "raw_data": {
+            "records": [
+                {
+                    "messages": messages,
+                    "source_path": "/tmp/chat.jsonl",
+                    "row_index": 1,
+                }
+            ],
+            "format_meta": {"modality": "text", "file_type": "jsonl", "encoding": "utf-8"},
+        },
+        "hf_candidates": [],
+        "selected_candidate": None,
+        "web_plan": None,
+        "web_search_results": [],
+        "human_readable": None,
+    }
+
+    handoff = build_handoff_node(state)["handoff"]
+    dataset = curate_handoff_to_dataset_result(handoff)
+
+    assert dataset["validation_report"]["passed"] is False
+    assert any(
+        "assistant message after a user" in issue
+        for issue in dataset["validation_report"]["issues"]
+    )
+
+
 def test_mode_b_handoff_keeps_hf_artifacts_and_standardizes_records():
     raw_data = {
         "records": [

@@ -138,7 +138,7 @@ def _read_parquet_file(path: Path) -> list[dict[str, Any]]:
 
 def _read_text_file(path: Path) -> list[dict[str, str]]:
     text = path.read_text(encoding="utf-8", errors="replace")
-    return [{"input": line.strip(), "output": "unknown"} for line in text.splitlines() if line.strip()]
+    return [{"input": line.strip()} for line in text.splitlines() if line.strip()]
 
 
 def _load_directory_records(path: Path, file_type: str) -> list[dict[str, Any]]:

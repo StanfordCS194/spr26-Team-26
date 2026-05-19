@@ -113,6 +113,8 @@ def curate_record(
             raise ValueError("messages must contain a user message")
         if not any(message["role"] == "assistant" for message in normalized):
             raise ValueError("messages must contain an assistant message")
+        if not _has_assistant_target_after_user(normalized):
+            raise ValueError("messages must contain an assistant message after a user message")
         return {"messages": normalized}
 
     user_text = _first_text(record, _INPUT_KEYS)
@@ -186,6 +188,17 @@ def _normalize_messages(messages: Any) -> list[dict[str, str]]:
             raise ValueError("message content cannot be empty")
         normalized.append({"role": role, "content": str(content).strip()})
     return normalized
+
+
+def _has_assistant_target_after_user(messages: Sequence[Mapping[str, str]]) -> bool:
+    seen_user = False
+    for message in messages:
+        role = message["role"]
+        if role == "user":
+            seen_user = True
+        elif role == "assistant" and seen_user:
+            return True
+    return False
 
 
 def _first_text(record: Mapping[str, Any], keys: Sequence[str]) -> str:

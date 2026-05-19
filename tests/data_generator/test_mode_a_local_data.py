@@ -52,8 +52,8 @@ def test_load_raw_data_plain_text(tmp_path: Path):
 
     assert raw["format_meta"]["modality"] == "text"
     assert raw["records"] == [
-        {"input": "first line", "output": "unknown", "source_path": str(text_path), "row_index": 1},
-        {"input": "second line", "output": "unknown", "source_path": str(text_path), "row_index": 2},
+        {"input": "first line", "source_path": str(text_path), "row_index": 1},
+        {"input": "second line", "source_path": str(text_path), "row_index": 2},
     ]
 
 
