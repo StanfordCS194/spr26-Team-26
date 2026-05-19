@@ -212,10 +212,10 @@ def test_create_run_surfaces_artifacts_and_allowlisted_downloads(tmp_path, monke
 
     files = {item["name"]: item for item in artifacts["files"]}
     assert files["manifest"]["exists"] is True
-    assert files["manifest"]["downloadPath"] == f"/runs/{run_id}/artifacts/manifest"
+    assert files["manifest"]["downloadPath"] == f"/api/runs/{run_id}/artifacts/manifest"
     assert files["metrics_log"]["contentType"] == "application/x-ndjson"
 
-    manifest_response = client.get(f"/api/runs/{run_id}/artifacts/manifest")
+    manifest_response = client.get(files["manifest"]["downloadPath"])
     assert manifest_response.status_code == 200
     assert manifest_response.json()["checkpoints"]["sampler_path"] == "tinker://sampler/abc"
 
