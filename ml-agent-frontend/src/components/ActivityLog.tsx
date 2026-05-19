@@ -8,6 +8,7 @@ interface Props {
 const typeColor: Record<LogEntry['type'], string> = {
   success: 'var(--success)',
   warning: 'var(--warning)',
+  error: 'var(--danger)',
   default: 'var(--text-muted)',
 };
 

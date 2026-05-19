@@ -1,10 +1,15 @@
 import { useTrainingSimulation } from './hooks/useTrainingSimulation';
+import { useTrainingRun } from './hooks/useTrainingRun';
+import { isBackendApiConfigured } from './api/runs';
 import InputForm from './components/InputForm';
 import Dashboard from './components/Dashboard';
 import type { TaskType } from './types';
 
 export default function App() {
-  const { state, start, reset } = useTrainingSimulation();
+  const simulation = useTrainingSimulation();
+  const backend = useTrainingRun();
+  const controller = isBackendApiConfigured() ? backend : simulation;
+  const { state, start, reset } = controller;
 
   const handleStart = (prompt: string, budget: number, taskType: TaskType) => {
     start(prompt, budget, taskType);
