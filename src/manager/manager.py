@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from datetime import datetime, timezone
 
 from src.types import (
@@ -206,7 +207,57 @@ def reason_about_task(prompt: str, budget: float, has_data: bool) -> TaskReasoni
         system=system,
         messages=[{"role": "user", "content": user_msg}],
     )
-    return json.loads(message.content[0].text)
+    raw_text = message.content[0].text
+    return _parse_task_reasoning_response(raw_text)
+
+
+def _parse_task_reasoning_response(raw_text: str) -> TaskReasoning:
+    """Parse and validate the Manager LLM's task-reasoning JSON."""
+    try:
+        parsed = json.loads(_extract_json_payload(raw_text))
+    except json.JSONDecodeError as exc:
+        preview = raw_text.strip().replace("\n", " ")[:200]
+        raise ValueError(
+            f"Manager reasoning response was not valid JSON: {preview!r}"
+        ) from exc
+
+    if not isinstance(parsed, dict):
+        raise ValueError("Manager reasoning response must be a JSON object.")
+
+    required = {
+        "task_type",
+        "data_format",
+        "training_type",
+        "suggested_base_model",
+        "hyperparameters",
+        "notes",
+    }
+    missing = sorted(required - parsed.keys())
+    if missing:
+        raise ValueError(f"Manager reasoning response missing keys: {missing}")
+    if not isinstance(parsed["hyperparameters"], dict):
+        raise ValueError("Manager reasoning hyperparameters must be a JSON object.")
+
+    return TaskReasoning(
+        task_type=str(parsed["task_type"]),
+        data_format=str(parsed["data_format"]),
+        training_type=str(parsed["training_type"]),
+        suggested_base_model=(
+            None
+            if parsed["suggested_base_model"] is None
+            else str(parsed["suggested_base_model"])
+        ),
+        hyperparameters=dict(parsed["hyperparameters"]),
+        notes=str(parsed["notes"]),
+    )
+
+
+def _extract_json_payload(raw_text: str) -> str:
+    text = raw_text.strip()
+    fenced = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL)
+    if fenced:
+        return fenced.group(1).strip()
+    return text
 
 
 def _handoff_to_dataset_result(handoff: dict) -> DatasetResult:
