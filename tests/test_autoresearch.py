@@ -460,14 +460,23 @@ def test_run_node_preflight_skips_unaffordable_candidate(monkeypatch, tmp_path):
     )
 
     out = ar.run_node(state)
-    manifest = json.loads(
-        (Path(out["last_result"]["model_path"]) / "manifest.json").read_text()
-    )
+    run_dir = Path(out["last_result"]["model_path"])
+    manifest = json.loads((run_dir / "manifest.json").read_text())
+    metrics = json.loads((run_dir / "metrics.json").read_text())
+    metrics_row = json.loads((run_dir / "metrics.jsonl").read_text())
 
     assert out["last_result"]["status"] == "CANCELLED"
     assert out["last_result"]["cost_usd"] == 0.0
     assert out["should_stop"] is True
     assert manifest["budget_preflight_skipped"] is True
+    assert all(
+        math.isfinite(out["last_result"]["metrics"][key])
+        for key in ("train_loss", "val_loss", "test_loss")
+    )
+    assert all(math.isfinite(metrics[key]) for key in ("train_loss", "val_loss", "test_loss"))
+    assert all(math.isfinite(metrics_row[key]) for key in ("train_loss", "val_loss", "test_loss"))
+    json.dumps(metrics, allow_nan=False)
+    json.dumps(metrics_row, allow_nan=False)
 
 
 def test_invoke_autoresearch_graph_canonicalizes_tinker_initial_config(monkeypatch):

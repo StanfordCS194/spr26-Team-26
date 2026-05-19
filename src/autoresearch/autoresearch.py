@@ -54,6 +54,7 @@ _MAX_NO_IMPROVE = 3   # halt after this many consecutive non-improving iteration
 _MAX_ITERATIONS = 20  # hard cap on total iterations regardless of improvement
 _MIN_RELATIVE_IMPROVEMENT_PCT = 1.0
 _MIN_ABSOLUTE_IMPROVEMENT = 1e-9
+_BUDGET_SKIPPED_LOSS = 1_000_000_000.0
 _EXPERIMENT_CACHE: dict[str, ExperimentResult] = {}
 _TINKER_HYPERPARAMETER_ALIASES = {
     "epochs": "num_epochs",
@@ -940,11 +941,10 @@ def _budget_limited_experiment_result(
 ) -> ExperimentResult:
     run_dir = Path(output_dir) / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
-    loss = float("inf")
     metrics: TrainingMetrics = {
-        "train_loss": loss,
-        "val_loss": loss,
-        "test_loss": loss,
+        "train_loss": _BUDGET_SKIPPED_LOSS,
+        "val_loss": _BUDGET_SKIPPED_LOSS,
+        "test_loss": _BUDGET_SKIPPED_LOSS,
         "primary_metric": 0.0,
     }
     metrics_row = {
@@ -954,8 +954,8 @@ def _budget_limited_experiment_result(
         "reason": reason,
     }
     metrics_path = run_dir / "metrics.jsonl"
-    metrics_path.write_text(json.dumps(metrics_row) + "\n")
-    (run_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
+    metrics_path.write_text(json.dumps(metrics_row, allow_nan=False) + "\n")
+    (run_dir / "metrics.json").write_text(json.dumps(metrics, indent=2, allow_nan=False))
     (run_dir / "manifest.json").write_text(
         json.dumps(
             {

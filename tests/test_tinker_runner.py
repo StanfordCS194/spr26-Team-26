@@ -440,7 +440,7 @@ def test_autoresearch_baseline_preflight_skips_unaffordable_run(monkeypatch, tmp
 
     assert result["baseline_result"]["status"] == "CANCELLED"
     assert result["baseline_result"]["cost_usd"] == 0.0
-    assert result["baseline_score"]["scalar"] == 0.0
+    assert result["baseline_score"]["scalar"] < 1e-8
     assert result["should_stop"] is True
     assert state["cost_manager"].spent_usd == 0.0
     assert (run_dir / "metrics.json").exists()
