@@ -83,3 +83,4 @@ Operating rules:
 - 2026-05-19 08:10 PDT — Local unpublished stack including #63 passed compileall and broad non-live suite excluding live Tinker/HF retrieval (`206 passed, 7 skipped`).
 - 2026-05-19 08:11 PDT — Live full AutoResearch graph smoke with #62/#63 passed on the 22-row web DataGen dataset. Baseline and candidate both received split 17/2/3; `learning_rate=5e-4` improved heldout scalar from `0.0675` to `0.2300` in a 2-step bounded run.
 - 2026-05-19 08:13 PDT — Draft PR #64 opened: DataGen curation now preserves source-provided split labels by ordering curated JSONL train/val/test and deriving split counts from the source labels. Existing synthetic split fallback remains for unlabeled data. Validation cluster `60 passed, 1 skipped`; compileall and diff check passed.
+- 2026-05-19 08:14 PDT — Local unpublished stack including #64 passed compileall and broad non-live suite excluding live Tinker/HF retrieval (`207 passed, 7 skipped`).
