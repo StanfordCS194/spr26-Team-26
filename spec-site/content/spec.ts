@@ -538,18 +538,18 @@ Graph nodes and edges:
     title: "Feature 2 — Decision Engine",
     owner: "Ron Polonsky, Angel Raychev",
     description:
-      "Analyzes the task and budget to choose a training strategy (fine-tune vs. pre-train), select a base model, configure LoRA if applicable, and write the training script handed to AutoResearch.",
-    architecture: `The Decision Engine is a pure decision function — no LLM calls, no side effects beyond writing train.py to disk. It takes the OrchestrationConfig + DatasetResult and produces a TrainingPlan.
+      "Analyzes the task and budget to choose a training strategy, select a base model, configure LoRA, and produce the TrainingPlan handed to AutoResearch.",
+    architecture: `The Decision Engine is a pure decision function — no LLM calls, no side effects beyond writing the compatibility train.py artifact. It takes the OrchestrationConfig + DatasetResult and produces a TrainingPlan.
 
 The key decision is fine-tune vs. pre-train. The engine checks whether a suitable pretrained model exists on HuggingFace and whether fine-tuning it would fit within the budget. If both are true, it takes the fine-tune path (Case A). Otherwise it writes a model from scratch (Case B).
 
 Case A — Fine-tune with LoRA:
-Find the best pretrained base model → estimate the cost of fine-tuning it → configure LoRA parameters appropriate for the model architecture → generate train.py that wraps the base model with LoRA adapters, sets up the optimizer and data loaders from the DatasetResult, and includes standardized checkpoint saves and metric logging hooks.
+Find the best pretrained base model → estimate the cost of fine-tuning it → configure LoRA parameters appropriate for the model architecture → generate a compatibility train.py artifact and emit backend="tinker_sft" with dataset_path for the SDK-native runner.
 
 Case B — Pre-train from scratch:
 Generate both model.py (architecture definition) and train.py (training loop) targeting the task type. The architecture is sized to fit within the remaining budget.
 
-In both cases the output is a TrainingPlan with the path to train.py. AutoResearch will treat this script as mutable and apply patches to it during the search loop — so the script must follow a consistent, patchable structure with clearly separated config, model, and training loop sections.`,
+In both cases the output is a TrainingPlan. For Tinker SFT v1, AutoResearch uses backend="tinker_sft", base_model, lora_config, and dataset_path directly; training_script_path remains compatibility baggage for older paths and generated artifacts.`,
     flowDiagram: `
 run_decision_engine(config, dataset)
   │
@@ -572,18 +572,18 @@ run_decision_engine(config, dataset)
       └─► write_pretrain_script(task, dataset, config)
             └─► train.py path
 
-  └─► TrainingPlan  (returned to Manager → AutoResearch)
+  └─► TrainingPlan  { backend, dataset_path, base_model, lora_config, training_script_path }
     `,
     functions: [
       {
         name: "run_decision_engine",
         signature: "run_decision_engine(config: OrchestrationConfig, dataset: DatasetResult) -> TrainingPlan",
-        description: "Top-level dispatcher. Runs task analysis, model selection, cost estimation, and script generation. Returns a complete TrainingPlan.",
+        description: "Top-level dispatcher. Runs task analysis, model selection, cost estimation, compatibility script generation, and returns a complete TrainingPlan for AutoResearch.",
         params: [
           { name: "config", type: "OrchestrationConfig", description: "Orchestration config from Manager." },
           { name: "dataset", type: "DatasetResult", description: "Output of run_data_generator." },
         ],
-        returns: { type: "TrainingPlan", description: "{ strategy, base_model, lora_config, estimated_cost, estimated_time_min, training_script_path, eval_metric }." },
+        returns: { type: "TrainingPlan", description: "{ strategy, base_model, lora_config, estimated_cost, estimated_time_min, training_script_path, eval_metric, backend, dataset_path }." },
       },
       {
         name: "analyze_task",
@@ -663,7 +663,7 @@ run_decision_engine(config, dataset)
 Why LangGraph here (most important use):
   - The loop must be resumable. If a Tinker job crashes mid-run or the process is killed, LangGraph's built-in checkpointing lets the loop resume from the last completed node rather than restarting from scratch.
   - The conditional branching (early stop vs. evaluate, keep vs. revert, continue vs. stop) maps directly to LangGraph conditional edges, making the control flow readable and independently testable.
-  - AutoResearchState holds all mutable loop data (diary, current_script, best_score, iteration count) in one typed dict. No hidden globals or class state.
+  - AutoResearchState holds all mutable loop data (diary, current_config, current_patch, best_score, iteration count) in one typed dict. No hidden globals or class state.
 
 Graph structure (cyclic):
   init_node → baseline_node → propose_node → run_node → [early_stop_edge] → evaluate_node → [decision_edge] → log_node → [continue_edge] → propose_node (loop) or END
@@ -679,7 +679,7 @@ build_autoresearch_graph() → CompiledStateGraph[AutoResearchState]
 
 AutoResearchState = TypedDict:
   plan, config, eval_suite,
-  current_script, current_config, original_content,
+  current_script, current_config, current_patch, original_content,
   diary, baseline_score, best_score,
   last_result, last_score, last_delta,
   iteration, no_improve_streak, should_stop
@@ -691,15 +691,15 @@ Graph nodes and edges:
   init_node              create_eval_suite()
     │
     ▼
-  baseline_node          submit_experiment → wait → run_evals
+  baseline_node          run_tinker_sft_experiment() → run_evals
     │                    sets baseline_score + best_score
     ▼
   propose_node  ◄────────────────────────────────────┐
     │           propose_hypothesis()  [Claude API]   │
-    │           apply_patch() → saves original_content│
+    │           apply_patch(config JSON) → current_patch + original_content
     ▼                                                 │
-  run_node               submit_experiment()          │
-    │                    wait_for_experiment()         │
+  run_node               run_tinker_sft_experiment()  │
+    │                    with pending proposal patch   │
     │                                                 │
     ├─[early_stop_edge: catastrophic failure]──────   │
     │   ▼                                             │
@@ -708,7 +708,7 @@ Graph nodes and edges:
     │
     └─[early_stop_edge: normal]──────────────────────
         ▼
-      evaluate_node       run_evals() → compare_scores() → flag_regression()
+      evaluate_node       run_evals() → compare_scores(vs best) → flag_regression()
         │
         ├─[decision_edge: KEEP]──────────────────────
         │   ▼
@@ -753,29 +753,29 @@ Graph nodes and edges:
       {
         name: "init_node",
         signature: "init_node(state: AutoResearchState) -> dict",
-        description: "LangGraph node. Calls create_eval_suite() and sets up the initial state for the loop (eval_suite, current_script from plan, iteration=0).",
+        description: "LangGraph node. Calls create_eval_suite(), seeds configs/current.json from state, and sets up eval_suite/current_config/iteration for the loop.",
         params: [{ name: "state", type: "AutoResearchState", description: "Initial state with plan and config populated." }],
         returns: { type: "dict", description: "Partial state update: { eval_suite, current_script, current_config, iteration: 0 }." },
       },
       {
         name: "baseline_node",
         signature: "baseline_node(state: AutoResearchState) -> dict",
-        description: "LangGraph node. Submits and runs the unmodified baseline training script, evaluates it, and sets baseline_score and best_score in state.",
+        description: "LangGraph node. Runs the unmodified baseline through the SDK-native Tinker SFT runner, evaluates it, records cost, and sets baseline_score and best_score.",
         params: [{ name: "state", type: "AutoResearchState", description: "State after init_node." }],
         returns: { type: "dict", description: "Partial state update: { baseline_score, best_score }." },
       },
       {
         name: "propose_node",
         signature: "propose_node(state: AutoResearchState) -> dict",
-        description: "LangGraph node. Calls propose_hypothesis() with the research diary and current config. Applies the returned patch to the script and saves original_content for revert.",
+        description: "LangGraph node. Calls propose_hypothesis() with the research diary and current config. Applies a validated JSON config patch and saves original_content for revert.",
         params: [{ name: "state", type: "AutoResearchState", description: "Current loop state." }],
-        returns: { type: "dict", description: "Partial state update: { current_script (patched), original_content, last_hypothesis }." },
+        returns: { type: "dict", description: "Partial state update: { current_script, current_patch, original_content, last_description }." },
       },
       {
         name: "run_node",
         signature: "run_node(state: AutoResearchState) -> dict",
-        description: "LangGraph node. Calls submit_experiment and wait_for_experiment with the patched script. Writes ExperimentResult to state. early_stop_edge reads from state after this node.",
-        params: [{ name: "state", type: "AutoResearchState", description: "Current loop state (current_script must be patched)." }],
+        description: "LangGraph node. Calls run_tinker_sft_experiment with the current config plus pending patch. Writes ExperimentResult and budget stop signal to state.",
+        params: [{ name: "state", type: "AutoResearchState", description: "Current loop state with current_patch populated by propose_node." }],
         returns: { type: "dict", description: "Partial state update: { last_result: ExperimentResult }." },
       },
       {
@@ -795,7 +795,7 @@ Graph nodes and edges:
       {
         name: "evaluate_node",
         signature: "evaluate_node(state: AutoResearchState) -> dict",
-        description: "LangGraph node. Calls run_evals, compare_scores, and flag_regression. Writes last_score and last_delta to state. decision_edge reads from state after this node.",
+        description: "LangGraph node. Calls run_evals, compares the candidate against the current best score, and flags regressions. decision_edge reads last_delta.",
         params: [{ name: "state", type: "AutoResearchState", description: "State after run_node (normal completion)." }],
         returns: { type: "dict", description: "Partial state update: { last_score: EvalScore, last_delta: ScoreDelta }." },
       },
@@ -849,19 +849,19 @@ Graph nodes and edges:
       {
         name: "apply_patch",
         signature: "apply_patch(script_path: str, patch: str) -> str",
-        description: "Applies a unified diff patch to the training script. Saves the original content before patching so revert_patch can restore it.",
+        description: "Applies a validated JSON hyperparameter patch to configs/current.json. Saves the original content before patching so revert_patch can restore it.",
         params: [
-          { name: "script_path", type: "str", description: "Path to the current train.py." },
-          { name: "patch", type: "str", description: "Unified diff string from propose_hypothesis." },
+          { name: "script_path", type: "str", description: "Path to configs/current.json for the Tinker SFT v1 path." },
+          { name: "patch", type: "str", description: "JSON-encoded config patch from propose_hypothesis." },
         ],
-        returns: { type: "str", description: "The original script content (to pass to revert_patch if needed)." },
+        returns: { type: "str", description: "The original JSON content (to pass to revert_patch if needed)." },
       },
       {
         name: "revert_patch",
         signature: "revert_patch(script_path: str, original_content: str) -> None",
-        description: "Restores train.py to its pre-patch content when a hypothesis is rejected.",
+        description: "Restores configs/current.json to its pre-patch content when a hypothesis is rejected.",
         params: [
-          { name: "script_path", type: "str", description: "Path to the patched train.py." },
+          { name: "script_path", type: "str", description: "Path to the patched config JSON." },
           { name: "original_content", type: "str", description: "Original file content returned by apply_patch." },
         ],
         returns: { type: "None", description: "Writes to disk only." },
@@ -870,20 +870,20 @@ Graph nodes and edges:
       {
         name: "submit_experiment",
         signature: "submit_experiment(script_path: str, plan: TrainingPlan, timeout_min: int = 5) -> str",
-        description: "Submits a constrained (short, budgeted) training run to Tinker for a single hypothesis test. Returns the Tinker job ID.",
+        description: "Compatibility wrapper for older call sites. It now runs a constrained SDK-native Tinker SFT experiment and returns the run ID.",
         params: [
-          { name: "script_path", type: "str", description: "Path to the patched train.py to submit." },
+          { name: "script_path", type: "str", description: "Compatibility training script path; ignored by the SDK-native Tinker path." },
           { name: "plan", type: "TrainingPlan", description: "Training plan (used for resource config)." },
           { name: "timeout_min", type: "int", description: "Max wall-clock minutes for this experiment. Defaults to 5 for mini runs.", optional: true },
         ],
-        returns: { type: "str", description: "Tinker job ID." },
+        returns: { type: "str", description: "Tinker run ID." },
       },
       {
         name: "wait_for_experiment",
         signature: "wait_for_experiment(job_id: str, timeout_min: int) -> ExperimentResult",
-        description: "Polls Tinker for job completion and returns the result. Raises TimeoutError if timeout_min is exceeded.",
+        description: "Compatibility wrapper for older call sites. It returns a cached or artifact-backed SDK-native ExperimentResult; it does not poll a REST job queue.",
         params: [
-          { name: "job_id", type: "str", description: "Tinker job ID from submit_experiment." },
+          { name: "job_id", type: "str", description: "Tinker run ID from submit_experiment." },
           { name: "timeout_min", type: "int", description: "Maximum wait time in minutes." },
         ],
         returns: { type: "ExperimentResult", description: "{ job_id, status, metrics: TrainingMetrics, model_path, cost_usd, logs_path }." },
@@ -978,58 +978,44 @@ Graph nodes and edges:
     title: "Feature 4 — Cost Manager",
     owner: "Sid Potti",
     description:
-      "Hard financial guardrail. Continuously polls Tinker billing API every 30 seconds. Saves checkpoint at 90% of budget; kills the GPU instance at 100%. Returns final weights and a cost breakdown.",
-    architecture: `The Cost Manager runs as a background thread — it never blocks the main training loop and never needs to be awaited. It is started once per Tinker job via start_cost_monitor(), which spawns the monitor thread and returns immediately.
+      "Financial guardrail for live runs. It records in-process AutoResearch/Tinker spend, can run a legacy polling monitor, and returns final cost breakdowns.",
+    architecture: `The Cost Manager has two layers.
 
-The monitor thread runs a tight polling loop:
-  every 30 seconds → poll_spend(job_id) → check_budget_status(spent, budget)
-  → OK: do nothing
-  → WARNING (≥90%): call save_checkpoint() and emit a log warning
-  → EXCEEDED (≥100%): call save_checkpoint(), then kill_job(), then stop the thread
+Current AutoResearch/Tinker path:
+  - Manager creates CostManager(budget) and passes it into AutoResearch.
+  - AutoResearch calls cost_manager.start(run_id) around each SDK-native Tinker run.
+  - After each run, AutoResearch calls record_spend(result.cost_usd, category="training").
+  - continue_edge and final TrainedModel cost reports read cost_manager.spent_usd and cost_breakdown().
+  - If the manager reaches EXCEEDED, AutoResearch stops after the current bounded run.
 
-In addition to the budget-triggered saves, the training script itself calls save_checkpoint() every 5–10 minutes during the training loop. This ensures we always have a recent checkpoint even if the kill happens between polling cycles.
+Legacy monitor path:
+  start_cost_monitor(job_id, budget) still exists for older script-style jobs. It polls poll_spend(), writes checkpoint signal files at WARNING/EXCEEDED, and calls kill_job() at EXCEEDED.
 
-The Cost Manager also runs during AutoResearch mini-runs, not just the final training run. Each 5-minute experiment is registered with start_cost_monitor() so it can be killed if it somehow overruns.
-
-At the end of the run (whether natural completion or budget kill), generate_cost_report() is called to produce the final CostBreakdown that gets returned to the user as part of TrainedModel.`,
+V1 limitation:
+  The SDK-native Tinker path still relies on local token/cost estimates returned by the runner. This is a budget guard, not authoritative billing.`,
     flowDiagram: `
-start_cost_monitor(job_id, budget, poll_interval=30)
-  └─► spawns background thread, returns immediately
+Manager:
+  CostManager(budget)
+    └─► AutoResearch state
 
-BACKGROUND THREAD:
-  loop every 30s:
-    ├─► poll_spend(job_id)           ← Tinker billing API
-    │     └─► spent: float
-    │
-    ├─► check_budget_status(spent, budget)
-    │     └─► BudgetStatus: OK | WARNING | EXCEEDED
-    │
-    ├─[OK]──► continue polling
-    │
-    ├─[WARNING ≥90%]──────────────────────────────────
-    │   ├─► save_checkpoint(job_id, output_dir)
-    │   └─► log_event(COST_MANAGER, WARN, "90% budget used")
-    │
-    └─[EXCEEDED ≥100%]────────────────────────────────
-        ├─► save_checkpoint(job_id, output_dir)
-        ├─► kill_job(job_id)          ← Tinker API: terminate instance
-        ├─► log_event(COST_MANAGER, WARN, "Budget limit reached")
-        └─► stop thread
+Each Tinker run:
+  cost_manager.start(run_id)
+    └─► optional monitor thread for compatibility
+  run_tinker_sft_experiment(...)
+  cost_manager.record_spend(cost_usd, "training")
+    └─► BudgetStatus: OK | WARNING | EXCEEDED
 
-TRAINING SCRIPT (every 5-10 min):
-  └─► save_checkpoint()  ← called from within train.py directly
-
-END OF RUN:
-  └─► generate_cost_report(job_id)
-        └─► CostBreakdown  { data_gen_usd, training_usd, llm_calls_usd, total_usd }
+Final response:
+  cost_manager.cost_breakdown(termination_reason)
+    └─► CostBreakdown { data_gen_usd, training_usd, llm_calls_usd, total_usd }
     `,
     functions: [
       {
         name: "start_cost_monitor",
         signature: "start_cost_monitor(job_id: str, budget: float, poll_interval_sec: int = 30) -> threading.Thread",
-        description: "Starts a background thread that polls Tinker billing every poll_interval_sec seconds. The thread calls save_checkpoint at 90% budget and kill_job at 100%.",
+        description: "Starts the legacy background monitor for script-style jobs. SDK-native AutoResearch also calls this through CostManager.start(), but spend is recorded in-process after each bounded run.",
         params: [
-          { name: "job_id", type: "str", description: "Tinker job ID to monitor." },
+          { name: "job_id", type: "str", description: "Tinker run/job ID to monitor." },
           { name: "budget", type: "float", description: "Hard budget cap in USD." },
           { name: "poll_interval_sec", type: "int", description: "Polling interval in seconds. Default 30.", optional: true },
         ],
@@ -1038,9 +1024,9 @@ END OF RUN:
       {
         name: "poll_spend",
         signature: "poll_spend(job_id: str) -> float",
-        description: "Calls Tinker billing API to fetch cumulative USD spend for a job.",
+        description: "Fetches cumulative USD spend for a run/job through the low-level Tinker helper.",
         params: [
-          { name: "job_id", type: "str", description: "Tinker job ID." },
+          { name: "job_id", type: "str", description: "Tinker run/job ID." },
         ],
         returns: { type: "float", description: "Cumulative USD spend so far." },
       },
@@ -1057,9 +1043,9 @@ END OF RUN:
       {
         name: "save_checkpoint",
         signature: "save_checkpoint(job_id: str, output_dir: str) -> str",
-        description: "Saves the current model state_dict to disk. Called automatically at 90% budget and every 5–10 minutes during training.",
+        description: "Writes a checkpoint signal file for legacy script-style training. SDK-native Tinker checkpoints are saved by the runner manifest path.",
         params: [
-          { name: "job_id", type: "str", description: "Tinker job ID (used to locate the running process)." },
+          { name: "job_id", type: "str", description: "Tinker run/job ID." },
           { name: "output_dir", type: "str", description: "Directory to write the checkpoint file." },
         ],
         returns: { type: "str", description: "Absolute path to the saved checkpoint file." },
@@ -1067,18 +1053,18 @@ END OF RUN:
       {
         name: "kill_job",
         signature: "kill_job(job_id: str) -> None",
-        description: "Calls Tinker API to immediately terminate the GPU instance for job_id. Called when spend >= budget.",
+        description: "Requests cancellation for the run/job. In the SDK-native path this sets a local cancellation signal checked between training steps.",
         params: [
-          { name: "job_id", type: "str", description: "Tinker job ID to kill." },
+          { name: "job_id", type: "str", description: "Tinker run/job ID to cancel." },
         ],
-        returns: { type: "None", description: "Side effect only: terminates the Tinker job." },
+        returns: { type: "None", description: "Side effect only: requests cancellation." },
       },
       {
         name: "generate_cost_report",
         signature: "generate_cost_report(job_id: str) -> CostBreakdown",
-        description: "Fetches the final cost breakdown from Tinker and splits it into components (data generation, training, LLM calls). Returned to the user at end of run.",
+        description: "Legacy helper that fetches cumulative spend and estimates a component breakdown. CostManager.cost_breakdown() is preferred for in-process AutoResearch runs.",
         params: [
-          { name: "job_id", type: "str", description: "Completed or terminated Tinker job ID." },
+          { name: "job_id", type: "str", description: "Completed or cancelled Tinker run/job ID." },
         ],
         returns: { type: "CostBreakdown", description: "{ data_gen_usd, training_usd, llm_calls_usd, total_usd, termination_reason }." },
       },
@@ -1172,106 +1158,135 @@ Cost Manager calls:
     ],
   },
 
-  // ─── TINKER API WRAPPER ───────────────────────────────────────────────────────
+  // ─── TINKER SDK RUNNER ────────────────────────────────────────────────────────
   {
     id: "tinker-api",
-    title: "Tinker API Wrapper",
+    title: "Tinker SDK Runner",
     owner: "Sid Potti",
     description:
-      "Thin wrapper around Tinker's job submission and billing REST APIs. All GPU training runs and cost monitoring go through these functions.",
-    architecture: `The Tinker API Wrapper is a pure HTTP client — no business logic, no state. It exists to give the rest of the system a typed, mockable interface to Tinker's REST APIs so that every other feature doesn't need to know about auth headers, retry logic, or response parsing.
+      "SDK-native Tinker chat/SFT runner plus low-level Tinker helpers. AutoResearch calls this path directly instead of submitting REST jobs.",
+    architecture: `The current implementation is SDK-native. AutoResearch does not submit a REST job or poll a remote job queue. It builds a TrainingConfig and DatasetResult, then calls run_tinker_sft_experiment(), which creates a tinker.ServiceClient and a LoRA training client in-process.
 
-Two Tinker APIs are used:
-  Job API: submit_job, get_job_status, cancel_job, get_job_logs, list_jobs
-  Billing API: get_cumulative_spend
+Supported v1 path:
+  JSONL chat/SFT data
+    -> DataGen curation writes local train_data.jsonl
+    -> Decision Engine emits backend="tinker_sft" and dataset_path
+    -> AutoResearch calls run_tinker_sft_experiment()
+    -> Tinker SDK LoRA training, checkpoint, sample, metrics, manifest
+    -> AutoResearch scores metrics with primary_metric = 1 / (1 + val_loss)
 
-Callers:
-  AutoResearch calls submit_job() and wait_for_experiment() (which polls get_job_status()).
-  Cost Manager calls get_cumulative_spend() every 30 seconds and cancel_job() when budget is exceeded.
-  Observability optionally calls get_job_logs() to stream training output.
+Runner responsibilities:
+  - Normalize JSONL records with messages or input/output-style fields.
+  - Create tinker.ServiceClient().
+  - Create a LoRA training client with create_lora_training_client(base_model=model_name, rank=lora_rank).
+  - Resolve tokenizer and renderer through tinker_cookbook; Qwen/Qwen3.5-9B falls back to qwen3_5_disable_thinking when the registry has no direct recommendation.
+  - Render conversations with TrainOnWhat.LAST_ASSISTANT_MESSAGE and split multi-assistant examples into one target per assistant turn.
+  - Run pipelined forward_backward and optim_step calls, recording token usage.
+  - Save final checkpoint/sampling identifiers and write metrics.json, metrics.jsonl, manifest.json, and sample.json.
 
-All functions raise a TinkerAPIError on non-2xx responses. Retry logic (exponential backoff, max 3 attempts) is handled internally so callers don't need to implement it.
+Cost/cancel behavior:
+  Cost Manager wraps each AutoResearch Tinker run with start()/stop(), records the runner's reported cost_usd, and can cancel between SDK steps through the shared cancellation signal. Token-estimate spend is still a local budget guard, not authoritative billing.
 
-NOTE: Tinker API docs + auth credentials are a hard dependency. This wrapper cannot be built until Sid confirms the API spec (target: Apr 18). All other features can be built with a mock implementation of this module in the meantime.`,
+Compatibility:
+  submit_experiment() and wait_for_experiment() remain compatibility wrappers for old call sites, but they no longer represent the full graph execution path. New work should call run_tinker_sft_experiment() directly.`,
     flowDiagram: `
 AutoResearch:
-  submit_job(script_path, job_config)  ──►  POST /jobs
-    └─► job_id: str (UUID)
+  TrainingPlan(backend="tinker_sft", dataset_path)
+    └─► run_tinker_sft_experiment(config, dataset, max_steps)
+          ├─► tinker.ServiceClient()
+          ├─► create_lora_training_client(base_model, rank)
+          ├─► renderer + tokenizer from tinker_cookbook
+          ├─► forward_backward + optim_step loop
+          ├─► save checkpoint/sampler
+          └─► metrics + manifest + sample artifacts
 
-  get_job_status(job_id)  ──────────►  GET /jobs/{id}/status
-    └─► JobStatus: PENDING | RUNNING | COMPLETED | FAILED
+Data path:
+  JSONL records
+    ├─► messages[{role, content}]
+    └─► input|prompt|question|content + output|answer|label|target
 
 Cost Manager:
-  get_cumulative_spend(job_id)  ──────►  GET /billing/{id}/spend
-    └─► float (USD)
+  start(run_id)
+    └─► AutoResearch/Tinker run
+          ├─► record_spend(cost_usd)
+          └─► cancel_job(run_id) sets a local signal checked between SDK steps
 
-  cancel_job(job_id)  ────────────────►  POST /jobs/{id}/cancel
-
-Observability (optional):
-  get_job_logs(job_id, tail=100)  ─────►  GET /jobs/{id}/logs?tail=100
-    └─► list[str]
+Artifacts:
+  outputs/experiments/<run_id>/
+    ├─► metrics.json
+    ├─► metrics.jsonl
+    ├─► manifest.json
+    └─► sample.json
 
 All functions:
-  - Raise TinkerAPIError on non-2xx
-  - Retry up to 3× with exponential backoff
+  - Raise TinkerAPIError for SDK failures
+  - Reject malformed or targetless chat/SFT rows before training
   - Log every call via log_event(TINKER_API, INFO, ...)
     `,
     functions: [
       {
-        name: "submit_job",
-        signature: "submit_job(script_path: str, job_config: JobConfig) -> str",
-        description: "Submits a training script to Tinker for execution on a GPU instance. Returns the Tinker job ID.",
+        name: "run_tinker_sft_experiment",
+        signature: "run_tinker_sft_experiment(config, dataset, *, run_id=None, max_steps=None, output_dir='outputs/experiments', service_client=None) -> ExperimentResult",
+        description: "Runs one SDK-native chat/SFT LoRA experiment and writes metrics, manifest, sample, and checkpoint metadata artifacts.",
         params: [
-          { name: "script_path", type: "str", description: "Absolute path to the train.py script." },
-          { name: "job_config", type: "JobConfig", description: "{ gpu_type, num_gpus, timeout_min, env_vars, output_dir }." },
+          { name: "config", type: "TrainingConfig | Mapping", description: "Model and supported v1 tunables: learning_rate, batch_size, max_seq_length, lora_rank, num_epochs." },
+          { name: "dataset", type: "DatasetResult | Sequence[dict]", description: "Local JSONL DatasetResult or in-memory chat/SFT records." },
+          { name: "run_id", type: "str | None", description: "Optional stable run ID used for artifact directory and cancellation signal.", optional: true },
+          { name: "max_steps", type: "int | None", description: "Optional step cap. Live smoke default is 5.", optional: true },
+          { name: "output_dir", type: "str", description: "Experiment artifact root.", optional: true },
+          { name: "service_client", type: "Any | None", description: "Optional injected Tinker ServiceClient for tests.", optional: true },
         ],
-        returns: { type: "str", description: "Tinker job ID (UUID string)." },
+        returns: { type: "ExperimentResult", description: "{ job_id, status, metrics, model_path, cost_usd, logs_path }." },
       },
       {
-        name: "get_job_status",
-        signature: "get_job_status(job_id: str) -> JobStatus",
-        description: "Fetches the current status of a Tinker job.",
+        name: "record_to_conversation",
+        signature: "record_to_conversation(record: Mapping[str, Any]) -> list[dict[str, str]]",
+        description: "Converts one JSONL record into a chat conversation, accepting either messages or input/output-style fields.",
         params: [
-          { name: "job_id", type: "str", description: "Tinker job ID." },
+          { name: "record", type: "Mapping[str, Any]", description: "One candidate SFT record." },
         ],
-        returns: { type: "JobStatus", description: "Enum: PENDING | RUNNING | COMPLETED | FAILED | CANCELLED." },
+        returns: { type: "list[dict[str, str]]", description: "Normalized messages with user and assistant target." },
       },
       {
-        name: "get_cumulative_spend",
-        signature: "get_cumulative_spend(job_id: str) -> float",
-        description: "Returns the cumulative USD spend for a job from the Tinker billing API.",
+        name: "resolve_renderer_name",
+        signature: "resolve_renderer_name(model_name: str) -> str",
+        description: "Returns the cookbook-recommended renderer, with a Qwen/Qwen3.5-9B fallback to qwen3_5_disable_thinking.",
         params: [
-          { name: "job_id", type: "str", description: "Tinker job ID." },
+          { name: "model_name", type: "str", description: "Tinker base model ID." },
         ],
-        returns: { type: "float", description: "Cumulative spend in USD." },
+        returns: { type: "str", description: "Renderer name passed to tinker_cookbook renderers." },
+      },
+      {
+        name: "create_lora_training_client",
+        signature: "create_lora_training_client(service_client, base_model: str, rank: int)",
+        description: "Low-level helper that delegates to Tinker's create_lora_training_client SDK call.",
+        params: [
+          { name: "service_client", type: "Any", description: "Authenticated Tinker ServiceClient." },
+          { name: "base_model", type: "str", description: "Tinker base model ID." },
+          { name: "rank", type: "int", description: "LoRA rank." },
+        ],
+        returns: { type: "Any", description: "Tinker LoRA training client." },
+      },
+      {
+        name: "run_training_step",
+        signature: "run_training_step(training_client, batch, learning_rate: float, job_id: str | None = None)",
+        description: "Low-level helper for one forward_backward + optim_step call, including local token accounting.",
+        params: [
+          { name: "training_client", type: "Any", description: "Tinker LoRA training client." },
+          { name: "batch", type: "list[Datum]", description: "Rendered supervised datums." },
+          { name: "learning_rate", type: "float", description: "Adam learning rate." },
+          { name: "job_id", type: "str | None", description: "Optional cost-accounting ID.", optional: true },
+        ],
+        returns: { type: "Any", description: "SDK training step result." },
       },
       {
         name: "cancel_job",
         signature: "cancel_job(job_id: str) -> None",
-        description: "Immediately cancels and terminates a Tinker job, releasing the GPU instance.",
+        description: "Sets a local cancellation signal. SDK-native training checks the signal between steps.",
         params: [
-          { name: "job_id", type: "str", description: "Tinker job ID to cancel." },
+          { name: "job_id", type: "str", description: "Run ID to cancel." },
         ],
-        returns: { type: "None", description: "Side effect: Tinker terminates the GPU instance." },
-      },
-      {
-        name: "get_job_logs",
-        signature: "get_job_logs(job_id: str, tail: int = 100) -> list[str]",
-        description: "Fetches the last N lines of stdout/stderr from a running or completed Tinker job.",
-        params: [
-          { name: "job_id", type: "str", description: "Tinker job ID." },
-          { name: "tail", type: "int", description: "Number of log lines to return from the end. Default 100.", optional: true },
-        ],
-        returns: { type: "list[str]", description: "List of log line strings." },
-      },
-      {
-        name: "list_jobs",
-        signature: "list_jobs(limit: int = 20) -> list[JobSummary]",
-        description: "Lists recent Tinker jobs for the current account, ordered by submission time descending.",
-        params: [
-          { name: "limit", type: "int", description: "Maximum number of jobs to return.", optional: true },
-        ],
-        returns: { type: "list[JobSummary]", description: "List of JobSummary: { job_id, status, submitted_at, cost_usd, script_name }." },
+        returns: { type: "None", description: "Side effect: future loop checks see the run as cancelled." },
       },
     ],
   },
@@ -1320,9 +1335,11 @@ export const sharedTypes: TypeDef[] = [
     fields: [
       { name: "plan", type: "TrainingPlan", description: "Training plan from Decision Engine." },
       { name: "config", type: "OrchestrationConfig", description: "Orchestration config." },
+      { name: "cost_manager", type: "Any", description: "CostManager instance used for in-process spend accounting." },
       { name: "eval_suite", type: "EvalSuite", description: "Set by init_node. Reused every iteration." },
-      { name: "current_script", type: "str", description: "Path to the current (possibly patched) train.py." },
-      { name: "current_config", type: "dict", description: "Current hyperparameter config dict." },
+      { name: "current_script", type: "str", description: "Compatibility training script path from the plan." },
+      { name: "current_config", type: "dict", description: "Current accepted hyperparameter config dict." },
+      { name: "current_patch", type: "str | None", description: "JSON-encoded pending proposal patch." },
       { name: "original_content", type: "str | None", description: "Pre-patch file content saved by propose_node for revert." },
       { name: "diary", type: "ResearchDiary", description: "Append-only list of IterationRecords. Updated by log_node." },
       { name: "baseline_score", type: "EvalScore", description: "Score of unmodified baseline. Set by baseline_node." },
@@ -1388,8 +1405,10 @@ export const sharedTypes: TypeDef[] = [
       { name: "lora_config", type: "LoRAConfig | None", description: "LoRA settings if fine-tuning." },
       { name: "estimated_cost", type: "float", description: "Estimated USD for full training run." },
       { name: "estimated_time_min", type: "int", description: "Estimated wall-clock minutes." },
-      { name: "training_script_path", type: "str", description: "Path to generated train.py." },
+      { name: "training_script_path", type: "str", description: "Path to generated compatibility train.py." },
       { name: "eval_metric", type: "str", description: "Primary metric to optimize." },
+      { name: "backend", type: "str", description: "'tinker_sft' for the SDK-native Tinker path." },
+      { name: "dataset_path", type: "str", description: "Local JSONL dataset path consumed by the Tinker SFT runner." },
     ],
   },
   {
@@ -1407,7 +1426,7 @@ export const sharedTypes: TypeDef[] = [
     fields: [
       { name: "iteration", type: "int", description: "Iteration number (1-indexed)." },
       { name: "hypothesis", type: "str", description: "Description of what was tested." },
-      { name: "patch", type: "str", description: "The unified diff that was applied." },
+      { name: "patch", type: "str", description: "Human-readable config diff for the tested hyperparameter patch." },
       { name: "cost_usd", type: "float", description: "USD cost of this experiment." },
       { name: "metrics", type: "TrainingMetrics", description: "train_loss, val_loss, test_loss, primary_metric." },
       { name: "decision", type: "str", description: "'KEPT' | 'REVERTED'." },
