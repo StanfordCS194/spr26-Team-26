@@ -162,5 +162,10 @@ on top of #51.
   AutoResearch proposal/search boundary. Branch validation passed focused and
   no-live suites; next step is composing it into the unpublished full-stack
   worktree and rerunning the live API Mode B path.
+- The unpublished composition branch now includes #79 as well. Compileall and
+  the full no-live Python suite passed (`255 passed, 9 skipped`). The live API
+  Mode B rerun completed with baseline + one candidate Tinker job, 10 streamed
+  metric points, and run artifacts exposed before stopping at the `$2.24`
+  software budget limit.
 
-Current conservative live spend: `$73.64 / $100.00`.
+Current conservative live spend: `$78.64 / $100.00`.

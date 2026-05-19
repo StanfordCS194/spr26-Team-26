@@ -80,10 +80,11 @@ Budget cap: $100 total.
 | stack-034 | 2026-05-19 10:03 | local only #55-#78 + #73/#74/#75 | unpublished combined stack validation | none | passed | $0.00 | $68.64 | Merged #78 into the local composition stack. Conflict resolution preserved newer AutoResearch budget/split/heldout code and added cancellation hooks around it. Compileall passed, full no-live Python suite passed (`251 passed, 9 skipped`), and frontend lint/build passed. |
 | api-live-001 | 2026-05-19 10:08 | local only #55-#78 + #73/#74/#75 | live API Mode B progress validation | Tinker, Anthropic, Hugging Face public dataset pull | failed with integration bug found | $5.00 | $73.64 | `TestClient` POST to `/api/runs` with `hf://SetFit/sst2`, `$2.50` software budget, and run-scoped output root. API progress refresh worked through Manager/DataGen/DecisionEngine/AutoResearch, streamed five Tinker metric points, and surfaced manifest/metrics/sample artifacts. Run failed after baseline because Manager/DecisionEngine config used legacy `epochs`, while Tinker V1 validation only allows `num_epochs`. |
 | stack-035 | 2026-05-19 10:14 | #79 | Tinker hyperparameter alias compatibility | none | passed | $0.00 | $73.64 | Draft PR #79 opened on #72. AutoResearch canonicalizes `epochs -> num_epochs` and `max_seq_len -> max_seq_length` before Tinker proposal/search state and normalizes proposer alias patches. Validation passed compileall, focused AutoResearch tests (`39 passed`), Tinker/AutoResearch/e2e cluster (`81 passed, 3 skipped`), and branch no-live suite excluding the old ungated HF file (`166 passed, 5 skipped`). |
+| api-live-002 | 2026-05-19 10:18 | local only #55-#79 + #73/#74/#75/#78 | live API Mode B alias rerun | Tinker, Anthropic, Hugging Face public dataset pull | passed | $5.00 | $78.64 | Merged #79 into the unpublished stack, reran the failed API path with `hf://SetFit/sst2` and `$2.50` software budget. Run completed with baseline + one candidate Tinker job, 10 streamed metric points, five artifact files (`manifest`, `metrics`, `metrics_log`, `sample`, `diary`), final API status `complete`, and budget-limit stop at `$2.24`. The proposer used canonical `num_epochs`, proving the alias crash is fixed. |
 
 ## Spend Ledger
 
-Current estimated cumulative spend: **$73.64 / $100.00**
+Current estimated cumulative spend: **$78.64 / $100.00**
 
 Notes:
 - Tinker billing may not be available through the local code, so per-run spend will be estimated conservatively from run type and observed duration unless a real cost is exposed.
