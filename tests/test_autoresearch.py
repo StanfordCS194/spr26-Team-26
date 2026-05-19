@@ -59,6 +59,13 @@ def _minimal_dataset(path="/tmp/data"):
     }
 
 
+def _fail_live_service(name: str):
+    def _fail(*_args, **_kwargs):
+        raise AssertionError(f"{name} should not be used in this test")
+
+    return _fail
+
+
 # ─── build_autoresearch_graph ─────────────────────────────────────────────────
 
 def test_build_autoresearch_graph_returns_compiled_graph():
@@ -67,6 +74,150 @@ def test_build_autoresearch_graph_returns_compiled_graph():
     from src.autoresearch.autoresearch import build_autoresearch_graph
     graph = build_autoresearch_graph()
     assert graph is not None
+
+
+def test_autoresearch_graph_stops_on_budget_boundary_after_tinker_run(
+    monkeypatch,
+    tmp_path,
+):
+    pytest.importorskip("langgraph", reason="langgraph not installed")
+
+    import threading
+
+    import src.autoresearch.autoresearch as ar
+    import src.cost_manager.cost_manager as cost_module
+    from src.cost_manager.cost_manager import CostManager
+    from src.tinker_api.sft_runner import DEFAULT_TINKER_MODEL
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("TINKER_API_KEY", raising=False)
+    monkeypatch.setattr("anthropic.Anthropic", _fail_live_service("Claude"))
+
+    def fake_cost_monitor(*_args, **_kwargs):
+        thread = threading.Thread(target=lambda: None)
+        thread.stop_event = threading.Event()  # type: ignore[attr-defined]
+        thread.start()
+        return thread
+
+    monkeypatch.setattr(cost_module, "start_cost_monitor", fake_cost_monitor)
+
+    dataset_path = tmp_path / "train.jsonl"
+    dataset_path.write_text(
+        json.dumps({"input": "urgent ticket", "output": "escalate"}) + "\n",
+        encoding="utf-8",
+    )
+
+    runner_calls = []
+    proposal_calls = []
+
+    def fake_propose_hypothesis(current_config, diary, task, allowed_params=None):
+        proposal_calls.append(
+            {
+                "current_config": dict(current_config),
+                "diary_len": len(diary),
+                "allowed_params": allowed_params,
+            }
+        )
+        if len(proposal_calls) > 1:
+            raise AssertionError("graph should stop at the budget boundary before another proposal")
+        assert "learning_rate" in allowed_params
+        return {
+            "description": "Increase learning_rate for one bounded fake Tinker run.",
+            "patch": json.dumps({"learning_rate": 2e-4}),
+            "expected_effect": "Improve the fake validation metric.",
+            "search_strategy": "test-double",
+        }
+
+    def fake_tinker_runner(config, dataset, *, run_id=None, max_steps=None, **_kwargs):
+        assert dataset["dataset"]["path"] == str(dataset_path)
+        assert config.model_name == DEFAULT_TINKER_MODEL
+        assert max_steps == 2
+
+        call_number = len(runner_calls) + 1
+        runner_calls.append(
+            {
+                "run_id": run_id,
+                "learning_rate": config.learning_rate,
+            }
+        )
+
+        val_loss = 0.50 if call_number == 1 else 0.25
+        metrics = {
+            "train_loss": val_loss + 0.05,
+            "val_loss": val_loss,
+            "test_loss": val_loss + 0.02,
+            "primary_metric": 1.0 / (1.0 + val_loss),
+        }
+        run_dir = Path("outputs/experiments") / str(run_id)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / "metrics.json").write_text(json.dumps(metrics), encoding="utf-8")
+        (run_dir / "metrics.jsonl").write_text(
+            json.dumps({"step": 1, **metrics}) + "\n",
+            encoding="utf-8",
+        )
+        return {
+            "job_id": str(run_id),
+            "status": "COMPLETED",
+            "metrics": metrics,
+            "model_path": str(run_dir),
+            "cost_usd": 0.01,
+            "logs_path": str(run_dir / "metrics.jsonl"),
+        }
+
+    monkeypatch.setattr(ar, "propose_hypothesis", fake_propose_hypothesis)
+    monkeypatch.setattr(ar, "run_tinker_sft_experiment", fake_tinker_runner)
+
+    plan = {
+        "strategy": "fine-tune",
+        "base_model": DEFAULT_TINKER_MODEL,
+        "lora_config": {"rank": 8, "alpha": 16, "dropout": 0.05, "target_modules": []},
+        "estimated_cost": 0.02,
+        "estimated_time_min": 5,
+        "training_script_path": str(tmp_path / "train.py"),
+        "eval_metric": "primary_metric",
+        "backend": "tinker_sft",
+        "dataset_path": str(dataset_path),
+    }
+    config = {
+        "data": False,
+        "prompt": "classify support tickets",
+        "compute_budget": 0.02,
+        "training_procedure": {
+            "task_type": "text-classification",
+            "data_format": "jsonl",
+            "training_type": "SFT",
+            "base_model": DEFAULT_TINKER_MODEL,
+            "hyperparameters": {
+                "learning_rate": 1e-4,
+                "batch_size": 4,
+                "num_epochs": 1,
+                "max_seq_length": 256,
+                "max_steps": 2,
+            },
+            "notes": "offline graph budget-boundary test",
+        },
+    }
+
+    result = ar.invoke_autoresearch_graph(plan, config, CostManager(0.02))
+
+    assert result["n_iterations"] == 1
+    assert result["cost"]["total_usd"] == pytest.approx(0.02)
+    assert result["cost"]["termination_reason"] == "budget_limit"
+    assert result["metrics"]["scalar"] == pytest.approx(0.8)
+    assert len(proposal_calls) == 1
+    assert len(runner_calls) == 2
+    assert runner_calls[0]["run_id"].startswith("autoresearch-baseline-0-")
+    assert runner_calls[1]["run_id"].startswith("autoresearch-iteration-0-")
+    assert [call["learning_rate"] for call in runner_calls] == [1e-4, 2e-4]
+
+    diary_records = [
+        json.loads(line)
+        for line in Path(result["research_diary_path"]).read_text().splitlines()
+        if line.strip()
+    ]
+    assert len(diary_records) == 1
+    assert diary_records[0]["decision"] == "KEPT"
 
 
 # ─── apply_patch / revert_patch ───────────────────────────────────────────────
