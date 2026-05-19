@@ -24,6 +24,7 @@ def test_manager_to_real_autoresearch_graph_with_fake_tinker_offline(
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("TAVILY_API_KEY", raising=False)
     monkeypatch.delenv("TINKER_API_KEY", raising=False)
+    monkeypatch.setenv("AUTORESEARCH_PROPOSER", "claude")
 
     monkeypatch.setattr("builtins.input", _fail_live_service("user input"))
     monkeypatch.setattr("anthropic.Anthropic", _fail_live_service("Claude"))
