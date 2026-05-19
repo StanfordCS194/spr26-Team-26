@@ -1,6 +1,6 @@
 # Overnight PR Stack
 
-Updated: 2026-05-19 10:02 PDT
+Updated: 2026-05-19 10:58 PDT
 
 Purpose: give reviewers a merge/review order for the draft PR stack without
 having to infer dependencies from GitHub.
@@ -36,12 +36,14 @@ having to infer dependencies from GitHub.
    - #44 `codex/mode-c-web-structuring` -> #40
    - #46 `codex/manager-datagen-validation-gate` -> #40
    - #73 `codex/manager-json-robustness` -> #46
+   - #84 `codex/manager-noninteractive-invoke` -> #73
    - #50 `codex/frontend-manager-api-bridge` -> #46
    - #74 `codex/api-run-output-isolation` -> #50
    - #76 `codex/frontend-dataset-source` -> #74
    - #77 `codex/api-run-artifacts` -> #76
    - #82 `codex/api-artifact-download-path` -> #77
    - #78 `codex/api-progress-cancel` -> #77
+   - #83 `codex/api-artifact-stable-refresh` -> #78
    - #52 `codex/preserve-chat-messages-curation` -> #40
    - #58 `codex/curation-small-splits` -> #52
    - #64 `codex/curation-source-splits` -> #58
@@ -53,6 +55,7 @@ having to infer dependencies from GitHub.
    - #49 `codex/spec-tinker-sdk-docs` -> #51
    - #55 `codex/autoresearch-budget-stop-graph-v2` -> #51
    - #56 `codex/mode-c-web-manager-boundary-v2` -> #51
+   - #85 `codex/mode-c-web-structuring-budget-cap` -> #56
    - #71 `codex/full-stack-budget-contract` -> #51
    - #41 `codex/overnight-coordination` -> #35
 
@@ -72,12 +75,13 @@ having to infer dependencies from GitHub.
 
 ## Latest Local Stack Validation
 
-Unpublished local stack currently includes #55 through #78, including #73/#74/#75/#76/#77/#78
-on top of #51.
+Unpublished local stack currently includes #55 through #85, including the API,
+DataGen, AutoResearch, Tinker, Manager, and frontend leaves listed above. The
+latest composed validation after #85 passed with `260 passed, 6 skipped`.
 
 - `python3 -m compileall src`
 - Full non-live suite with live Tinker/HF cases skipped by default:
-  `225 passed, 9 skipped`
+  `260 passed, 6 skipped`
 - Live #62 heldout smoke on the 22-row web DataGen dataset completed with
   split 17/2/3, saved checkpoints, `val_loss=3.5944`, and `test_loss=8.8181`.
 - Live full AutoResearch graph smoke with #62/#63 completed with split 17/2/3
