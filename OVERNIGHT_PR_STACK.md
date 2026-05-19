@@ -204,5 +204,10 @@ on top of #51.
   `interactive_data_prompt=True` opt-in. It composes cleanly with the local stack
   after resolving only the `typing` import conflict; the composed no-live suite
   passed with `256 passed, 6 skipped`.
+- #85 caps Mode C web teacher structuring on top of #75. It uses explicit
+  `max_records`, `DATA_GENERATOR_WEB_STRUCTURING_MAX_RECORDS`,
+  `DATA_GENERATOR_SYNTHETIC_EXAMPLES`, or config-level example counts before
+  falling back to 24. It composes cleanly with the local stack; the composed
+  no-live suite passed with `259 passed, 6 skipped`.
 
 Current conservative live spend: `$88.64 / $100.00`.
