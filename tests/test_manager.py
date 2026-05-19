@@ -9,6 +9,7 @@ from src.manager.manager import (
     _parse_task_reasoning_response,
     build_manager_graph,
     build_orchestration_config,
+    invoke_manager_graph,
     log_decision,
     orchestrate_node,
     query_data_node,
@@ -193,6 +194,63 @@ def test_query_data_node_treats_eof_as_no_data(monkeypatch):
     )
 
     assert out == {"has_data": False, "data_path": None}
+
+
+def test_query_data_node_can_skip_interactive_prompt(monkeypatch):
+    def fail_input(_prompt):
+        raise AssertionError("query_data_node should not prompt in noninteractive mode")
+
+    monkeypatch.setattr("builtins.input", fail_input)
+
+    out = query_data_node(
+        {
+            "prompt": "build an assistant",
+            "budget": 5.0,
+            "data_path": None,
+            "has_data": False,
+            "interactive_data_prompt": False,
+            "task_reasoning": None,
+            "config": None,
+            "result": None,
+        }
+    )
+
+    assert out == {"has_data": False, "data_path": None}
+
+
+def test_invoke_manager_graph_defaults_to_noninteractive_mode(monkeypatch):
+    captured = {}
+
+    class FakeGraph:
+        def invoke(self, state):
+            captured.update(state)
+            return {"result": {"weights_path": "model"}}
+
+    monkeypatch.setattr(
+        "src.manager.manager.build_manager_graph",
+        lambda: FakeGraph(),
+    )
+
+    assert invoke_manager_graph("build an assistant", 5.0) == {"weights_path": "model"}
+    assert captured["interactive_data_prompt"] is False
+    assert captured["has_data"] is False
+
+
+def test_invoke_manager_graph_can_opt_into_interactive_prompt(monkeypatch):
+    captured = {}
+
+    class FakeGraph:
+        def invoke(self, state):
+            captured.update(state)
+            return {"result": {"weights_path": "model"}}
+
+    monkeypatch.setattr(
+        "src.manager.manager.build_manager_graph",
+        lambda: FakeGraph(),
+    )
+
+    invoke_manager_graph("build an assistant", 5.0, interactive_data_prompt=True)
+    assert captured["interactive_data_prompt"] is True
 
 
 def test_invoke_manager_graph_returns_trained_model():

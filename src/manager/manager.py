@@ -54,14 +54,22 @@ def invoke_manager_graph(
     prompt: str,
     budget: float,
     data_path: str | None = None,
+    *,
+    interactive_data_prompt: bool = False,
 ) -> TrainedModel:
-    """Main entry point for the entire system. Builds and invokes the Manager graph."""
+    """Main entry point for the system.
+
+    Programmatic callers default to no-data Mode C when ``data_path`` is not
+    supplied. CLI-style callers can opt into the legacy stdin prompt with
+    ``interactive_data_prompt=True``.
+    """
     graph = build_manager_graph()
     initial_state: ManagerState = {
         "prompt": prompt,
         "budget": budget,
         "data_path": data_path,
         "has_data": data_path is not None,
+        "interactive_data_prompt": interactive_data_prompt,
         "task_reasoning": None,
         "config": None,
         "result": None,
@@ -88,6 +96,9 @@ def query_data_node(state: ManagerState) -> dict:
         hf_source = normalize_hf_dataset_source(existing_path)
         if hf_source:
             return {"has_data": True, "data_path": hf_source}
+        return {"has_data": False, "data_path": None}
+
+    if not state.get("interactive_data_prompt", True):
         return {"has_data": False, "data_path": None}
 
     try:
