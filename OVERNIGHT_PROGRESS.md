@@ -41,3 +41,4 @@ Operating rules:
 - 2026-05-19 06:03 PDT — Expanded stack with #47 merged cleanly and broad non-live suite passed with `188 passed, 4 skipped`.
 - 2026-05-19 06:06 PDT — Draft PR #48 opened: AutoResearch JSON config patches now validate through `TrainingConfig.apply_patch` before file writes or Tinker candidate runs. Validation: proposal/AutoResearch/Tinker cluster `85 passed`.
 - 2026-05-19 06:06 PDT — Expanded stack with #48 merged cleanly and broad non-live suite passed with `191 passed, 4 skipped`.
+- 2026-05-19 06:08 PDT — Closed superseded drafts #36, #37, and #38 with comments and deleted their remote branches. Their scope is now carried by integrated DataGen PR #40.
