@@ -366,5 +366,15 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   run, the dashboard displayed real final metrics, all five artifact endpoints
   returned 200, frontend build passed, and the full no-live Python suite passed
   (`319 passed, 8 skipped, 5 warnings`).
+- #91 was updated again to close direct Anthropic seams outside the LangGraph
+  path. `propose_hypothesis()`, `adapt_eval_suite()`, CLI `--strategy claude`,
+  and direct `ClaudeProposalStrategy.propose()` now fail before client
+  construction under `NO_SPEND=1`.
+- #102 was updated so the legacy low-level Tinker wrapper lazy-loads `tinker`
+  only after no-spend/dry-run guards pass. This prevents dry-run/no-spend
+  imports from touching the SDK at all.
+- The refreshed local guard composition including #91 and #102 passed focused
+  AutoResearch/Tinker guard validation (`132 passed, 3 skipped`) and full
+  no-live validation (`322 passed, 8 skipped, 5 warnings`).
 
 Current conservative live spend: `$94.14 / $100.00`.
