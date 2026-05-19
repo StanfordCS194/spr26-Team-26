@@ -130,6 +130,13 @@ def _wait_for_status(client: TestClient, run_id: str, status: str):
     raise AssertionError(f"run did not reach {status}; last state={last}")
 
 
+def _fail_live_service(name: str):
+    def _fail(*_args, **_kwargs):
+        raise AssertionError(f"{name} should not be used in this test")
+
+    return _fail
+
+
 def setup_function():
     server_app._reset_runs_for_tests()
 
@@ -618,6 +625,73 @@ def test_create_run_accepts_hugging_face_data_sources(tmp_path, monkeypatch, sub
     assert calls[0][2] == expected
     assert calls[0][3] == "classification"
     assert state["dataPath"] == expected
+
+
+def test_create_run_hf_data_path_reaches_tinker_dry_run_without_live_credentials(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("NO_SPEND", "1")
+    monkeypatch.setenv("MANAGER_REASONER", "local")
+    monkeypatch.setenv("AUTORESEARCH_PROPOSER", "local")
+    monkeypatch.setenv("AUTORESEARCH_EVAL_ADAPTATION", "off")
+    monkeypatch.setenv("DATA_GENERATOR_OFFLINE", "1")
+    monkeypatch.setenv("DATA_GENERATOR_MAX_ROWS_PER_DATASET", "6")
+    monkeypatch.setenv("TINKER_BACKEND", "dry_run")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("TINKER_API_KEY", raising=False)
+
+    monkeypatch.setattr("builtins.input", _fail_live_service("user input"))
+    monkeypatch.setattr("anthropic.Anthropic", _fail_live_service("Claude"))
+
+    from src.autoresearch import autoresearch as ar
+    from src.tinker_api import sft_runner
+
+    monkeypatch.setattr(ar, "_MAX_ITERATIONS", 1)
+    monkeypatch.setattr(
+        sft_runner,
+        "_load_tinker_deps",
+        _fail_live_service("Tinker SDK"),
+    )
+
+    client = TestClient(server_app.app)
+    response = client.post(
+        "/api/runs",
+        json={
+            "prompt": "Fine tune a classifier using this Hugging Face sentiment dataset",
+            "budget": 20,
+            "task_type": "classification",
+            "data_path": "hf://SetFit/sst2",
+        },
+    )
+
+    assert response.status_code == 200
+    state = _wait_for_status(client, response.json()["run_id"], "complete")
+
+    assert state["dataPath"] == "hf://SetFit/sst2"
+    assert 0.0 <= state["costSpent"] <= 20.0
+    assert state["result"]["n_iterations"] == 1
+    assert any(
+        "Dataset source: hf://SetFit/sst2" in item["message"]
+        for item in state["logs"]
+    )
+
+    artifacts = state["artifacts"]
+    assert artifacts is not None
+    assert artifacts["metrics"]["train_loss"] >= 0.0
+    assert artifacts["sample"]["backend"] == "dry_run"
+    assert artifacts["checkpoints"]["state_path"].startswith("dry-run://state/")
+
+    manifest_path = next(
+        Path(file["path"])
+        for file in artifacts["files"]
+        if file["name"] == "manifest" and file["path"]
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["backend"] == "dry_run"
+    assert manifest["dataset_path"].endswith("train_data.jsonl")
+    assert manifest["training_examples"] > 0
 
 
 def test_create_run_surfaces_manager_failure(tmp_path, monkeypatch):
