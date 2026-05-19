@@ -3,7 +3,7 @@ import { useTrainingRun } from './hooks/useTrainingRun';
 import { isBackendApiConfigured } from './api/runs';
 import InputForm from './components/InputForm';
 import Dashboard from './components/Dashboard';
-import type { TaskType } from './types';
+import type { StartTraining } from './types';
 
 export default function App() {
   const simulation = useTrainingSimulation();
@@ -11,8 +11,8 @@ export default function App() {
   const controller = isBackendApiConfigured() ? backend : simulation;
   const { state, start, reset } = controller;
 
-  const handleStart = (prompt: string, budget: number, taskType: TaskType) => {
-    start(prompt, budget, taskType);
+  const handleStart: StartTraining = (prompt, budget, taskType, dataPath = null) => {
+    return start(prompt, budget, taskType, dataPath);
   };
 
   if (state.status === 'idle') {

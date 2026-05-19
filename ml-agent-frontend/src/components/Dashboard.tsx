@@ -117,6 +117,22 @@ export default function Dashboard({ state, onReset }: Props) {
         }}>
           <span style={{ fontSize: '12px', color: 'var(--text-muted)', flexShrink: 0 }}>Objective</span>
           <span style={{ fontSize: '13px', color: 'var(--text-secondary)', flex: 1 }}>{state.prompt}</span>
+          {state.dataPath && (
+            <span style={{
+              fontSize: '11px',
+              color: 'var(--text-muted)',
+              border: '0.5px solid var(--border)',
+              borderRadius: '4px',
+              padding: '2px 8px',
+              maxWidth: '320px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              flexShrink: 1,
+            }}>
+              {state.dataPath}
+            </span>
+          )}
           <span style={{
             fontSize: '11px',
             color: 'var(--accent)',

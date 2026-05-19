@@ -3,6 +3,13 @@ export type TaskType = 'classification' | 'regression' | 'fine-tuning';
 export type LogType = 'default' | 'success' | 'warning' | 'error';
 export type IterationStatus = 'KEPT' | 'REVERTED' | 'PENDING';
 
+export type StartTraining = (
+  prompt: string,
+  budget: number,
+  taskType: TaskType,
+  dataPath?: string | null
+) => void | Promise<void>;
+
 export interface PipelineStage {
   id: number;
   label: string;
@@ -37,6 +44,7 @@ export interface TrainingState {
   prompt: string;
   budget: number;
   taskType: TaskType;
+  dataPath?: string | null;
   costSpent: number;
   metrics: MetricPoint[];
   iterations: Iteration[];

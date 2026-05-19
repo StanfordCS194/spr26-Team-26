@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import type { TrainingState, PipelineStage, Iteration, LogEntry } from '../types';
+import type { StartTraining, TrainingState, PipelineStage, Iteration, LogEntry } from '../types';
 
 const STAGE_LABELS = [
   'Manager Init',
@@ -105,6 +105,7 @@ export function useTrainingSimulation() {
     prompt: '',
     budget: 50,
     taskType: 'classification',
+    dataPath: null,
     costSpent: 0,
     metrics: [],
     iterations: [],
@@ -131,7 +132,8 @@ export function useTrainingSimulation() {
     });
   }, []);
 
-  const start = useCallback((prompt: string, budget: number, taskType: TrainingState['taskType']) => {
+  const start = useCallback<StartTraining>((prompt, budget, taskType, dataPath = null) => {
+    const normalizedDataPath = dataPath?.trim() || null;
     clearTimers();
     setState({
       status: 'running',
@@ -139,6 +141,7 @@ export function useTrainingSimulation() {
       prompt,
       budget,
       taskType,
+      dataPath: normalizedDataPath,
       costSpent: 0,
       metrics: [],
       iterations: [],
@@ -249,6 +252,7 @@ export function useTrainingSimulation() {
       prompt: '',
       budget: 50,
       taskType: 'classification',
+      dataPath: null,
       costSpent: 0,
       metrics: [],
       iterations: [],

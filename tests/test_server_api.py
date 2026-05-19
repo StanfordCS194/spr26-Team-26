@@ -6,6 +6,7 @@ import json
 import time
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from src.runtime_context import get_output_root
@@ -135,10 +136,80 @@ def test_create_run_completes_with_manager_result(tmp_path, monkeypatch):
     assert (roots[0] / "decisions.jsonl").is_file()
     assert not Path("decisions.jsonl").exists()
     assert state["costSpent"] == 1.25
+    assert state["dataPath"] is None
     assert state["metrics"][0]["loss"] == 0.29
     assert state["metrics"][0]["accuracy"] == 0.775
     assert state["iterations"][0]["status"] == "KEPT"
     assert state["result"]["weights_path"] == "outputs/experiments/run/model"
+
+
+def test_create_run_passes_existing_local_data_path(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    data_path = tmp_path / "train.jsonl"
+    data_path.write_text('{"input":"great","output":"positive"}\n', encoding="utf-8")
+    calls = []
+
+    def fake_invoke(prompt, budget, data_path=None):
+        calls.append((prompt, budget, data_path))
+        root = get_output_root()
+        assert root is not None
+        return _fake_model(root, total_cost=0.25)
+
+    monkeypatch.setattr(server_app, "invoke_manager_graph", fake_invoke)
+    client = TestClient(server_app.app)
+
+    response = client.post(
+        "/api/runs",
+        json={
+            "prompt": "Fine tune on this labeled local JSONL data",
+            "budget": 20,
+            "task_type": "fine-tuning",
+            "data_path": str(data_path),
+        },
+    )
+
+    assert response.status_code == 200
+    state = _wait_for_status(client, response.json()["run_id"], "complete")
+    assert calls[0][2] == str(data_path.resolve())
+    assert state["dataPath"] == str(data_path.resolve())
+    assert any("Dataset source:" in item["message"] for item in state["logs"])
+
+
+@pytest.mark.parametrize(
+    ("submitted", "expected"),
+    [
+        ("hf://SetFit/sst2", "hf://SetFit/sst2"),
+        ("https://huggingface.co/datasets/SetFit/sst2", "hf://SetFit/sst2"),
+        ("SetFit/sst2", "hf://SetFit/sst2"),
+    ],
+)
+def test_create_run_accepts_hugging_face_data_sources(tmp_path, monkeypatch, submitted, expected):
+    monkeypatch.chdir(tmp_path)
+    calls = []
+
+    def fake_invoke(prompt, budget, data_path=None):
+        calls.append((prompt, budget, data_path))
+        root = get_output_root()
+        assert root is not None
+        return _fake_model(root, total_cost=0.2)
+
+    monkeypatch.setattr(server_app, "invoke_manager_graph", fake_invoke)
+    client = TestClient(server_app.app)
+
+    response = client.post(
+        "/api/runs",
+        json={
+            "prompt": "Fine tune on a public Hugging Face sentiment dataset",
+            "budget": 20,
+            "task_type": "classification",
+            "data_path": submitted,
+        },
+    )
+
+    assert response.status_code == 200
+    state = _wait_for_status(client, response.json()["run_id"], "complete")
+    assert calls[0][2] == expected
+    assert state["dataPath"] == expected
 
 
 def test_create_run_surfaces_manager_failure(tmp_path, monkeypatch):
@@ -186,4 +257,50 @@ def test_missing_data_path_is_rejected_before_background_run(tmp_path, monkeypat
     )
 
     assert response.status_code == 400
-    assert "data_path does not exist" in response.text
+    assert "existing local path or Hugging Face source" in response.text
+
+
+def test_missing_relative_data_path_is_not_treated_as_hf_source(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    def fail_invoke(prompt, budget, data_path=None):
+        raise AssertionError("manager should not be called for missing data_path")
+
+    monkeypatch.setattr(server_app, "invoke_manager_graph", fail_invoke)
+    client = TestClient(server_app.app)
+
+    response = client.post(
+        "/api/runs",
+        json={
+            "prompt": "Fine tune on my relative local data path",
+            "budget": 20,
+            "task_type": "fine-tuning",
+            "data_path": "data/train.jsonl",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "existing local path or Hugging Face source" in response.text
+
+
+def test_unsupported_remote_data_path_is_rejected(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    def fail_invoke(prompt, budget, data_path=None):
+        raise AssertionError("manager should not be called for unsupported data_path")
+
+    monkeypatch.setattr(server_app, "invoke_manager_graph", fail_invoke)
+    client = TestClient(server_app.app)
+
+    response = client.post(
+        "/api/runs",
+        json={
+            "prompt": "Fine tune on a remote source",
+            "budget": 20,
+            "task_type": "fine-tuning",
+            "data_path": "https://example.com/train.jsonl",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "existing local path or Hugging Face source" in response.text
