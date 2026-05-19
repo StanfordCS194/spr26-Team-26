@@ -83,6 +83,7 @@ def run_decision_engine(
         eval_metric=task["eval_metric"],
         backend="tinker_sft",
         dataset_path=dataset["dataset"]["path"],
+        dataset=dataset["dataset"],
     )
 
 

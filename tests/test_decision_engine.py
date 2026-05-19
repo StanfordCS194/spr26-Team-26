@@ -101,8 +101,11 @@ def test_write_pretrain_script_creates_file(tmp_path, monkeypatch):
 def test_run_decision_engine_returns_training_plan(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     config = _make_config("text-classification", budget=50.0)
-    plan = run_decision_engine(config, _make_dataset())
+    dataset = _make_dataset(train_size=42)
+    plan = run_decision_engine(config, dataset)
     assert plan["strategy"] in ("fine-tune", "pre-train")
     assert plan["eval_metric"] == "accuracy"
     assert os.path.exists(plan["training_script_path"])
     assert plan["estimated_cost"] > 0
+    assert plan["dataset_path"] == dataset["dataset"]["path"]
+    assert plan["dataset"] == dataset["dataset"]
