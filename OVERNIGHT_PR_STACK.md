@@ -406,6 +406,9 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   finalization, skips post-cancel live SDK save/sample/heldout calls, mirrors
   cancellation in dry-run/NO_SPEND, and adds FastAPI cancellation coverage.
   Branch validation passed the Tinker runner suite (`32 passed, 1 skipped`) and
-  full server API suite with required optional deps (`21 passed`).
+  full server API suite with required optional deps (`21 passed`). Local
+  compositions with the latest #102/#107 changes passed targeted
+  guard/cancellation/API clusters (`66 passed` each) and the refreshed full
+  no-live guard suite (`326 passed, 8 skipped, 5 warnings`).
 
 Current conservative live spend: `$94.14 / $100.00`.
