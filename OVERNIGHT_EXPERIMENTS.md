@@ -33,10 +33,12 @@ Budget cap: $100 total.
 | tinker-008 | 2026-05-19 07:22 | local only #55/#56/#57/#58/#59 | live AutoResearch rerun after early-stop fix | Tinker | passed | $1.00 | $12.79 | Baseline plus one candidate, both 1 step on `Qwen/Qwen3.5-9B`; candidate reached `EVALUATE`, reverted normally on tie, and final `n_iterations=1`. Local Tinker cost report: `$0.00005`. |
 | docs-002 | 2026-05-19 07:23 | #49 | spec-site refresh | none | passed | $0.00 | $12.79 | Refreshed #49 on top of current `codex/full-stack-contract-smoke`; `npm run lint` and `npm run build` passed; PR diff remains limited to spec-site files. |
 | tinker-009 | 2026-05-19 07:29 | local only #55/#56/#57/#58/#59 | live real-proposer AutoResearch loop | Tinker, Anthropic | passed | $4.00 | $16.79 | Baseline plus three 2-step `Qwen/Qwen3.5-9B` candidates using real Claude proposals. Batch size 4 regressed (-36.1%), learning rate `0.0005` improved (+49.2%) and was kept, LoRA rank 16 tied/slightly regressed (-0.1%). Local Tinker cost report: `$0.000238`; diary at `outputs/overnight/live-autoresearch-real-proposer/1779200780/research_diary.jsonl` in the local stack worktree. |
+| tinker-010 | 2026-05-19 07:31 | local only #55/#56/#57/#58/#59 | live paired learning-rate validation | Tinker | passed | $5.00 | $21.79 | Two 5-step direct Tinker runs compared `learning_rate=0.0001` vs `0.0005`. Final-batch scores: `0.08615` vs `0.08739`; step trace showed high small-dataset batch noise. Local Tinker cost report: `$0.000238` total; artifacts at `outputs/overnight/live-lr-pair-5step/1779200984` in the local stack worktree. |
+| stack-008 | 2026-05-19 07:33 | local only #55/#56/#57/#58/#59/#60 | unpublished stack with mean metrics | none | passed | $0.00 | $21.79 | PR #60 focused validation passed (`13 passed` and `55 passed` clusters). Local integrated stack with #60 passed compileall and broad non-live suite excluding live Tinker/HF with `200 passed, 7 skipped`. |
 
 ## Spend Ledger
 
-Current estimated cumulative spend: **$16.79 / $100.00**
+Current estimated cumulative spend: **$21.79 / $100.00**
 
 Notes:
 - Tinker billing may not be available through the local code, so per-run spend will be estimated conservatively from run type and observed duration unless a real cost is exposed.
