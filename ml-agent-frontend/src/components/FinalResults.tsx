@@ -51,6 +51,9 @@ export default function FinalResults({ state, onReset }: Props) {
       artifacts: state.artifacts ?? null,
       result: state.result ?? null,
     };
+    if (state.provenance) {
+      Object.assign(snapshot, { provenance: state.provenance });
+    }
     const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
