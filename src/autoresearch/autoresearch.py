@@ -144,9 +144,9 @@ def _use_claude_proposer() -> bool:
         return False
     if setting == "claude":
         return True
-    if setting == "local":
+    if setting in {"auto", "local"}:
         return False
-    return bool(os.getenv("ANTHROPIC_API_KEY"))
+    return False
 
 
 def _current_config_for_plan(

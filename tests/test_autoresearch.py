@@ -1016,6 +1016,32 @@ def test_propose_node_auto_without_anthropic_key_uses_local_proposer(monkeypatch
         assert patched_config[key] == value
 
 
+def test_propose_node_auto_ignores_available_anthropic_key(monkeypatch, tmp_path):
+    import src.autoresearch.autoresearch as ar
+    from src.tinker_api.sft_runner import SUPPORTED_TINKER_TUNABLES
+
+    config_path = tmp_path / "current.json"
+    TrainingConfig(
+        model_name="Qwen/Qwen3.5-9B",
+        learning_rate=1e-4,
+        batch_size=4,
+    ).save(config_path)
+    monkeypatch.setattr(ar, "_CONFIG_PATH", config_path)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "present-but-not-used")
+    monkeypatch.delenv("AUTORESEARCH_PROPOSER", raising=False)
+    monkeypatch.setattr(
+        ar,
+        "propose_hypothesis",
+        lambda *args, **kwargs: pytest.fail("auto proposer should not call Claude"),
+    )
+
+    out = ar.propose_node(_tinker_propose_state())
+    patch = json.loads(out["current_patch"])
+
+    assert len(patch) == 1
+    assert set(patch).issubset(SUPPORTED_TINKER_TUNABLES)
+
+
 def test_propose_node_no_spend_uses_local_proposer_even_when_claude_requested(
     monkeypatch, tmp_path
 ):
