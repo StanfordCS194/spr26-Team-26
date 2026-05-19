@@ -22,6 +22,10 @@ from src.data_generator.mode_c.synthetic import (
     scrape_web,
     validate_synthetic_records,
 )
+from src.data_generator.mode_c.structuring import (
+    WebStructuringResult,
+    structure_web_sources_for_sft,
+)
 from src.types import OrchestrationConfig, RawData
 
 
@@ -113,6 +117,7 @@ __all__ = [
     "DEFAULT_SYNTHETIC_EXAMPLES",
     "DEFAULT_TEACHER_MODEL",
     "SyntheticGenerationResult",
+    "WebStructuringResult",
     "acquire_synthetic_dataset",
     "acquire_web_data",
     "aggregate_web_sources_node",
@@ -125,6 +130,7 @@ __all__ = [
     "plan_synthetic_generation",
     "plan_web_acquisition_node",
     "scrape_web",
+    "structure_web_sources_for_sft",
     "search_web_sources_node",
     "validate_synthetic_records",
 ]

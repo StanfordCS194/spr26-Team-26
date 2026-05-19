@@ -140,7 +140,7 @@ def aggregate_web_sources_node(state: DataGenState) -> dict:
         },
     }
 
-    return {
+    unstructured = {
         "raw_data": raw_data,
         "human_readable": report,
         "validation_report": {
@@ -154,6 +154,29 @@ def aggregate_web_sources_node(state: DataGenState) -> dict:
             "sample_accuracy_estimate": 0.0,
         },
     }
+
+    structuring_mode = _web_structuring_mode()
+    if structuring_mode == "off":
+        return unstructured
+
+    structured = structure_web_sources_for_sft(state["config"], pages)
+    if structured.validation_report["passed"] or structuring_mode == "required":
+        structured.raw_data["human_readable"] = report
+        structured.raw_data["format_meta"]["mode_c_backend"] = backend
+        structured.raw_data["format_meta"]["web_plan"] = web_plan
+        structured.raw_data["format_meta"]["num_search_results"] = len(search_results)
+        structured.raw_data["format_meta"]["num_pages_crawled"] = len(pages)
+        return {
+            "schema": structured.schema,
+            "raw_data": structured.raw_data,
+            "validation_report": structured.validation_report,
+            "human_readable": report,
+        }
+
+    issues = list(unstructured["validation_report"]["issues"])
+    issues.extend(structured.validation_report.get("issues", []))
+    unstructured["validation_report"]["issues"] = issues
+    return unstructured
 
 
 def _mode_c_synthetic_fallback_state(
@@ -189,6 +212,19 @@ def _mode_c_backend(state: DataGenState | dict) -> str:
     return selected
 
 
+def _web_structuring_mode() -> str:
+    selected = os.getenv("DATA_GENERATOR_WEB_STRUCTURING", "auto").strip().lower()
+    if selected in {"1", "true", "yes", "on"}:
+        return "required"
+    if selected in {"0", "false", "no", "off"}:
+        return "off"
+    if selected not in {"auto", "required"}:
+        raise ValueError(
+            "DATA_GENERATOR_WEB_STRUCTURING must be one of: auto, required, off"
+        )
+    return selected
+
+
 def mock_plan_web_acquisition(config):
     from src.data_generator.mode_c.mock_llm import mock_plan_web_acquisition as _impl
 
@@ -211,3 +247,9 @@ def build_web_human_readable_report(*, web_plan, search_results, pages):
     from src.data_generator.mode_c.report import build_web_human_readable_report as _impl
 
     return _impl(web_plan=web_plan, search_results=search_results, pages=pages)
+
+
+def structure_web_sources_for_sft(config, pages):
+    from src.data_generator.mode_c.structuring import structure_web_sources_for_sft as _impl
+
+    return _impl(config, pages)
