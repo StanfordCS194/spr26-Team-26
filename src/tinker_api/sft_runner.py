@@ -3,7 +3,9 @@ SDK-native Tinker supervised fine-tuning runner.
 
 This module is intentionally lazy about importing ``tinker`` and
 ``tinker_cookbook`` so the regular unit suite can run without live SDK
-dependencies installed.
+dependencies installed. Set ``TINKER_BACKEND=dry_run`` to exercise the same
+chat/SFT JSONL artifact contract without importing or constructing live Tinker
+SDK clients.
 """
 
 from __future__ import annotations
@@ -32,6 +34,8 @@ if TYPE_CHECKING:
 
 DEFAULT_TINKER_MODEL = "Qwen/Qwen3.5-9B"
 DEFAULT_LIVE_SMOKE_STEPS = 5
+TINKER_BACKEND_ENV = "TINKER_BACKEND"
+TINKER_DRY_RUN_BACKEND = "dry_run"
 QWEN35_9B_RENDERER = "qwen3_5_disable_thinking"
 SUPPORTED_TINKER_TUNABLES: frozenset[str] = frozenset(
     {"learning_rate", "batch_size", "max_seq_length", "lora_rank", "num_epochs"}
@@ -62,7 +66,9 @@ def run_tinker_sft_experiment(
 
     ``dataset`` may be a repo ``DatasetResult``, a JSONL path, or an in-memory
     sequence of JSON-like records. Metrics and manifest artifacts are written
-    under ``output_dir/run_id``.
+    under ``output_dir/run_id``. Set ``TINKER_BACKEND=dry_run`` to write the
+    same artifact contract with deterministic synthetic metrics and no live
+    Tinker client construction.
     """
     cfg = _coerce_training_config(config)
     run_name = run_id or f"tinker-sft-{int(time.time())}-{uuid4().hex[:8]}"
@@ -72,6 +78,16 @@ def run_tinker_sft_experiment(
     conversations = load_conversations(dataset)
     if not conversations:
         raise ValueError("No valid chat/SFT examples found for Tinker training.")
+
+    if _use_dry_run_backend():
+        return _run_dry_run_sft_experiment(
+            cfg=cfg,
+            dataset=dataset,
+            conversations=conversations,
+            run_name=run_name,
+            run_dir=run_dir,
+            max_steps=max_steps,
+        )
 
     try:
         tinker, tinker_types, model_info, renderers, supervised_data, tokenizer_utils = (
@@ -101,6 +117,7 @@ def run_tinker_sft_experiment(
         )
         metrics_history: list[dict[str, Any]] = []
         metrics_path = run_dir / "metrics.jsonl"
+        metrics_path.touch()
         status = "COMPLETED"
 
         with active_tinker_job(run_name):
@@ -428,6 +445,169 @@ def _load_tinker_deps() -> tuple[Any, Any, Any, Any, Any, Any]:
             "tinker and tinker-cookbook are required for live Tinker SFT runs"
         ) from exc
     return tinker, tinker_types, model_info, renderers, supervised_data, tokenizer_utils
+
+
+def _use_dry_run_backend() -> bool:
+    backend = os.getenv(TINKER_BACKEND_ENV, "").strip().lower().replace("-", "_")
+    return backend == TINKER_DRY_RUN_BACKEND
+
+
+def _run_dry_run_sft_experiment(
+    *,
+    cfg: TrainingConfig,
+    dataset: DatasetResult | str | os.PathLike[str] | Sequence[Mapping[str, Any]],
+    conversations: list[list[dict[str, str]]],
+    run_name: str,
+    run_dir: Path,
+    max_steps: int | None,
+) -> ExperimentResult:
+    model_name = cfg.model_name or DEFAULT_TINKER_MODEL
+    splits = _split_conversations(dataset, conversations)
+    training_conversations = _expand_assistant_training_targets(splits.train)
+    if not training_conversations:
+        raise ValueError("No assistant targets found after a user message.")
+
+    metrics_history: list[dict[str, Any]] = []
+    metrics_path = run_dir / "metrics.jsonl"
+    metrics_path.touch()
+    status = "COMPLETED"
+    target_steps = _resolve_target_steps(
+        num_examples=len(training_conversations),
+        batch_size=cfg.batch_size,
+        num_epochs=cfg.num_epochs,
+        max_steps=max_steps,
+    )
+
+    for step in range(target_steps):
+        if is_cancelled(run_name):
+            status = "CANCELLED"
+            break
+
+        batch_conversations = _conversation_batch(
+            training_conversations,
+            cfg.batch_size,
+            step,
+        )
+        tokens = sum(_dry_run_token_count(conversation) for conversation in batch_conversations)
+        record_tokens(run_name, tokens)
+        loss = _dry_run_batch_loss(batch_conversations, step)
+        step_metrics = {
+            "step": step + 1,
+            "train_loss": loss,
+            "val_loss": loss,
+            "test_loss": loss,
+            "primary_metric": _score_from_loss(loss),
+            "tokens": tokens,
+        }
+        metrics_history.append(step_metrics)
+        with open(metrics_path, "a") as fh:
+            fh.write(json.dumps(step_metrics, allow_nan=False) + "\n")
+
+    val_loss = _dry_run_holdout_loss(splits.val)
+    test_loss = _dry_run_holdout_loss(splits.test)
+    final_metrics = _final_metrics(
+        metrics_history,
+        status,
+        val_loss=val_loss,
+        test_loss=test_loss,
+    )
+    checkpoints = {
+        "state_path": f"dry-run://state/{run_name}-final-state",
+        "sampler_path": f"dry-run://sampler/{run_name}-final-sampler",
+    }
+    manifest = {
+        "run_id": run_name,
+        "status": status,
+        "backend": TINKER_DRY_RUN_BACKEND,
+        "model_name": model_name,
+        "renderer_name": "dry_run_chat",
+        "train_on_what": "last_assistant_message",
+        "dataset_path": _dataset_path_for_manifest(dataset),
+        "training_examples": len(training_conversations),
+        "split_examples": {
+            "train": len(splits.train),
+            "val": len(splits.val),
+            "test": len(splits.test),
+        },
+        "heldout_eval": {
+            "val_loss": val_loss,
+            "test_loss": test_loss,
+        },
+        "max_steps": max_steps,
+        "completed_steps": len(metrics_history),
+        "checkpoints": checkpoints,
+    }
+    _write_json(run_dir / "sample.json", _dry_run_sample(conversations))
+    _write_json(run_dir / "manifest.json", manifest)
+    _write_json(run_dir / "metrics.json", final_metrics)
+
+    return {
+        "job_id": run_name,
+        "status": status,
+        "metrics": final_metrics,
+        "model_path": str(run_dir),
+        "cost_usd": get_cumulative_spend(run_name),
+        "logs_path": str(metrics_path),
+    }
+
+
+def _dry_run_batch_loss(
+    conversations: Sequence[Sequence[dict[str, str]]],
+    step: int,
+) -> float:
+    if not conversations:
+        return 0.0
+    base_loss = sum(_dry_run_conversation_loss(conversation) for conversation in conversations)
+    mean_loss = base_loss / len(conversations)
+    return max(0.000001, mean_loss / math.sqrt(step + 1))
+
+
+def _dry_run_holdout_loss(conversations: Sequence[Sequence[dict[str, str]]]) -> float | None:
+    targets = _expand_assistant_training_targets(conversations)
+    if not targets:
+        return None
+    return sum(_dry_run_conversation_loss(conversation) for conversation in targets) / len(targets)
+
+
+def _dry_run_conversation_loss(conversation: Sequence[dict[str, str]]) -> float:
+    assistant_chars = sum(
+        len(message["content"]) for message in conversation if message["role"] == "assistant"
+    )
+    context_chars = sum(
+        len(message["content"]) for message in conversation if message["role"] != "assistant"
+    )
+    turns = max(1, len(conversation))
+    loss = 0.35 + (assistant_chars % 101) / 200.0 + (context_chars % 67) / 335.0
+    loss += turns / 1000.0
+    return float(loss)
+
+
+def _dry_run_token_count(conversation: Sequence[dict[str, str]]) -> int:
+    total = 0
+    for message in conversation:
+        total += max(1, len(message["content"].split()))
+    return total
+
+
+def _dry_run_sample(conversations: list[list[dict[str, str]]]) -> dict[str, Any]:
+    prompt_messages = [message for message in conversations[0] if message["role"] != "assistant"]
+    if not prompt_messages:
+        prompt_messages = [{"role": "user", "content": conversations[0][0]["content"]}]
+
+    first_answer = next(
+        (
+            message["content"]
+            for message in conversations[0]
+            if message["role"] == "assistant"
+        ),
+        "",
+    )
+    return {
+        "prompt": prompt_messages,
+        "text": first_answer,
+        "tokens": [len(first_answer)],
+        "backend": TINKER_DRY_RUN_BACKEND,
+    }
 
 
 def _resolve_target_steps(
