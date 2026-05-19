@@ -343,5 +343,19 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   Tinker dry-run selector. Focused branch validation passed (`52 passed`), and
   the local no-spend guard composition passed the full no-live suite (`309
   passed, 8 skipped`).
+- #92 was updated so `NO_SPEND=1` overrides explicit Claude Manager mode before
+  a client can be constructed. Focused Manager validation passed (`21 passed, 1
+  skipped`).
+- #93 was updated so Mode B Hugging Face acquisition treats both `NO_SPEND` and
+  `DATA_GENERATOR_OFFLINE` as hard offline flags. Focused Mode B validation
+  passed (`12 passed, 2 skipped`).
+- #101 was updated so direct Mode C search/crawl helpers honor the same offline
+  policy as the graph nodes. Focused Mode C validation passed (`29 passed`).
+- #49 was updated to document local/no-spend Manager, AutoResearch, Tinker, Mode
+  B, and Mode C behavior in the spec site. Spec-site lint and build passed.
+- The refreshed local no-spend guard composition merged the latest #92, #93,
+  #94, #95, #101, #104, and related guard branches. Full no-live suite with
+  live credentials unset and `UV_NO_NETWORK=1` passed (`318 passed, 8 skipped, 5
+  warnings`).
 
 Current conservative live spend: `$94.14 / $100.00`.
