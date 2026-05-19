@@ -25,6 +25,7 @@ def _write_tinker_artifacts(
     test_loss: float = 0.33,
     primary_metric: float = 0.775,
     sample_text: str = "sample completion",
+    metric_rows: list[dict] | None = None,
 ) -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
     checkpoints = {"state_path": state_path}
@@ -51,8 +52,11 @@ def _write_tinker_artifacts(
         ),
         encoding="utf-8",
     )
+    rows = metric_rows or [
+        {"step": 1, "val_loss": val_loss, "primary_metric": primary_metric}
+    ]
     (run_dir / "metrics.jsonl").write_text(
-        json.dumps({"step": 1, "val_loss": val_loss, "primary_metric": primary_metric}) + "\n",
+        "".join(json.dumps(row) + "\n" for row in rows),
         encoding="utf-8",
     )
     (run_dir / "sample.json").write_text(
@@ -284,10 +288,14 @@ def test_running_run_refreshes_logs_iterations_metrics_and_artifacts(tmp_path, m
             val_loss=0.4,
             primary_metric=0.714,
             sample_text="progress sample",
+            metric_rows=[
+                {"step": 1, "val_loss": 0.52, "primary_metric": 0.61},
+                {"step": 2, "val_loss": 0.4, "primary_metric": 0.714},
+            ],
         )
         ready.set()
         assert release.wait(timeout=5)
-        return _fake_model(root, total_cost=0.5, with_artifacts=True)
+        return _fake_model(root, total_cost=0.5)
 
     monkeypatch.setattr(server_app, "invoke_manager_graph", fake_invoke)
     client = TestClient(server_app.app)
@@ -311,15 +319,20 @@ def test_running_run_refreshes_logs_iterations_metrics_and_artifacts(tmp_path, m
     assert state["costSpent"] == 0.42
     assert state["logs"][0]["component"] == "DataGen"
     assert state["iterations"][0]["status"] == "PENDING"
-    assert state["metrics"][0]["loss"] == 0.4
+    assert [metric["loss"] for metric in state["metrics"]] == [0.52, 0.4]
+    assert [metric["accuracy"] for metric in state["metrics"]] == [0.61, 0.714]
     assert state["artifacts"]["checkpoints"]["state_path"] == "tinker://state/progress"
 
     metrics_log = client.get(f"/api/runs/{run_id}/artifacts/metrics_log")
     assert metrics_log.status_code == 200
     assert '"step": 1' in metrics_log.text
+    assert '"step": 2' in metrics_log.text
 
     release.set()
-    assert _wait_for_status(client, run_id, "complete")["status"] == "complete"
+    state = _wait_for_status(client, run_id, "complete")
+    assert state["status"] == "complete"
+    assert [metric["loss"] for metric in state["metrics"]] == [0.52, 0.4]
+    assert [metric["accuracy"] for metric in state["metrics"]] == [0.61, 0.714]
 
 
 def test_running_run_keeps_previous_artifacts_when_newer_experiment_is_incomplete(

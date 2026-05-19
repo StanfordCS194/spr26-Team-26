@@ -524,7 +524,8 @@ def _store_manager_result(record: _RunRecord, result: dict[str, Any]) -> None:
     record.status = "complete"
     record.cost_spent = float((result.get("cost") or {}).get("total_usd") or 0.0)
     metric = _metric_from_result(result)
-    record.metrics = [metric] if metric else []
+    if not record.metrics:
+        record.metrics = [metric] if metric else []
     record.iterations = _iterations_from_diary(result.get("research_diary_path"))
     record.artifacts = _artifacts_from_result(record, result)
     _complete_all_stages(record)
