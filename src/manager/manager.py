@@ -16,10 +16,8 @@ from src.types import (
     DatasetResult,
     ManagerState,
     OrchestrationConfig,
-    StandardDataset,
     TaskReasoning,
     TrainedModel,
-    ValidationReport,
 )
 
 LOG_PATH = os.environ.get("DECISIONS_LOG", "decisions.jsonl")
@@ -72,7 +70,17 @@ def invoke_manager_graph(
 
 def query_data_node(state: ManagerState) -> dict:
     """LangGraph node. Calls query_user_for_data(). Returns: { has_data, data_path }."""
-    path = query_user_for_data()
+    existing_path = state.get("data_path")
+    if existing_path:
+        if os.path.exists(existing_path):
+            resolved_path = os.path.abspath(existing_path)
+            return {"has_data": True, "data_path": resolved_path}
+        return {"has_data": False, "data_path": None}
+
+    try:
+        path = query_user_for_data()
+    except EOFError:
+        path = None
     return {"has_data": path is not None, "data_path": path}
 
 
@@ -114,6 +122,7 @@ def orchestrate_node(state: ManagerState) -> dict:
     log_event(AgentName.MANAGER, LogLevel.INFO, "Starting DataGen sub-agent", {})
     handoff = invoke_data_generator_graph(config, state.get("data_path"))
     dataset = _handoff_to_dataset_result(handoff)
+    _ensure_dataset_is_trainable(dataset)
 
     # ── 2. Decision Engine — pick model, estimate cost, write training script
     log_event(AgentName.MANAGER, LogLevel.INFO, "Running Decision Engine", {})
@@ -205,40 +214,21 @@ def _handoff_to_dataset_result(handoff: dict) -> DatasetResult:
 
     Persists records to outputs/datasets/train_data.jsonl and computes an 80/10/10 split.
     """
-    mode = handoff.get("mode_used", "C")
-    raw_data = handoff.get("raw_data") or {}
-    records: list = raw_data.get("records", []) if isinstance(raw_data, dict) else []
+    from src.data_generator.curation import curate_handoff_to_dataset_result
 
-    os.makedirs("outputs/datasets", exist_ok=True)
-    dataset_path = os.path.abspath("outputs/datasets/train_data.jsonl")
-    with open(dataset_path, "w") as fh:
-        for rec in records:
-            import json as _json
-            fh.write(_json.dumps(rec) + "\n")
+    return curate_handoff_to_dataset_result(handoff)
 
-    n = len(records)
-    train_n = max(1, int(n * 0.8))
-    val_n   = max(1, int(n * 0.1))
-    test_n  = max(1, n - train_n - val_n)
 
-    dataset: StandardDataset = {
-        "path": dataset_path,
-        "format": "jsonl",
-        "train_size": train_n,
-        "val_size": val_n,
-        "test_size": test_n,
-    }
-    validation_report: ValidationReport = {
-        "passed": n > 0,
-        "issues": [] if n > 0 else ["DataGen returned 0 records"],
-        "sample_accuracy_estimate": 0.9 if n > 0 else 0.0,
-    }
-    return DatasetResult(
-        dataset=dataset,
-        mode_used=mode,
-        quality_notes=f"DataGen mode {mode}, {n} records",
-        validation_report=validation_report,
-    )
+def _ensure_dataset_is_trainable(dataset: DatasetResult) -> None:
+    validation = dataset["validation_report"]
+    split = dataset["dataset"]
+    if validation["passed"] and split["train_size"] > 0:
+        return
+
+    issues = "; ".join(validation.get("issues") or [])
+    if not issues:
+        issues = "no trainable examples were produced"
+    raise ValueError(f"DataGen did not produce a trainable dataset: {issues}")
 
 
 def build_orchestration_config(
