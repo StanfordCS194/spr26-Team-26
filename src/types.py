@@ -151,6 +151,7 @@ class _TrainingPlanRequired(TypedDict):
 class TrainingPlan(_TrainingPlanRequired, total=False):
     backend: str            # 'tinker_sft' for the SDK-native Tinker v1 path
     dataset_path: str       # Local JSONL path consumed by the Tinker SFT runner
+    dataset: StandardDataset  # Aggregate dataset metadata, including split counts
 
 
 class EvalScore(TypedDict):

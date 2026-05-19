@@ -447,6 +447,165 @@ def test_continue_edge_ends_at_max_iterations():
     assert continue_edge(state) == "__end__"
 
 
+def test_dataset_result_from_plan_preserves_split_counts(tmp_path):
+    import src.autoresearch.autoresearch as ar
+
+    dataset_path = tmp_path / "train.jsonl"
+    dataset_path.write_text('{"input": "x", "output": "y"}\n')
+    plan = {
+        "strategy": "fine-tune",
+        "base_model": "Qwen/Qwen3.5-9B",
+        "lora_config": {"rank": 8, "alpha": 16, "dropout": 0.05, "target_modules": []},
+        "estimated_cost": 1.0,
+        "estimated_time_min": 5,
+        "training_script_path": "outputs/scripts/train.py",
+        "eval_metric": "primary_metric",
+        "backend": "tinker_sft",
+        "dataset_path": "ignored-when-dataset-present.jsonl",
+        "dataset": {
+            "path": str(dataset_path),
+            "format": "jsonl",
+            "train_size": 2,
+            "val_size": 1,
+            "test_size": 1,
+        },
+    }
+
+    dataset_result = ar._dataset_result_from_plan(plan)
+
+    assert dataset_result["dataset"] == plan["dataset"]
+
+
+def test_autoresearch_graph_passes_plan_dataset_splits_to_tinker(monkeypatch, tmp_path):
+    pytest.importorskip("langgraph", reason="langgraph not installed")
+    import src.autoresearch.autoresearch as ar
+
+    config_path = tmp_path / "configs" / "current.json"
+    monkeypatch.setattr(ar, "_CONFIG_PATH", config_path)
+    dataset_path = tmp_path / "train.jsonl"
+    dataset_path.write_text(
+        "".join(
+            json.dumps({"input": f"row {i}", "output": "label"}) + "\n"
+            for i in range(4)
+        )
+    )
+    calls = []
+
+    class FakeCostManager:
+        def __init__(self, budget):
+            self.budget = budget
+            self.spent_usd = 0.0
+
+        @property
+        def status(self):
+            return "EXCEEDED" if self.spent_usd >= self.budget else "OK"
+
+        def start(self, job_id):
+            self.job_id = job_id
+
+        def stop(self):
+            pass
+
+        def record_spend(self, amount, category="training"):
+            self.spent_usd += amount
+            return self.status
+
+        def cost_breakdown(self, termination_reason=None):
+            return {
+                "data_gen_usd": 0.0,
+                "training_usd": self.spent_usd,
+                "llm_calls_usd": 0.0,
+                "total_usd": self.spent_usd,
+                "termination_reason": termination_reason or "training_complete",
+            }
+
+    def fake_runner(config, dataset, *, run_id=None, max_steps=None, **kwargs):
+        index = len(calls)
+        calls.append(
+            {
+                "path": dataset["dataset"]["path"],
+                "splits": {
+                    "train": dataset["dataset"]["train_size"],
+                    "val": dataset["dataset"]["val_size"],
+                    "test": dataset["dataset"]["test_size"],
+                },
+            }
+        )
+        val_loss = 0.5 if index == 0 else 0.4
+        run_dir = tmp_path / f"run-{index}"
+        run_dir.mkdir()
+        (run_dir / "metrics.json").write_text(
+            json.dumps({"train_loss": val_loss, "val_loss": val_loss, "test_loss": val_loss})
+        )
+        return {
+            "job_id": run_id,
+            "status": "COMPLETED",
+            "metrics": {
+                "train_loss": val_loss,
+                "val_loss": val_loss,
+                "test_loss": val_loss,
+                "primary_metric": 1 / (1 + val_loss),
+            },
+            "model_path": str(run_dir),
+            "cost_usd": 0.02,
+            "logs_path": str(run_dir / "metrics.jsonl"),
+        }
+
+    monkeypatch.setattr(ar, "run_tinker_sft_experiment", fake_runner)
+    monkeypatch.setattr(
+        ar,
+        "propose_hypothesis",
+        lambda *args, **kwargs: {
+            "description": "Increase learning rate for a bounded candidate run.",
+            "patch": json.dumps({"learning_rate": 2e-4}),
+            "expected_effect": "Improve heldout loss.",
+            "search_strategy": "playbook",
+        },
+    )
+
+    plan = {
+        "strategy": "fine-tune",
+        "base_model": "Qwen/Qwen3.5-9B",
+        "lora_config": {"rank": 8, "alpha": 16, "dropout": 0.05, "target_modules": []},
+        "estimated_cost": 1.0,
+        "estimated_time_min": 5,
+        "training_script_path": "outputs/scripts/train.py",
+        "eval_metric": "primary_metric",
+        "backend": "tinker_sft",
+        "dataset_path": str(dataset_path),
+        "dataset": {
+            "path": str(dataset_path),
+            "format": "jsonl",
+            "train_size": 2,
+            "val_size": 1,
+            "test_size": 1,
+        },
+    }
+    config = {
+        "data": False,
+        "prompt": "test",
+        "compute_budget": 0.03,
+        "training_procedure": {
+            "task_type": "text-classification",
+            "data_format": "jsonl",
+            "training_type": "SFT",
+            "base_model": "Qwen/Qwen3.5-9B",
+            "hyperparameters": {"learning_rate": 1e-4, "batch_size": 1},
+            "notes": "",
+        },
+    }
+
+    result = ar.invoke_autoresearch_graph(plan, config, FakeCostManager(0.03))
+
+    assert [call["path"] for call in calls] == [str(dataset_path), str(dataset_path)]
+    assert [call["splits"] for call in calls] == [
+        {"train": 2, "val": 1, "test": 1},
+        {"train": 2, "val": 1, "test": 1},
+    ]
+    assert result["n_iterations"] == 1
+    assert result["cost"]["termination_reason"] == "budget_limit"
+
+
 def test_invoke_autoresearch_graph_cost_breakdown_includes_baseline_cost(monkeypatch):
     import src.autoresearch.autoresearch as ar
     from src.cost_manager.cost_manager import CostManager

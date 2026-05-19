@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Mapping
 from uuid import uuid4
 
 import anthropic
@@ -176,28 +176,7 @@ def init_node(state: AutoResearchState) -> dict:
         "eval_metric": state["plan"]["eval_metric"],
         "complexity": "medium",
     }
-    # Construct a minimal DatasetResult so create_eval_suite can derive the test path.
-    # The real dataset path comes from DataGen (F2); we point at the standard test split location.
-    dataset_path = state["plan"].get(
-        "dataset_path",
-        str(Path(state["plan"]["training_script_path"]).parent),
-    )
-    dataset_result: DatasetResult = {
-        "dataset": {
-            "path": dataset_path,
-            "format": "jsonl",
-            "train_size": 0,
-            "val_size": 0,
-            "test_size": 0,
-        },
-        "mode_used": "A",
-        "quality_notes": "",
-        "validation_report": {
-            "passed": True,
-            "issues": [],
-            "sample_accuracy_estimate": 0.0,
-        },
-    }
+    dataset_result = _dataset_result_from_plan(state["plan"])
 
     eval_suite = create_eval_suite(task_analysis, dataset_result)
 
@@ -735,14 +714,33 @@ def revert_patch(script_path: str, original_content: str) -> None:
 # ─── RUN HELPERS ──────────────────────────────────────────────────────────────
 
 def _dataset_result_from_plan(plan: TrainingPlan) -> DatasetResult:
-    dataset_path = plan.get("dataset_path") or str(Path(plan["training_script_path"]).parent)
+    dataset_meta = plan.get("dataset")
+    if isinstance(dataset_meta, Mapping):
+        dataset_path = str(
+            dataset_meta.get("path")
+            or plan.get("dataset_path")
+            or Path(plan["training_script_path"]).parent
+        )
+        dataset_format = str(dataset_meta.get("format") or "jsonl")
+        train_size = max(0, int(dataset_meta.get("train_size") or 0))
+        val_size = max(0, int(dataset_meta.get("val_size") or 0))
+        test_size = max(0, int(dataset_meta.get("test_size") or 0))
+    else:
+        dataset_path = plan.get("dataset_path") or str(
+            Path(plan["training_script_path"]).parent
+        )
+        dataset_format = "jsonl"
+        train_size = 0
+        val_size = 0
+        test_size = 0
+
     return {
         "dataset": {
             "path": dataset_path,
-            "format": "jsonl",
-            "train_size": 0,
-            "val_size": 0,
-            "test_size": 0,
+            "format": dataset_format,
+            "train_size": train_size,
+            "val_size": val_size,
+            "test_size": test_size,
         },
         "mode_used": "A",
         "quality_notes": "AutoResearch Tinker SFT dataset",
