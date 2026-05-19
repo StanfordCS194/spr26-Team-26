@@ -6,6 +6,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from src.manager.manager import (
     _handoff_to_dataset_result,
+    _parse_task_reasoning_response,
     build_manager_graph,
     build_orchestration_config,
     log_decision,
@@ -78,6 +79,33 @@ def test_reason_about_task_returns_task_reasoning():
     assert result["task_type"] == "text-classification"
     assert result["training_type"] == "SFT"
     assert "learning_rate" in result["hyperparameters"]
+
+
+def test_reason_about_task_parses_fenced_json_response():
+    mock_response = MagicMock()
+    mock_response.content = [MagicMock(text=f"```json\n{json.dumps(MOCK_REASONING)}\n```")]
+
+    with patch("anthropic.Anthropic") as MockClient:
+        MockClient.return_value.messages.create.return_value = mock_response
+        result = reason_about_task("classify movie sentiment", 50.0, False)
+
+    assert result["task_type"] == "text-classification"
+    assert result["suggested_base_model"] == "bert-base-uncased"
+
+
+def test_parse_task_reasoning_response_rejects_missing_keys():
+    payload = {
+        "task_type": "text-classification",
+        "data_format": "jsonl",
+    }
+
+    with pytest.raises(ValueError, match="missing keys"):
+        _parse_task_reasoning_response(json.dumps(payload))
+
+
+def test_parse_task_reasoning_response_rejects_non_json():
+    with pytest.raises(ValueError, match="not valid JSON"):
+        _parse_task_reasoning_response("Here is the plan: use SFT.")
 
 
 def test_query_data_node_uses_programmatic_data_path_without_input(tmp_path, monkeypatch):
