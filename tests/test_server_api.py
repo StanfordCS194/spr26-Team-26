@@ -627,6 +627,85 @@ def test_create_run_accepts_hugging_face_data_sources(tmp_path, monkeypatch, sub
     assert state["dataPath"] == expected
 
 
+def test_create_run_local_jsonl_reaches_tinker_dry_run_without_live_credentials(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    data_path = tmp_path / "train.jsonl"
+    data_path.write_text(
+        "\n".join(
+            [
+                json.dumps({"input": "I loved the movie.", "output": "positive"}),
+                json.dumps({"input": "The wait was frustrating.", "output": "negative"}),
+                json.dumps({"input": "Service was quick.", "output": "positive"}),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("NO_SPEND", "1")
+    monkeypatch.setenv("MANAGER_REASONER", "local")
+    monkeypatch.setenv("AUTORESEARCH_PROPOSER", "local")
+    monkeypatch.setenv("AUTORESEARCH_EVAL_ADAPTATION", "off")
+    monkeypatch.setenv("TINKER_BACKEND", "dry_run")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("TINKER_API_KEY", raising=False)
+
+    monkeypatch.setattr("builtins.input", _fail_live_service("user input"))
+    monkeypatch.setattr("anthropic.Anthropic", _fail_live_service("Claude"))
+
+    from src.autoresearch import autoresearch as ar
+    from src.tinker_api import sft_runner
+
+    monkeypatch.setattr(ar, "_MAX_ITERATIONS", 1)
+    monkeypatch.setattr(
+        sft_runner,
+        "_load_tinker_deps",
+        _fail_live_service("Tinker SDK"),
+    )
+
+    client = TestClient(server_app.app)
+    response = client.post(
+        "/api/runs",
+        json={
+            "prompt": "Fine tune a sentiment classifier using this labeled JSONL file",
+            "budget": 20,
+            "task_type": "classification",
+            "data_path": str(data_path),
+        },
+    )
+
+    assert response.status_code == 200
+    state = _wait_for_status(client, response.json()["run_id"], "complete")
+
+    assert state["dataPath"] == str(data_path.resolve())
+    assert state["result"]["n_iterations"] == 1
+    assert any(
+        f"Dataset source: {data_path.resolve()}" in item["message"]
+        for item in state["logs"]
+    )
+
+    artifacts = state["artifacts"]
+    assert artifacts is not None
+    assert artifacts["sample"]["backend"] == "dry_run"
+    assert artifacts["checkpoints"]["state_path"].startswith("dry-run://state/")
+
+    manifest_file = next(
+        file
+        for file in artifacts["files"]
+        if file["name"] == "manifest" and file["path"]
+    )
+    manifest = json.loads(Path(manifest_file["path"]).read_text(encoding="utf-8"))
+    assert manifest["backend"] == "dry_run"
+    assert manifest["training_examples"] > 0
+
+    download = client.get(manifest_file["downloadPath"])
+    assert download.status_code == 200
+    assert download.json()["backend"] == "dry_run"
+
+
 def test_create_run_hf_data_path_reaches_tinker_dry_run_without_live_credentials(
     tmp_path,
     monkeypatch,
