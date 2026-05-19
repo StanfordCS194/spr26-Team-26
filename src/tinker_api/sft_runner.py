@@ -457,17 +457,29 @@ def _evaluate_holdout_loss(
     if not callable(forward):
         return None
 
-    batch = [
-        supervised_data.conversation_to_datum(
-            conversation,
-            renderer,
-            cfg.max_seq_length,
-            train_on_what,
-        )
-        for conversation in holdout_targets
-    ]
-    result = _future_result(forward(batch, loss_fn="cross_entropy"))
-    return _extract_forward_loss(result, batch)
+    batch_size = max(1, int(cfg.batch_size))
+    weighted_loss = 0.0
+    total_weight = 0.0
+    for start in range(0, len(holdout_targets), batch_size):
+        batch_targets = holdout_targets[start : start + batch_size]
+        batch = [
+            supervised_data.conversation_to_datum(
+                conversation,
+                renderer,
+                cfg.max_seq_length,
+                train_on_what,
+            )
+            for conversation in batch_targets
+        ]
+        result = _future_result(forward(batch, loss_fn="cross_entropy"))
+        loss = _extract_forward_loss(result, batch)
+        weight = _batch_loss_weight(batch)
+        weighted_loss += loss * weight
+        total_weight += weight
+
+    if total_weight <= 0:
+        return None
+    return weighted_loss / total_weight
 
 
 def _future_result(value: Any) -> Any:
@@ -595,6 +607,15 @@ def _datum_loss_weights(datum: Any) -> Any:
         if isinstance(loss_inputs, Mapping):
             return loss_inputs.get("weights")
     return None
+
+
+def _batch_loss_weight(datums: Sequence[Any]) -> float:
+    total = 0.0
+    for datum in datums:
+        weights = _to_float_sequence(_datum_loss_weights(datum))
+        if weights is not None:
+            total += sum(max(0.0, weight) for weight in weights)
+    return total if total > 0 else float(len(datums))
 
 
 def _score_from_loss(loss: float | None) -> float:

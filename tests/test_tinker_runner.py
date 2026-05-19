@@ -252,6 +252,50 @@ def test_run_tinker_sft_experiment_scores_dataset_result_holdouts(
     assert heldout_prompts == ["validation", "test"]
 
 
+def test_run_tinker_sft_experiment_batches_holdout_forward_passes(
+    tmp_path,
+    monkeypatch,
+):
+    state = _install_fake_tinker_stack(
+        monkeypatch,
+        losses=[0.5],
+        forward_losses=[1.0, 3.0],
+    )
+    from src.tinker_api.sft_runner import run_tinker_sft_experiment
+
+    data_path = _write_jsonl(
+        tmp_path / "train.jsonl",
+        [
+            {"input": "train", "output": "a"},
+            {"input": "validation one", "output": "b"},
+            {"input": "validation two", "output": "c"},
+            {"input": "validation three", "output": "d"},
+        ],
+    )
+    dataset_result = {
+        "dataset": {
+            "path": str(data_path),
+            "train_size": 1,
+            "val_size": 3,
+            "test_size": 0,
+        },
+        "next_agent": "decision_engine",
+    }
+
+    result = run_tinker_sft_experiment(
+        TrainingConfig(model_name="Qwen/Qwen3.5-9B", batch_size=2),
+        dataset_result,
+        run_id="batched-holdout-run",
+        max_steps=1,
+        output_dir=str(tmp_path / "experiments"),
+    )
+
+    metrics = result["metrics"]
+    assert metrics["val_loss"] == pytest.approx((1.0 * 2 + 3.0 * 1) / 3)
+    assert state.training_client.forward_calls == 2
+    assert [len(batch) for batch in state.training_client.forward_batches] == [2, 1]
+
+
 def test_extract_forward_loss_uses_weighted_logprobs():
     from src.tinker_api.sft_runner import _extract_forward_loss
 
