@@ -1,6 +1,6 @@
 # Overnight PR Stack
 
-Updated: 2026-05-19 11:04 PDT
+Updated: 2026-05-19 14:39 PDT
 
 Purpose: give reviewers a merge/review order for the draft PR stack without
 having to infer dependencies from GitHub.
@@ -424,6 +424,12 @@ latest composed validation after #86/#87 passed with `260 passed, 6 skipped`.
   validation passed compileall, server API tests (`17 passed`), frontend
   lint/build, and a simulation browser smoke. Product UI composition through
   #109 passed server API tests (`22 passed`) plus frontend lint/build.
+- #110 is a new stacked draft PR on #109 for run provenance. API state derives
+  compact spend/backend/data-mode/budget-skip/live-service evidence from
+  Tinker manifests and DataGen debug artifacts, and the dashboard renders it as
+  provenance badges. Branch validation passed compileall, no-network server API
+  tests (`18 passed`), frontend lint/build, and a simulation browser smoke with
+  no new console errors.
 - #92 was updated after audit to close the local/no-spend half of #88's API
   task-type hint. The local Manager planner now accepts `task_type_hint`:
   `classification -> text-classification`, `regression -> custom`, and
