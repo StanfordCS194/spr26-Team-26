@@ -28,6 +28,7 @@ def test_check_budget_status_warning_at_90_percent():
 def test_check_budget_status_exceeded_at_100_percent():
     assert check_budget_status(100.0, 100.0) == BudgetStatus.EXCEEDED
     assert check_budget_status(110.0, 100.0) == BudgetStatus.EXCEEDED
+    assert check_budget_status(0.01, 0.0) == BudgetStatus.EXCEEDED
 
 
 def test_start_cost_monitor_returns_thread():
@@ -51,6 +52,42 @@ def test_cost_manager_stop_signals_monitor_thread():
 
     assert manager._thread is None
     assert not thread.is_alive()
+
+
+def test_cost_manager_records_in_process_spend_by_category():
+    manager = CostManager(1.0)
+
+    assert manager.spent_usd == 0.0
+    assert manager.remaining_budget == 1.0
+    assert manager.record_spend(0.25) == BudgetStatus.OK
+    assert manager.record_spend(0.05, category="llm_calls") == BudgetStatus.OK
+    assert manager.record_spend(0.70) == BudgetStatus.EXCEEDED
+
+    assert manager.category_totals == {"training": 0.95, "llm_calls": 0.05}
+    assert manager.spent_usd == 1.0
+    assert manager.remaining_budget == 0.0
+    assert manager.status == BudgetStatus.EXCEEDED
+
+
+def test_cost_manager_cost_breakdown_uses_recorded_totals():
+    manager = CostManager(10.0)
+    manager.record_spend(1.25, category="training")
+    manager.record_spend(0.50, category="data_gen")
+    manager.record_spend(0.10, category="llm")
+
+    assert manager.cost_breakdown("training_complete") == {
+        "data_gen_usd": 0.5,
+        "training_usd": 1.25,
+        "llm_calls_usd": 0.1,
+        "total_usd": 1.85,
+        "termination_reason": "training_complete",
+    }
+
+
+def test_cost_manager_rejects_negative_spend():
+    manager = CostManager(10.0)
+    with pytest.raises(ValueError, match="non-negative"):
+        manager.record_spend(-0.01)
 
 
 def test_save_checkpoint_returns_path(tmp_path):

@@ -246,6 +246,46 @@ def test_autoresearch_run_node_wraps_tinker_runner_with_cost_manager(monkeypatch
     assert result["last_result"]["job_id"] == captured["run_id"]
     assert cost_manager.started == [captured["run_id"]]
     assert cost_manager.stopped == 1
+    assert cost_manager.recorded == [(0.01, "training")]
+
+
+def test_autoresearch_baseline_node_records_cost_and_budget_stop(monkeypatch, tmp_path):
+    import src.autoresearch.autoresearch as ar
+    from src.cost_manager.cost_manager import CostManager
+
+    data_path = _write_jsonl(tmp_path / "train.jsonl", [{"input": "x", "output": "y"}])
+
+    def fake_runner(config, dataset, *, run_id=None, max_steps=None, **kwargs):
+        run_dir = tmp_path / "baseline-cost"
+        run_dir.mkdir()
+        (run_dir / "metrics.json").write_text(
+            json.dumps({"train_loss": 0.3, "val_loss": 0.3, "test_loss": 0.3})
+        )
+        return {
+            "job_id": run_id,
+            "status": "COMPLETED",
+            "metrics": {
+                "train_loss": 0.3,
+                "val_loss": 0.3,
+                "test_loss": 0.3,
+                "primary_metric": 1 / 1.3,
+            },
+            "model_path": str(run_dir),
+            "cost_usd": 0.02,
+            "logs_path": str(run_dir / "metrics.jsonl"),
+        }
+
+    monkeypatch.setattr(ar, "run_tinker_sft_experiment", fake_runner)
+    state = _autoresearch_state(str(data_path))
+    state["config"]["compute_budget"] = 0.01
+    state["cost_manager"] = CostManager(0.01)
+
+    result = ar.baseline_node(state)
+
+    assert result["baseline_result"]["cost_usd"] == 0.02
+    assert result["should_stop"] is True
+    assert state["cost_manager"].spent_usd == 0.02
+    assert ar.continue_edge({**state, **result}) == "__end__"
 
 
 def _write_jsonl(path: Path, rows: list[dict]) -> Path:
@@ -308,12 +348,17 @@ class _FakeCostManager:
     def __init__(self):
         self.started = []
         self.stopped = 0
+        self.recorded = []
 
     def start(self, job_id):
         self.started.append(job_id)
 
     def stop(self):
         self.stopped += 1
+
+    def record_spend(self, amount, category="training"):
+        self.recorded.append((amount, category))
+        return "OK"
 
 
 class _FakeFuture:

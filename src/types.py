@@ -285,6 +285,7 @@ class AutoResearchState(TypedDict):
     original_content: str | None
     diary: ResearchDiary
     baseline_score: EvalScore | None
+    baseline_result: ExperimentResult | None
     best_score: EvalScore | None
     best_script: str
     last_result: ExperimentResult | None

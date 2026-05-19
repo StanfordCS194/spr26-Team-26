@@ -257,6 +257,7 @@ def _make_state(**overrides):
         "original_content": None,
         "diary": [],
         "baseline_score": None,
+        "baseline_result": None,
         "best_score": None,
         "best_script": "train.py",
         "last_result": None,
@@ -265,6 +266,7 @@ def _make_state(**overrides):
         "iteration": 0,
         "no_improve_streak": 0,
         "should_stop": False,
+        "cost_manager": None,
     }
     base.update(overrides)
     return base
@@ -298,3 +300,57 @@ def test_continue_edge_ends_at_max_iterations():
     from src.autoresearch.autoresearch import _MAX_ITERATIONS
     state = _make_state(iteration=_MAX_ITERATIONS)
     assert continue_edge(state) == "__end__"
+
+
+def test_invoke_autoresearch_graph_cost_breakdown_includes_baseline_cost(monkeypatch):
+    import src.autoresearch.autoresearch as ar
+    from src.cost_manager.cost_manager import CostManager
+
+    class FakeGraph:
+        def invoke(self, initial_state):
+            cost_manager = initial_state["cost_manager"]
+            cost_manager.record_spend(0.20, category="training")
+            cost_manager.record_spend(0.30, category="training")
+            baseline_result = {
+                "job_id": "baseline",
+                "status": "COMPLETED",
+                "metrics": {"train_loss": 0.5, "val_loss": 0.5,
+                            "test_loss": 0.5, "primary_metric": 0.5},
+                "model_path": "baseline-model",
+                "cost_usd": 0.20,
+                "logs_path": "baseline.jsonl",
+            }
+            return {
+                **initial_state,
+                "baseline_result": baseline_result,
+                "baseline_score": {"scalar": 0.5, "metrics": {}, "critique": ""},
+                "best_score": {"scalar": 0.6, "metrics": {}, "critique": ""},
+                "best_script": "iteration-model",
+                "diary": [
+                    {
+                        "iteration": 1,
+                        "hypothesis": "x",
+                        "patch": "",
+                        "cost_usd": 0.30,
+                        "metrics": {},
+                        "decision": "KEPT",
+                        "notes": "",
+                    }
+                ],
+                "iteration": 1,
+            }
+
+    monkeypatch.setattr(ar, "build_autoresearch_graph", lambda: FakeGraph())
+    state = _make_state()
+    plan = {
+        **state["plan"],
+        "strategy": "fine-tune",
+        "training_script_path": "train.py",
+    }
+    cost_manager = CostManager(10.0)
+
+    result = ar.invoke_autoresearch_graph(plan, state["config"], cost_manager)
+
+    assert result["cost"]["training_usd"] == pytest.approx(0.50)
+    assert result["cost"]["total_usd"] == pytest.approx(0.50)
+    assert result["cost"]["termination_reason"] == "training_complete"

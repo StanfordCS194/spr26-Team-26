@@ -29,6 +29,7 @@ from src.tinker_api.sft_runner import (
 from src.types import (
     AgentName,
     AutoResearchState,
+    BudgetStatus,
     CostBreakdown,
     DatasetResult,
     EvalScore,
@@ -85,7 +86,11 @@ def build_autoresearch_graph():
     # Linear entry path
     graph.set_entry_point("init")
     graph.add_edge("init", "baseline")
-    graph.add_edge("baseline", "propose")
+    graph.add_conditional_edges(
+        "baseline",
+        continue_edge,
+        {"propose": "propose", "__end__": END},
+    )
 
     # Cyclic core: propose → run → (early-stop check) → evaluate → (keep/revert) → log → ...
     graph.add_edge("propose", "run")
@@ -131,6 +136,7 @@ def invoke_autoresearch_graph(
         "original_content": None,
         "diary": [],
         "baseline_score": None,
+        "baseline_result": None,
         "best_score": None,
         "best_script": plan["training_script_path"],
         "last_result": None,
@@ -143,15 +149,8 @@ def invoke_autoresearch_graph(
 
     final_state = graph.invoke(initial_state)
 
-    total_cost = sum(r["cost_usd"] for r in final_state["diary"])
-    termination = "budget_limit" if final_state["should_stop"] else "training_complete"
-    cost_breakdown: CostBreakdown = {
-        "data_gen_usd": 0.0,
-        "training_usd": total_cost,
-        "llm_calls_usd": 0.0,
-        "total_usd": total_cost,
-        "termination_reason": termination,
-    }
+    termination = "budget_limit" if _budget_exhausted(final_state) else "training_complete"
+    cost_breakdown = _cost_breakdown_from_state(final_state, termination)
 
     return {
         "weights_path": final_state["best_script"],
@@ -226,6 +225,7 @@ def baseline_node(state: AutoResearchState) -> dict:
     )
 
     experiment = _run_tinker_experiment_for_state(state, phase="baseline")
+    budget_status = _record_experiment_cost(state, experiment)
     baseline_score = run_evals(experiment["model_path"], state["eval_suite"])
 
     log_event(
@@ -237,9 +237,11 @@ def baseline_node(state: AutoResearchState) -> dict:
 
     return {
         "baseline_score": baseline_score,
+        "baseline_result": experiment,
         "best_score": baseline_score,
         "best_script": experiment["model_path"],
         "last_result": experiment,
+        "should_stop": budget_status == BudgetStatus.EXCEEDED,
     }
 
 
@@ -304,6 +306,7 @@ def run_node(state: AutoResearchState) -> dict:
     )
 
     result = _run_tinker_experiment_for_state(state, phase="iteration")
+    budget_status = _record_experiment_cost(state, result)
 
     log_event(
         AgentName.AUTORESEARCH,
@@ -312,7 +315,10 @@ def run_node(state: AutoResearchState) -> dict:
         metadata={"job_id": result["job_id"], "cost_usd": result["cost_usd"]},
     )
 
-    return {"last_result": result}
+    return {
+        "last_result": result,
+        "should_stop": budget_status == BudgetStatus.EXCEEDED,
+    }
 
 
 def revert_and_continue_node(state: AutoResearchState) -> dict:
@@ -511,8 +517,8 @@ def continue_edge(state: AutoResearchState) -> Literal["propose", "__end__"]:
         return "__end__"
 
     budget = state["config"].get("compute_budget", float("inf"))
-    spent = sum(r["cost_usd"] for r in state["diary"])
-    if spent >= budget:
+    spent = _spent_usd_from_state(state)
+    if _budget_exhausted(state):
         log_event(
             AgentName.AUTORESEARCH,
             LogLevel.INFO,
@@ -537,6 +543,46 @@ def continue_edge(state: AutoResearchState) -> Literal["propose", "__end__"]:
         return "__end__"
 
     return "propose"
+
+
+def _spent_usd_from_state(state: AutoResearchState) -> float:
+    cost_manager = state.get("cost_manager")
+    if cost_manager is not None and hasattr(cost_manager, "spent_usd"):
+        return float(cost_manager.spent_usd)
+    baseline_cost = (
+        state.get("baseline_result", {}).get("cost_usd", 0.0)
+        if state.get("baseline_result")
+        else 0.0
+    )
+    return baseline_cost + sum(r["cost_usd"] for r in state["diary"])
+
+
+def _budget_exhausted(state: AutoResearchState) -> bool:
+    if state.get("should_stop"):
+        return True
+    cost_manager = state.get("cost_manager")
+    if cost_manager is not None and getattr(cost_manager, "status", None) == BudgetStatus.EXCEEDED:
+        return True
+    budget = state["config"].get("compute_budget", float("inf"))
+    return _spent_usd_from_state(state) >= budget
+
+
+def _cost_breakdown_from_state(
+    state: AutoResearchState,
+    termination_reason: str,
+) -> CostBreakdown:
+    cost_manager = state.get("cost_manager")
+    if cost_manager is not None and hasattr(cost_manager, "cost_breakdown"):
+        return cost_manager.cost_breakdown(termination_reason=termination_reason)
+
+    total_cost = _spent_usd_from_state(state)
+    return {
+        "data_gen_usd": 0.0,
+        "training_usd": total_cost,
+        "llm_calls_usd": 0.0,
+        "total_usd": total_cost,
+        "termination_reason": termination_reason,
+    }
 
 
 # ─── PROPOSE HELPERS ──────────────────────────────────────────────────────────
@@ -738,7 +784,7 @@ def _run_tinker_experiment_for_state(
 ) -> ExperimentResult:
     run_id = f"autoresearch-{phase}-{state['iteration']}-{uuid4().hex[:8]}"
     cost_manager = state.get("cost_manager")
-    if cost_manager is not None:
+    if cost_manager is not None and hasattr(cost_manager, "start"):
         cost_manager.start(run_id)
     try:
         return run_tinker_sft_experiment(
@@ -748,8 +794,19 @@ def _run_tinker_experiment_for_state(
             max_steps=_max_steps_from_state(state),
         )
     finally:
-        if cost_manager is not None:
+        if cost_manager is not None and hasattr(cost_manager, "stop"):
             cost_manager.stop()
+
+
+def _record_experiment_cost(
+    state: AutoResearchState,
+    result: ExperimentResult,
+    category: str = "training",
+) -> str | None:
+    cost_manager = state.get("cost_manager")
+    if cost_manager is None or not hasattr(cost_manager, "record_spend"):
+        return None
+    return cost_manager.record_spend(float(result.get("cost_usd", 0.0)), category=category)
 
 
 def submit_experiment(
