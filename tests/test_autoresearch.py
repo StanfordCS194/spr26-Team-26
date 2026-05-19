@@ -470,6 +470,163 @@ def test_run_node_preflight_skips_unaffordable_candidate(monkeypatch, tmp_path):
     assert manifest["budget_preflight_skipped"] is True
 
 
+def test_invoke_autoresearch_graph_canonicalizes_tinker_initial_config(monkeypatch):
+    import src.autoresearch.autoresearch as ar
+
+    captured = {}
+
+    class FakeGraph:
+        def invoke(self, initial_state):
+            captured.update(initial_state["current_config"])
+            return {
+                **initial_state,
+                "baseline_result": {
+                    "job_id": "baseline",
+                    "status": "COMPLETED",
+                    "metrics": {"train_loss": 0.5, "val_loss": 0.5,
+                                "test_loss": 0.5, "primary_metric": 0.5},
+                    "model_path": "baseline-model",
+                    "cost_usd": 0.0,
+                    "logs_path": "baseline.jsonl",
+                },
+                "baseline_score": {"scalar": 0.5, "metrics": {}, "critique": ""},
+                "best_score": {"scalar": 0.5, "metrics": {}, "critique": ""},
+                "best_script": "baseline-model",
+            }
+
+    monkeypatch.setattr(ar, "build_autoresearch_graph", lambda: FakeGraph())
+    state = _make_state()
+    plan = {
+        **state["plan"],
+        "base_model": "Qwen/Qwen3.5-9B",
+        "backend": "tinker_sft",
+        "eval_metric": "primary_metric",
+    }
+    config = {
+        **state["config"],
+        "training_procedure": {
+            **state["config"]["training_procedure"],
+            "base_model": "Qwen/Qwen3.5-9B",
+            "hyperparameters": {
+                "learning_rate": 1e-4,
+                "epochs": 2,
+                "max_seq_len": 256,
+            },
+        },
+    }
+
+    ar.invoke_autoresearch_graph(plan, config, None)
+
+    assert captured["learning_rate"] == 1e-4
+    assert captured["num_epochs"] == 2
+    assert captured["max_seq_length"] == 256
+    assert "epochs" not in captured
+    assert "max_seq_len" not in captured
+
+
+def test_propose_hypothesis_canonicalizes_tinker_alias_patch(monkeypatch):
+    import src.autoresearch.autoresearch as ar
+
+    captured = {}
+
+    class FakeContent:
+        text = json.dumps(
+            {
+                "description": "Increase epochs for a longer bounded run.",
+                "patch": {"epochs": 5, "max_seq_len": 1024},
+                "expected_effect": "Improve validation loss.",
+                "search_strategy": "local",
+            }
+        )
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            return type("FakeMessage", (), {"content": [FakeContent()]})()
+
+    class FakeAnthropic:
+        def __init__(self):
+            self.messages = FakeMessages()
+
+    monkeypatch.setattr(ar.anthropic, "Anthropic", FakeAnthropic)
+
+    hypothesis = ar.propose_hypothesis(
+        {"learning_rate": 1e-4, "epochs": 3, "max_seq_len": 512},
+        [],
+        _minimal_task(),
+        allowed_params=["learning_rate", "max_seq_length", "num_epochs"],
+    )
+
+    assert json.loads(hypothesis["patch"]) == {
+        "num_epochs": 5,
+        "max_seq_length": 1024,
+    }
+    assert '"num_epochs": 3' in captured["messages"][0]["content"]
+    assert '"max_seq_length": 512' in captured["messages"][0]["content"]
+    assert '"max_seq_len":' not in captured["messages"][0]["content"]
+
+
+def test_propose_hypothesis_still_rejects_unsupported_tinker_patch(monkeypatch):
+    import src.autoresearch.autoresearch as ar
+
+    class FakeContent:
+        text = json.dumps(
+            {
+                "description": "Change dropout.",
+                "patch": {"dropout": 0.2},
+                "expected_effect": "Improve validation loss.",
+                "search_strategy": "local",
+            }
+        )
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            return type("FakeMessage", (), {"content": [FakeContent()]})()
+
+    class FakeAnthropic:
+        def __init__(self):
+            self.messages = FakeMessages()
+
+    monkeypatch.setattr(ar.anthropic, "Anthropic", FakeAnthropic)
+
+    with pytest.raises(ValueError, match="Unsupported Tinker SFT hyperparameter"):
+        ar.propose_hypothesis(
+            {"learning_rate": 1e-4},
+            [],
+            _minimal_task(),
+            allowed_params=["learning_rate", "num_epochs"],
+        )
+
+
+def test_keep_node_canonicalizes_tinker_alias_patch():
+    import src.autoresearch.autoresearch as ar
+
+    state = _make_state(
+        plan={"training_script_path": "train.py", "base_model": "Qwen/Qwen3.5-9B",
+              "lora_config": None, "estimated_cost": 0.0,
+              "estimated_time_min": 5, "eval_metric": "primary_metric",
+              "backend": "tinker_sft"},
+        current_config={"learning_rate": 1e-4, "epochs": 2},
+        current_patch=json.dumps({"epochs": 3}),
+        last_score={"scalar": 0.6, "metrics": {}, "critique": ""},
+        best_score={"scalar": 0.5, "metrics": {}, "critique": ""},
+        last_result={
+            "job_id": "candidate",
+            "status": "COMPLETED",
+            "metrics": {"train_loss": 0.4, "val_loss": 0.4,
+                        "test_loss": 0.4, "primary_metric": 0.6},
+            "model_path": "candidate-model",
+            "cost_usd": 0.01,
+            "logs_path": "candidate.jsonl",
+        },
+    )
+
+    out = ar.keep_node(state)
+
+    assert out["current_config"]["num_epochs"] == 3
+    assert "epochs" not in out["current_config"]
+
+
 # ─── continue_edge ────────────────────────────────────────────────────────────
 
 def _make_state(**overrides):

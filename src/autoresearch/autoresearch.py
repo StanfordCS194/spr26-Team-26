@@ -55,6 +55,10 @@ _MAX_ITERATIONS = 20  # hard cap on total iterations regardless of improvement
 _MIN_RELATIVE_IMPROVEMENT_PCT = 1.0
 _MIN_ABSOLUTE_IMPROVEMENT = 1e-9
 _EXPERIMENT_CACHE: dict[str, ExperimentResult] = {}
+_TINKER_HYPERPARAMETER_ALIASES = {
+    "epochs": "num_epochs",
+    "max_seq_len": "max_seq_length",
+}
 
 
 def _patch_to_diff(patch_dict: dict, current_config: dict) -> str:
@@ -65,6 +69,26 @@ def _patch_to_diff(patch_dict: dict, current_config: dict) -> str:
         lines.append(f"- {key}: {old_val}")
         lines.append(f"+ {key}: {new_val}")
     return "\n".join(lines)
+
+
+def _canonicalize_tinker_hyperparameters(config: Mapping[str, Any]) -> dict[str, Any]:
+    """Return Tinker V1 hyperparameters with legacy Manager aliases removed."""
+    canonical = dict(config)
+    for legacy_key, canonical_key in _TINKER_HYPERPARAMETER_ALIASES.items():
+        if legacy_key in canonical and canonical_key not in canonical:
+            canonical[canonical_key] = canonical[legacy_key]
+        canonical.pop(legacy_key, None)
+    return canonical
+
+
+def _current_config_for_plan(
+    plan: TrainingPlan,
+    config: OrchestrationConfig,
+) -> dict[str, Any]:
+    current_config = dict(config["training_procedure"]["hyperparameters"])
+    if plan.get("backend") == "tinker_sft":
+        return _canonicalize_tinker_hyperparameters(current_config)
+    return current_config
 
 
 # ─── GRAPH BUILDER ────────────────────────────────────────────────────────────
@@ -132,7 +156,7 @@ def invoke_autoresearch_graph(
         "cost_manager": cost_manager,
         "eval_suite": None,
         "current_script": plan["training_script_path"],
-        "current_config": config["training_procedure"]["hyperparameters"],
+        "current_config": _current_config_for_plan(plan, config),
         "current_patch": None,
         "last_description": None,
         "original_content": None,
@@ -194,7 +218,7 @@ def init_node(state: AutoResearchState) -> dict:
     return {
         "eval_suite": eval_suite,
         "current_script": state["plan"]["training_script_path"],
-        "current_config": state["config"]["training_procedure"]["hyperparameters"],
+        "current_config": _current_config_for_plan(state["plan"], state["config"]),
         "iteration": 0,
     }
 
@@ -383,6 +407,8 @@ def keep_node(state: AutoResearchState) -> dict:
     # call to propose_hypothesis() sees the real current state, not the original baseline.
     patch_dict = json.loads(state.get("current_patch", "{}"))
     updated_config = {**state["current_config"], **patch_dict}
+    if state["plan"].get("backend") == "tinker_sft":
+        updated_config = _canonicalize_tinker_hyperparameters(updated_config)
 
     return {
         "best_score": state["last_score"],
@@ -623,6 +649,11 @@ def propose_hypothesis(
     """Calls Claude API (claude-haiku-4-5-20251001) to generate a single testable hypothesis as a code/config diff."""
     client = anthropic.Anthropic()
     recent = diary[-5:] if len(diary) > 5 else diary
+    prompt_config = (
+        _canonicalize_tinker_hyperparameters(current_config)
+        if allowed_params
+        else current_config
+    )
 
     system = (
         "You are an ML hyperparameter optimization assistant for the AutoResearch Loop. "
@@ -647,7 +678,7 @@ def propose_hypothesis(
             "warmup_steps [0, 2000], dropout [0, 0.5]."
         )
     user = f"""Current training configuration:
-{json.dumps(current_config, indent=2)}
+{json.dumps(prompt_config, indent=2)}
 
 Task:
 - type: {task['task_type']}
@@ -687,6 +718,7 @@ Respond with this JSON object and nothing else:
     parsed = json.loads(raw)
     patch = parsed["patch"]
     if allowed_params:
+        patch = _canonicalize_tinker_hyperparameters(patch)
         unsupported = [key for key in patch if key not in set(allowed_params)]
         if unsupported:
             raise ValueError(
@@ -790,12 +822,12 @@ def _training_config_from_state(
     *,
     include_pending_patch: bool = False,
 ) -> TrainingConfig:
-    data: dict[str, Any] = dict(state["current_config"])
+    data: dict[str, Any] = (
+        _canonicalize_tinker_hyperparameters(state["current_config"])
+        if state["plan"].get("backend") == "tinker_sft"
+        else dict(state["current_config"])
+    )
     data.setdefault("model_name", state["plan"].get("base_model") or DEFAULT_TINKER_MODEL)
-    if "max_seq_len" in data and "max_seq_length" not in data:
-        data["max_seq_length"] = data["max_seq_len"]
-    if "epochs" in data and "num_epochs" not in data:
-        data["num_epochs"] = data["epochs"]
     lora = state["plan"].get("lora_config")
     if lora and "lora_rank" not in data:
         data["lora_rank"] = lora["rank"]
