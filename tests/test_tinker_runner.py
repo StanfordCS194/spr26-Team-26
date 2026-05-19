@@ -191,6 +191,91 @@ def test_run_tinker_sft_experiment_reads_tinker_loss_sum_metric(
     assert metrics["primary_metric"] == pytest.approx(1.0 / 3.875)
 
 
+def test_run_tinker_sft_experiment_scores_dataset_result_holdouts(
+    tmp_path,
+    monkeypatch,
+):
+    state = _install_fake_tinker_stack(
+        monkeypatch,
+        losses=[0.5, 0.25],
+        forward_losses=[0.8, 1.2],
+    )
+    from src.tinker_api.sft_runner import run_tinker_sft_experiment
+
+    data_path = _write_jsonl(
+        tmp_path / "train.jsonl",
+        [
+            {"input": "train one", "output": "a"},
+            {"input": "train two", "output": "b"},
+            {"input": "validation", "output": "c"},
+            {"input": "test", "output": "d"},
+        ],
+    )
+    dataset_result = {
+        "dataset": {
+            "path": str(data_path),
+            "train_size": 2,
+            "val_size": 1,
+            "test_size": 1,
+        },
+        "next_agent": "decision_engine",
+    }
+
+    result = run_tinker_sft_experiment(
+        TrainingConfig(model_name="Qwen/Qwen3.5-9B", batch_size=1),
+        dataset_result,
+        run_id="split-run",
+        max_steps=2,
+        output_dir=str(tmp_path / "experiments"),
+    )
+
+    run_dir = tmp_path / "experiments" / "split-run"
+    metrics = json.loads((run_dir / "metrics.json").read_text())
+    manifest = json.loads((run_dir / "manifest.json").read_text())
+    assert result["metrics"]["train_loss"] == pytest.approx(0.375)
+    assert metrics["val_loss"] == pytest.approx(0.8)
+    assert metrics["test_loss"] == pytest.approx(1.2)
+    assert metrics["primary_metric"] == pytest.approx(1 / 1.8)
+    assert manifest["split_examples"] == {"train": 2, "val": 1, "test": 1}
+    assert manifest["heldout_eval"] == {"val_loss": 0.8, "test_loss": 1.2}
+    assert state.training_client.forward_backward_calls == 2
+    assert state.training_client.forward_calls == 2
+    trained_prompts = [
+        batch[0].conversation[0]["content"]
+        for batch in state.training_client.batches
+    ]
+    assert trained_prompts == ["train one", "train two"]
+    heldout_prompts = [
+        batch[0].conversation[0]["content"]
+        for batch in state.training_client.forward_batches
+    ]
+    assert heldout_prompts == ["validation", "test"]
+
+
+def test_extract_forward_loss_uses_weighted_logprobs():
+    from src.tinker_api.sft_runner import _extract_forward_loss
+
+    class TensorLike:
+        def __init__(self, values):
+            self._values = values
+
+        def tolist(self):
+            return self._values
+
+    datums = [
+        types.SimpleNamespace(loss_fn_inputs={"weights": TensorLike([0, 1, 1])}),
+        types.SimpleNamespace(loss_fn_inputs={"weights": TensorLike([1, 0])}),
+    ]
+    result = {
+        "loss_fn_outputs": [
+            {"logprobs": TensorLike([-10.0, -2.0, -4.0])},
+            {"logprobs": TensorLike([-8.0, -100.0])},
+        ]
+    }
+
+    assert _extract_forward_loss(result, datums) == pytest.approx((2 + 4 + 8) / 3)
+
+
 def test_run_tinker_sft_experiment_stops_on_cancel_and_writes_artifacts(tmp_path, monkeypatch):
     _install_fake_tinker_stack(monkeypatch, losses=[0.5, 0.25, 0.1])
     from src.tinker_api import tinker_api
@@ -355,8 +440,9 @@ class _FakeModelInput:
 
 
 class _FakeDatum:
-    def __init__(self, length: int):
+    def __init__(self, length: int, conversation=None):
         self.model_input = _FakeModelInput(length)
+        self.conversation = conversation
 
 
 class _FakeRenderer:
@@ -371,17 +457,28 @@ class _FakeRenderer:
 
 
 class _FakeTrainingClient:
-    def __init__(self, losses):
+    def __init__(self, losses, forward_losses=None):
         self.losses = list(losses)
+        self.forward_losses = list(forward_losses or [])
         self.forward_backward_calls = 0
+        self.forward_calls = 0
         self.optim_step_calls = 0
         self.batches = []
+        self.forward_batches = []
         self.sampling_client = _FakeSamplingClient()
 
     def forward_backward(self, batch, loss_fn):
         self.forward_backward_calls += 1
         self.batches.append(batch)
         loss = self.losses[min(self.forward_backward_calls - 1, len(self.losses) - 1)]
+        if isinstance(loss, dict):
+            return _FakeFuture(types.SimpleNamespace(metrics=loss))
+        return _FakeFuture(types.SimpleNamespace(loss=loss))
+
+    def forward(self, batch, loss_fn):
+        self.forward_calls += 1
+        self.forward_batches.append(batch)
+        loss = self.forward_losses[min(self.forward_calls - 1, len(self.forward_losses) - 1)]
         if isinstance(loss, dict):
             return _FakeFuture(types.SimpleNamespace(metrics=loss))
         return _FakeFuture(types.SimpleNamespace(loss=loss))
@@ -416,8 +513,8 @@ class _FakeServiceClient:
         return self.training_client
 
 
-def _install_fake_tinker_stack(monkeypatch, losses):
-    training_client = _FakeTrainingClient(losses)
+def _install_fake_tinker_stack(monkeypatch, losses, forward_losses=None):
+    training_client = _FakeTrainingClient(losses, forward_losses=forward_losses)
     service_client = _FakeServiceClient(training_client)
 
     tinker_mod = types.ModuleType("tinker")
@@ -460,7 +557,7 @@ def _install_fake_tinker_stack(monkeypatch, losses):
                 "train_on_what": train_on_what,
             }
         )
-        return _FakeDatum(length=len(json.dumps(conversation)))
+        return _FakeDatum(length=len(json.dumps(conversation)), conversation=conversation)
 
     supervised_data.conversation_to_datum = conversation_to_datum
     supervised_pkg.data = supervised_data

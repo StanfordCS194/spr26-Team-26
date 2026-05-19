@@ -12,6 +12,7 @@ import json
 import math
 import os
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Mapping, Sequence
 from uuid import uuid4
@@ -36,6 +37,13 @@ SUPPORTED_TINKER_TUNABLES: frozenset[str] = frozenset(
 
 _INPUT_KEYS = ("input", "prompt", "question", "content")
 _TARGET_KEYS = ("output", "answer", "label", "target")
+
+
+@dataclass(frozen=True)
+class _ConversationSplits:
+    train: list[list[dict[str, str]]]
+    val: list[list[dict[str, str]]]
+    test: list[list[dict[str, str]]]
 
 
 def run_tinker_sft_experiment(
@@ -70,7 +78,8 @@ def run_tinker_sft_experiment(
         renderer_name = resolve_renderer_name(model_name, model_info)
         tokenizer = tokenizer_utils.get_tokenizer(model_name)
         renderer = renderers.get_renderer(renderer_name, tokenizer)
-        training_conversations = _expand_assistant_training_targets(conversations)
+        splits = _split_conversations(dataset, conversations)
+        training_conversations = _expand_assistant_training_targets(splits.train)
         if not training_conversations:
             raise ValueError("No assistant targets found after a user message.")
 
@@ -141,7 +150,28 @@ def run_tinker_sft_experiment(
         )
         _write_json(run_dir / "sample.json", sample_payload)
 
-        final_metrics = _final_metrics(metrics_history, status)
+        val_loss = _evaluate_holdout_loss(
+            training_client=training_client,
+            conversations=splits.val,
+            renderer=renderer,
+            supervised_data=supervised_data,
+            cfg=cfg,
+            train_on_what=train_on_what,
+        )
+        test_loss = _evaluate_holdout_loss(
+            training_client=training_client,
+            conversations=splits.test,
+            renderer=renderer,
+            supervised_data=supervised_data,
+            cfg=cfg,
+            train_on_what=train_on_what,
+        )
+        final_metrics = _final_metrics(
+            metrics_history,
+            status,
+            val_loss=val_loss,
+            test_loss=test_loss,
+        )
         manifest = {
             "run_id": run_name,
             "status": status,
@@ -151,6 +181,15 @@ def run_tinker_sft_experiment(
             "train_on_what": str(train_on_what),
             "dataset_path": _dataset_path_for_manifest(dataset),
             "training_examples": len(training_conversations),
+            "split_examples": {
+                "train": len(splits.train),
+                "val": len(splits.val),
+                "test": len(splits.test),
+            },
+            "heldout_eval": {
+                "val_loss": val_loss,
+                "test_loss": test_loss,
+            },
             "max_steps": max_steps,
             "completed_steps": len(metrics_history),
             "checkpoints": checkpoints,
@@ -238,6 +277,37 @@ def _expand_assistant_training_targets(
             if copied["role"] == "assistant" and seen_user:
                 targets.append(list(prefix))
     return targets
+
+
+def _split_conversations(
+    dataset: DatasetResult | str | os.PathLike[str] | Sequence[Mapping[str, Any]],
+    conversations: list[list[dict[str, str]]],
+) -> _ConversationSplits:
+    if not conversations:
+        return _ConversationSplits(train=[], val=[], test=[])
+
+    if not isinstance(dataset, Mapping):
+        return _ConversationSplits(train=conversations, val=[], test=[])
+
+    dataset_meta = dataset.get("dataset")
+    if not isinstance(dataset_meta, Mapping):
+        return _ConversationSplits(train=conversations, val=[], test=[])
+
+    train_size = max(0, int(dataset_meta.get("train_size") or 0))
+    val_size = max(0, int(dataset_meta.get("val_size") or 0))
+    test_size = max(0, int(dataset_meta.get("test_size") or 0))
+    if train_size <= 0:
+        return _ConversationSplits(train=conversations, val=[], test=[])
+
+    train_end = min(train_size, len(conversations))
+    val_end = min(train_end + val_size, len(conversations))
+    test_end = min(val_end + test_size, len(conversations))
+    train = conversations[:train_end]
+    val = conversations[train_end:val_end]
+    test = conversations[val_end:test_end]
+    if not train:
+        train = conversations
+    return _ConversationSplits(train=train, val=val, test=test)
 
 
 def resolve_renderer_name(model_name: str, model_info_module: Any | None = None) -> str:
@@ -370,6 +440,36 @@ def _conversation_batch(
     return [conversations[(start + offset) % len(conversations)] for offset in range(size)]
 
 
+def _evaluate_holdout_loss(
+    *,
+    training_client: Any,
+    conversations: list[list[dict[str, str]]],
+    renderer: Any,
+    supervised_data: Any,
+    cfg: TrainingConfig,
+    train_on_what: Any,
+) -> float | None:
+    holdout_targets = _expand_assistant_training_targets(conversations)
+    if not holdout_targets:
+        return None
+
+    forward = getattr(training_client, "forward", None)
+    if not callable(forward):
+        return None
+
+    batch = [
+        supervised_data.conversation_to_datum(
+            conversation,
+            renderer,
+            cfg.max_seq_length,
+            train_on_what,
+        )
+        for conversation in holdout_targets
+    ]
+    result = _future_result(forward(batch, loss_fn="cross_entropy"))
+    return _extract_forward_loss(result, batch)
+
+
 def _future_result(value: Any) -> Any:
     result = getattr(value, "result", None)
     if callable(result):
@@ -395,24 +495,9 @@ def _datum_token_count(datum: Any) -> int:
 
 def _extract_loss(*results: Any) -> float:
     for result in results:
-        if result is None:
-            continue
-        loss = getattr(result, "loss", None)
-        if isinstance(loss, (int, float)):
-            return float(loss)
-        metrics = getattr(result, "metrics", None)
-        if isinstance(metrics, Mapping):
-            for key in (
-                "loss",
-                "loss:mean",
-                "mean_loss",
-                "train_loss",
-                "loss:sum",
-                "nll",
-            ):
-                value = metrics.get(key)
-                if isinstance(value, (int, float)):
-                    return float(value)
+        loss = _loss_from_result_fields(result)
+        if loss is not None:
+            return loss
     metric_keys = [
         sorted(result.metrics.keys())
         for result in results
@@ -421,6 +506,95 @@ def _extract_loss(*results: Any) -> float:
     raise TinkerAPIError(
         f"Tinker forward/backward result did not include a recognized loss metric: {metric_keys}"
     )
+
+
+def _extract_forward_loss(result: Any, datums: Sequence[Any]) -> float:
+    direct_loss = _loss_from_result_fields(result)
+    if direct_loss is not None:
+        return direct_loss
+
+    outputs = _mapping_or_attr(result, "loss_fn_outputs")
+    if not outputs:
+        raise TinkerAPIError("Tinker forward result did not include loss_fn_outputs")
+
+    total_nll = 0.0
+    total_weight = 0.0
+    for datum, output in zip(datums, outputs):
+        logprobs = _to_float_sequence(_mapping_or_attr(output, "logprobs"))
+        weights = _to_float_sequence(_datum_loss_weights(datum))
+        if logprobs is None or weights is None:
+            continue
+        for logprob, weight in zip(logprobs, weights):
+            total_nll += -logprob * weight
+            total_weight += weight
+
+    if total_weight <= 0:
+        raise TinkerAPIError("Tinker forward result did not include weighted logprobs")
+    return total_nll / total_weight
+
+
+def _loss_from_result_fields(result: Any) -> float | None:
+    if result is None:
+        return None
+    loss = _mapping_or_attr(result, "loss")
+    if isinstance(loss, (int, float)):
+        return float(loss)
+    metrics = _mapping_or_attr(result, "metrics")
+    if isinstance(metrics, Mapping):
+        for key in (
+            "loss",
+            "loss:mean",
+            "mean_loss",
+            "train_loss",
+            "val_loss",
+            "test_loss",
+            "loss:sum",
+            "nll",
+        ):
+            value = metrics.get(key)
+            if isinstance(value, (int, float)):
+                return float(value)
+    return None
+
+
+def _mapping_or_attr(value: Any, key: str) -> Any:
+    if isinstance(value, Mapping):
+        return value.get(key)
+    return getattr(value, key, None)
+
+
+def _to_float_sequence(value: Any) -> list[float] | None:
+    if value is None:
+        return None
+    tolist = getattr(value, "tolist", None)
+    if callable(tolist):
+        value = tolist()
+    else:
+        to_torch = getattr(value, "to_torch", None)
+        if callable(to_torch):
+            tensor = to_torch()
+            tensor_tolist = getattr(tensor, "tolist", None)
+            value = tensor_tolist() if callable(tensor_tolist) else tensor
+        elif hasattr(value, "data"):
+            value = getattr(value, "data")
+
+    if isinstance(value, (int, float)):
+        return [float(value)]
+    try:
+        return [float(item) for item in value]
+    except TypeError:
+        return None
+
+
+def _datum_loss_weights(datum: Any) -> Any:
+    inputs = getattr(datum, "loss_fn_inputs", None)
+    if isinstance(inputs, Mapping):
+        return inputs.get("weights")
+    if isinstance(datum, Mapping):
+        loss_inputs = datum.get("loss_fn_inputs")
+        if isinstance(loss_inputs, Mapping):
+            return loss_inputs.get("weights")
+    return None
 
 
 def _score_from_loss(loss: float | None) -> float:
@@ -503,23 +677,35 @@ def _sample_once(
     return {"prompt": prompt_messages, "text": content, "tokens": tokens}
 
 
-def _final_metrics(metrics_history: list[dict[str, Any]], status: str) -> TrainingMetrics:
+def _final_metrics(
+    metrics_history: list[dict[str, Any]],
+    status: str,
+    *,
+    val_loss: float | None = None,
+    test_loss: float | None = None,
+) -> TrainingMetrics:
     if not metrics_history:
         loss = float("nan") if status == "FAILED" else 0.0
+        resolved_val_loss = loss if val_loss is None else val_loss
+        resolved_test_loss = loss if test_loss is None else test_loss
         return {
             "train_loss": loss,
-            "val_loss": loss,
-            "test_loss": loss,
-            "primary_metric": _score_from_loss(loss),
+            "val_loss": resolved_val_loss,
+            "test_loss": resolved_test_loss,
+            "primary_metric": _score_from_loss(resolved_val_loss),
         }
     train_loss = _mean_metric(metrics_history, "train_loss")
-    val_loss = _mean_metric(metrics_history, "val_loss")
-    test_loss = _mean_metric(metrics_history, "test_loss")
+    resolved_val_loss = (
+        _mean_metric(metrics_history, "val_loss") if val_loss is None else val_loss
+    )
+    resolved_test_loss = (
+        _mean_metric(metrics_history, "test_loss") if test_loss is None else test_loss
+    )
     return {
         "train_loss": train_loss,
-        "val_loss": val_loss,
-        "test_loss": test_loss,
-        "primary_metric": _score_from_loss(val_loss),
+        "val_loss": resolved_val_loss,
+        "test_loss": resolved_test_loss,
+        "primary_metric": _score_from_loss(resolved_val_loss),
     }
 
 
