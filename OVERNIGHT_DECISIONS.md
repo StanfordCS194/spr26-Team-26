@@ -22,3 +22,4 @@
 - 2026-05-19 05:56 PDT — Keep empty or failed DataGen outputs from entering DecisionEngine/AutoResearch. The Manager boundary should explain untrainable data before the failure reaches Tinker.
 - 2026-05-19 06:02 PDT — AutoResearch candidate acceptance should be monotonic against the current best score, not merely better than the original baseline. The diary should report the patch relative to the pre-patch config for auditability.
 - 2026-05-19 06:06 PDT — Treat LLM-generated hyperparameter patches as untrusted until validated by `TrainingConfig.apply_patch`; prompt constraints are guidance, runtime validation is the guardrail.
+- 2026-05-19 06:13 PDT — Keep the spec-site source of truth aligned with the stacked implementation branches. Since reviewers use the Vercel preview to understand intended behavior, stale REST-job language is treated as an implementation risk, not just documentation drift.

@@ -43,3 +43,4 @@ Operating rules:
 - 2026-05-19 06:06 PDT — Expanded stack with #48 merged cleanly and broad non-live suite passed with `191 passed, 4 skipped`.
 - 2026-05-19 06:08 PDT — Closed superseded drafts #36, #37, and #38 with comments and deleted their remote branches. Their scope is now carried by integrated DataGen PR #40.
 - 2026-05-19 06:10 PDT — Refreshed PR #40 description to remove stale next-step language, note the closed superseded drafts, and include the latest live/stack validation context.
+- 2026-05-19 06:13 PDT — Draft PR #49 opened: spec site now documents the SDK-native Tinker runner, config-patch AutoResearch loop, in-process CostManager accounting, and current shared types. It also fixes an existing spec-site Sidebar lint issue. Validation: `npm run lint`, `npm run build`, and `git diff --check`.
