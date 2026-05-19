@@ -1,6 +1,6 @@
 # Overnight PR Stack
 
-Updated: 2026-05-19 08:03 PDT
+Updated: 2026-05-19 08:08 PDT
 
 Purpose: give reviewers a merge/review order for the draft PR stack without
 having to infer dependencies from GitHub.
@@ -16,6 +16,7 @@ having to infer dependencies from GitHub.
    - #48 `codex/autoresearch-validate-patches` -> #47
    - #59 `codex/autoresearch-sft-early-stop` -> #48
    - #61 `codex/autoresearch-min-improvement` -> #59
+   - #63 `codex/autoresearch-dataset-splits` -> #61
 3. Tinker runner chain:
    - #43 `codex/tinker-single-assistant-rendering` -> #35
    - #57 `codex/tinker-live-loss-metrics` -> #43
@@ -53,7 +54,8 @@ having to infer dependencies from GitHub.
 ## Latest Local Stack Validation
 
 Unpublished local stack currently includes #55, #56, #57, #58, #59, #60, #61,
-and #62 on top of #51.
+and #62 on top of #51. #63 has been opened on the AutoResearch chain and should
+be included in the next local stack smoke.
 
 - `python3 -m compileall src`
 - Broad non-live suite excluding live Tinker and live Hugging Face retrieval:
