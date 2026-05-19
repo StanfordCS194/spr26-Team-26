@@ -10,16 +10,18 @@ Orchestrates one iteration of the PROPOSE step:
   6. Append a PENDING diary entry to outputs/logs/research_diary.jsonl.
   7. Emit structured logs via Observability (F5).
 
-RUN / EVALUATE / DECIDE are stubbed with explicit TODO docstrings that
-reference the Tinker API (F4), the Evaluator sub-feature, and the Cost
-Manager so future implementers know exactly what to wire in.
+RUN / EVALUATE / DECIDE are intentionally not implemented here. This class is
+kept as the CLI-runnable proposal-only loop for fast local inspection and
+backwards-compatible tests. The production/full run path lives in the
+LangGraph graph in autoresearch.py.
 
 Relationship to the LangGraph graph (autoresearch.py):
   This loop is the CLI-runnable scaffold used for testing the PROPOSE
   infra in isolation. The full LangGraph graph (build_autoresearch_graph)
-  will call propose_node → run_node → evaluate_node → decide_node → log_node
-  in a cycle. propose_node internally calls propose_hypothesis() which uses
-  Claude; this scaffold uses ProposalStrategy directly (no API cost).
+  calls propose_node → run_node → evaluate_node → decide_node → log_node in a
+  cycle. That graph can use local or Claude-backed proposal modes, and its RUN
+  node calls the SDK-native Tinker SFT runner. This scaffold uses
+  ProposalStrategy directly and never spends API tokens.
 """
 
 from __future__ import annotations
@@ -132,21 +134,18 @@ class AutoResearchLoop:
 
     def run_experiment(self, config: TrainingConfig) -> None:
         """
-        TODO: Run a bounded SDK-native Tinker experiment and block until completion.
+        Compatibility stub for older proposal-only callers.
 
-        Not implemented in the PROPOSE-only phase.
+        The full AutoResearch graph already runs bounded SDK-native Tinker SFT
+        experiments through run_tinker_sft_experiment(), records costs, and
+        handles cancellation. This class stays proposal-only so the legacy CLI
+        can inspect candidate patches without launching training.
 
-        When RUN is ready, this should:
-          1. Build a TrainingConfig from the candidate config.
-          2. Call run_tinker_sft_experiment() and collect ExperimentResult artifacts.
-          3. Respect Cost Manager (F4): if CostManager signals budget exceeded,
-             call tinker_api.cancel_job(run_id) and raise BudgetExceededError.
-          4. Return ExperimentResult (job_id, metrics, model_path, cost_usd).
-
-        See: src/tinker_api/tinker_api.py, src/cost_manager/cost_manager.py.
+        See: src/autoresearch/autoresearch.py and src/tinker_api/sft_runner.py.
         """
         raise NotImplementedError(
-            "run_experiment not yet implemented. Requires the Tinker SFT runner (F4)."
+            "AutoResearchLoop is proposal-only; use build_autoresearch_graph() "
+            "for SDK-native Tinker runs."
         )
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -155,20 +154,17 @@ class AutoResearchLoop:
 
     def evaluate_experiment(self, experiment_result: Any) -> None:
         """
-        TODO: Use the Evaluator sub-feature to compute metrics and a scalar score.
+        Compatibility stub for older proposal-only callers.
 
-        Not implemented in the PROPOSE-only phase.
-
-        When EVALUATE is ready, this should:
-          1. Call autoresearch.run_evals(model_path, eval_suite) → EvalScore.
-          2. Call autoresearch.compare_scores(new_score, baseline_score) → ScoreDelta.
-          3. Call autoresearch.flag_regression(delta) — if True, skip DECIDE and revert.
-          4. Return (EvalScore, ScoreDelta) for pass to decide().
+        The full graph evaluates Tinker runner metrics into EvalScore values and
+        compares against the current best. This CLI scaffold deliberately stops
+        after writing a PENDING proposal entry.
 
         See: src/autoresearch/autoresearch.py — run_evals, compare_scores, flag_regression.
         """
         raise NotImplementedError(
-            "evaluate_experiment not yet implemented. Requires Evaluator sub-feature."
+            "AutoResearchLoop is proposal-only; use build_autoresearch_graph() "
+            "for evaluation."
         )
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -177,25 +173,17 @@ class AutoResearchLoop:
 
     def decide(self, score_delta: Any, diary_entry: IterationRecord) -> None:
         """
-        TODO: Decide KEPT/REVERTED, merge diffs, update research diary and current config.
+        Compatibility stub for older proposal-only callers.
 
-        Not implemented in the PROPOSE-only phase.
-
-        When DECIDE is ready, this should:
-          1. Call autoresearch.decide_keep_or_revert(delta) → 'KEEP' | 'REVERT'.
-          2. If KEEP:
-               - Overwrite configs/current.json with candidate config.
-               - Update diary entry decision field from PENDING → KEPT.
-          3. If REVERT:
-               - Call autoresearch.revert_patch(script_path, original_content).
-               - Update diary entry decision field from PENDING → REVERTED.
-          4. Log outcome with AgentName.AUTORESEARCH and full metrics metadata.
+        The full graph owns KEEP/REVERT decisions and writes terminal diary
+        status. This class leaves entries PENDING by design for proposal review.
 
         See: src/autoresearch/autoresearch.py — decide_keep_or_revert, revert_patch.
              src/autoresearch/diff_utils.py — parse_diff_to_patch (for replay).
         """
         raise NotImplementedError(
-            "decide not yet implemented. Requires EVALUATE phase and Cost Manager (F4)."
+            "AutoResearchLoop is proposal-only; use build_autoresearch_graph() "
+            "for KEEP/REVERT decisions."
         )
 
     # ──────────────────────────────────────────────────────────────────────────
