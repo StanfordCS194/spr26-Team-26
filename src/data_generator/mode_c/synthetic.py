@@ -393,7 +393,7 @@ def _scrape_with_mode_c_web_pipeline(
     schema: DataSchema,
     max_examples: int,
 ) -> RawData | None:
-    if mode_c_offline():
+    if mode_c_offline() or not _explicit_web_pipeline_enabled():
         return None
 
     try:
@@ -826,13 +826,23 @@ def _target_examples(config: Mapping[str, Any]) -> int:
 def _should_use_teacher(teacher_client: Any) -> bool:
     if mode_c_offline():
         return False
-    return teacher_client is not None or bool(os.getenv("ANTHROPIC_API_KEY"))
+    return teacher_client is not None or _synthetic_teacher_env_enabled()
 
 
 def _anthropic_client() -> Any:
     import anthropic
 
     return anthropic.Anthropic()
+
+
+def _explicit_web_pipeline_enabled() -> bool:
+    backend = os.getenv("DATA_GENERATOR_MODE_C_BACKEND", "").strip().lower()
+    return backend == "web" or os.getenv("DATA_GENERATOR_WEB_STRICT") == "1"
+
+
+def _synthetic_teacher_env_enabled() -> bool:
+    raw = os.getenv("DATA_GENERATOR_SYNTHETIC_TEACHER", "").strip().lower()
+    return raw in {"1", "true", "yes", "on", "anthropic", "required"}
 
 
 def _task_prompt(config: Mapping[str, Any] | None) -> str:

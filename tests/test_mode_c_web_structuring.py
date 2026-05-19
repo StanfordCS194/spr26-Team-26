@@ -327,7 +327,7 @@ def test_aggregate_web_sources_uses_structured_records_when_required(monkeypatch
 
 def test_aggregate_web_sources_auto_without_teacher_falls_back_synthetic(monkeypatch):
     monkeypatch.setenv("DATA_GENERATOR_WEB_STRUCTURING", "auto")
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "present-but-not-used")
 
     out = aggregate_web_sources_node(
         {

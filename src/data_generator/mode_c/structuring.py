@@ -311,6 +311,8 @@ def _coerce_teacher_records(records: Sequence[Any]) -> list[dict[str, Any]]:
 def _optional_anthropic_client() -> Any | None:
     if mode_c_offline():
         return None
+    if not _web_structuring_requires_live_teacher():
+        return None
     if not os.getenv("ANTHROPIC_API_KEY"):
         return None
     try:
@@ -318,6 +320,11 @@ def _optional_anthropic_client() -> Any | None:
     except Exception:
         return None
     return anthropic.Anthropic()
+
+
+def _web_structuring_requires_live_teacher() -> bool:
+    raw = os.getenv("DATA_GENERATOR_WEB_STRUCTURING", "auto").strip().lower()
+    return raw in {"1", "true", "yes", "on", "required"}
 
 
 def _parse_json_array(text: str) -> list[Any]:

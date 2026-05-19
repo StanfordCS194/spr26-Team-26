@@ -14,10 +14,13 @@ def _env_truthy(name: str) -> bool:
 
 
 @pytest.mark.skipif(
-    _env_truthy("NO_SPEND") or not os.getenv("TAVILY_API_KEY"),
-    reason="NO_SPEND=1 or TAVILY_API_KEY missing for real Tavily search",
+    _env_truthy("NO_SPEND")
+    or not _env_truthy("RUN_LIVE_MODE_C_WEB")
+    or not os.getenv("TAVILY_API_KEY"),
+    reason="requires RUN_LIVE_MODE_C_WEB=1, TAVILY_API_KEY, and NO_SPEND unset",
 )
-def test_mode_c_web_real_search_crawl_and_artifact():
+def test_mode_c_web_real_search_crawl_and_artifact(monkeypatch):
+    monkeypatch.setenv("DATA_GENERATOR_MODE_C_BACKEND", "web")
     config = {
         "prompt": "Build a sentiment classifier for short customer reviews",
         "training_procedure": {

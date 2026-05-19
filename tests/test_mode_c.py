@@ -175,6 +175,24 @@ def test_no_spend_disables_synthetic_teacher_even_when_client_supplied(monkeypat
     assert result.validation_report["passed"] is True
 
 
+def test_synthetic_auto_does_not_use_anthropic_key(monkeypatch):
+    monkeypatch.delenv("DATA_GENERATOR_SYNTHETIC_OFFLINE", raising=False)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "present-but-not-used")
+
+    from src.data_generator.mode_c import synthetic as mode_c_synthetic
+
+    def fail_client():
+        raise AssertionError("synthetic auto mode should not construct Anthropic")
+
+    monkeypatch.setattr(mode_c_synthetic, "_anthropic_client", fail_client)
+
+    result = acquire_synthetic_dataset(_config(synthetic_examples=12), n_examples=12)
+
+    assert result.raw_data["format_meta"]["teacher_available"] is False
+    assert result.raw_data["format_meta"]["teacher_used"] is False
+    assert result.validation_report["passed"] is True
+
+
 def test_validate_synthetic_records_reports_malformed_and_duplicate_rows(monkeypatch):
     monkeypatch.setenv("DATA_GENERATOR_SYNTHETIC_OFFLINE", "1")
     schema = infer_schema_without_teacher(_config())
@@ -275,6 +293,25 @@ def test_mode_c_synthetic_backend_never_calls_web(monkeypatch):
 
     def fail_search(_web_plan):
         raise AssertionError("synthetic backend should not call web search")
+
+    monkeypatch.setattr(mode_c_nodes, "search_web_sources", fail_search)
+
+    handoff = invoke_data_generator_graph(_config(synthetic_examples=8), data_path=None)
+
+    assert handoff["mode_c_fallback"] == "synthetic"
+    assert handoff["raw_data"]["format_meta"]["mode_c_backend"] == "synthetic"
+    assert handoff["validation_report"]["passed"] is True
+
+
+def test_mode_c_auto_backend_ignores_tavily_key(monkeypatch):
+    monkeypatch.delenv("DATA_GENERATOR_SYNTHETIC_OFFLINE", raising=False)
+    monkeypatch.delenv("DATA_GENERATOR_MODE_C_BACKEND", raising=False)
+    monkeypatch.setenv("TAVILY_API_KEY", "present-but-not-used")
+
+    from src.data_generator.mode_c import nodes as mode_c_nodes
+
+    def fail_search(_web_plan):
+        raise AssertionError("auto Mode C should not call Tavily because a key exists")
 
     monkeypatch.setattr(mode_c_nodes, "search_web_sources", fail_search)
 
@@ -408,6 +445,7 @@ def test_direct_mode_c_web_helpers_honor_offline_flags(monkeypatch, flag_name):
 
 def test_scrape_web_uses_mode_c_web_pipeline_when_available(monkeypatch):
     monkeypatch.delenv("DATA_GENERATOR_SYNTHETIC_OFFLINE", raising=False)
+    monkeypatch.setenv("DATA_GENERATOR_MODE_C_BACKEND", "web")
     schema = infer_schema_without_teacher(_config())
 
     mock_llm = types.ModuleType("src.data_generator.mode_c.mock_llm")

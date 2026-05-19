@@ -260,6 +260,8 @@ def _mode_c_backend(state: DataGenState | dict) -> str:
         raise ValueError(
             "DATA_GENERATOR_MODE_C_BACKEND must be one of: auto, synthetic, web"
         )
+    if selected == "auto":
+        return "synthetic"
     return selected
 
 

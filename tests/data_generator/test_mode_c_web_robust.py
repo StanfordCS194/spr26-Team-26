@@ -15,8 +15,10 @@ def _env_truthy(name: str) -> bool:
 
 
 @pytest.mark.skipif(
-    _env_truthy("NO_SPEND") or not os.getenv("TAVILY_API_KEY"),
-    reason="NO_SPEND=1 or TAVILY_API_KEY missing for real Tavily search",
+    _env_truthy("NO_SPEND")
+    or not _env_truthy("RUN_LIVE_MODE_C_WEB")
+    or not os.getenv("TAVILY_API_KEY"),
+    reason="requires RUN_LIVE_MODE_C_WEB=1, TAVILY_API_KEY, and NO_SPEND unset",
 )
 def test_mode_c_mixed_sources_real_search_crawl_and_artifact(monkeypatch):
     """
@@ -33,6 +35,7 @@ def test_mode_c_mixed_sources_real_search_crawl_and_artifact(monkeypatch):
       - handoff artifact generation
     """
     monkeypatch.setenv("DATA_GENERATOR_MOCK_SCENARIO", "mixed_sources")
+    monkeypatch.setenv("DATA_GENERATOR_MODE_C_BACKEND", "web")
     out_dir = Path("artifacts/data_generator/test_mode_c_web_robust")
     monkeypatch.setenv("DATA_GENERATOR_ARTIFACT_DIR", str(out_dir))
 
