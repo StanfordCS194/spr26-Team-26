@@ -377,6 +377,35 @@ def test_scrape_web_global_offline_skips_mode_c_web_pipeline(monkeypatch):
     assert raw["format_meta"]["web_acquisition_fallback"] == "deterministic_synthetic"
 
 
+@pytest.mark.parametrize("flag_name", ["DATA_GENERATOR_OFFLINE", "NO_SPEND"])
+def test_direct_mode_c_web_helpers_honor_offline_flags(monkeypatch, flag_name):
+    from src.data_generator.mode_c import crawler, search
+
+    monkeypatch.setenv(flag_name, "1")
+    monkeypatch.setenv("TAVILY_API_KEY", "present-but-not-used")
+
+    def fail_get(*_args, **_kwargs):
+        raise AssertionError("offline Mode C helpers should not call requests.get")
+
+    monkeypatch.setattr(crawler.requests, "get", fail_get)
+
+    result = {
+        "url": "https://example.com/page",
+        "domain": "example.com",
+        "title": "Example",
+        "query": "support ticket urgency",
+        "snippet": "",
+    }
+
+    assert search.search_web_sources({"search_queries": ["support ticket urgency"]}) == []
+    assert crawler.crawl_and_extract_pages([result], {"max_pages": 1}) == []
+
+    fetched = crawler.fetch_and_extract_one(result)
+    assert fetched["content"] == ""
+    assert flag_name in fetched["error"]
+    assert fetched["metadata"]["extraction_method"] == "offline_guard"
+
+
 def test_scrape_web_uses_mode_c_web_pipeline_when_available(monkeypatch):
     monkeypatch.delenv("DATA_GENERATOR_SYNTHETIC_OFFLINE", raising=False)
     schema = infer_schema_without_teacher(_config())

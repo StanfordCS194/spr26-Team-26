@@ -4,12 +4,17 @@ import os
 from typing import Any
 from urllib.parse import urlparse
 
+from src.data_generator.mode_c.offline import mode_c_offline
+
 
 def search_web_sources(web_plan: dict[str, Any]) -> list[dict[str, Any]]:
     """
     Real web search using Tavily.
     LLM is mocked, but search is real.
     """
+    if mode_c_offline():
+        return []
+
     api_key = os.getenv("TAVILY_API_KEY")
     if not api_key:
         raise RuntimeError(

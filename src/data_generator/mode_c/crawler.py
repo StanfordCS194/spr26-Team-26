@@ -9,6 +9,9 @@ import trafilatura
 import io
 import fitz  # PyMuPDF
 
+from src.data_generator.mode_c.offline import mode_c_offline, mode_c_offline_reason
+
+
 def crawl_and_extract_pages(
     search_results: list[dict[str, Any]],
     web_plan: dict[str, Any],
@@ -16,6 +19,9 @@ def crawl_and_extract_pages(
     """
     Real crawling and real text extraction.
     """
+    if mode_c_offline():
+        return []
+
     max_pages = int(web_plan.get("max_pages", 12))
     min_chars = int(web_plan.get("min_extracted_chars", 500))
 
@@ -40,6 +46,18 @@ def crawl_and_extract_pages(
 def fetch_and_extract_one(result: dict[str, Any], timeout: int = 20) -> dict[str, Any]:
     url = result["url"]
     source_type = classify_url(url)
+
+    if mode_c_offline():
+        return {
+            **result,
+            "source": "web_page",
+            "source_type": source_type,
+            "content": "",
+            "metadata": {
+                "extraction_method": "offline_guard",
+            },
+            "error": f"Mode C crawling disabled by {mode_c_offline_reason()}.",
+        }
 
     headers = {
         "User-Agent": "Mozilla/5.0 compatible; MLDataAcquisitionBot/0.1"
