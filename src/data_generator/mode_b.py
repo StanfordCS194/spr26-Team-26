@@ -70,10 +70,10 @@ def fetch_hf_datasets(candidates: list[HFCandidate]) -> RawData:
     Acquisition step for Mode B:
     fetch explicit HF datasets and return combined raw records.
 
-    Set DATA_GENERATOR_OFFLINE=1 for deterministic local test runs.
+    Set DATA_GENERATOR_OFFLINE=1 or NO_SPEND=1 for deterministic local test runs.
     """
     records: list[dict] = []
-    offline = os.getenv("DATA_GENERATOR_OFFLINE", "").strip().lower() in {"1", "true", "yes"}
+    offline = _env_flag_enabled("DATA_GENERATOR_OFFLINE") or _env_flag_enabled("NO_SPEND")
     max_rows_per_dataset = _read_optional_int_env("DATA_GENERATOR_MAX_ROWS_PER_DATASET")
     max_total_records = _read_optional_int_env("DATA_GENERATOR_MAX_TOTAL_RECORDS")
 
@@ -247,6 +247,10 @@ def _normalize_hf_dataset_id(value: str) -> str | None:
     if not re.fullmatch(r"[A-Za-z0-9._-]+", right):
         return None
     return f"{left}/{right}"
+
+
+def _env_flag_enabled(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _fetch_with_hf_datasets(dataset_id: str, max_rows_per_dataset: int | None) -> list[dict]:

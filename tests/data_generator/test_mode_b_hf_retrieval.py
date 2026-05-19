@@ -722,6 +722,40 @@ def test_offline_hf_fetch_returns_trainable_records_and_honors_caps(monkeypatch)
     assert "offline_placeholder" not in json.dumps(records)
 
 
+@pytest.mark.parametrize("flag_name", ["NO_SPEND", "DATA_GENERATOR_OFFLINE"])
+@pytest.mark.parametrize("flag_value", ["1", "on"])
+def test_mode_b_no_spend_or_offline_flags_skip_hf_loader(
+    monkeypatch,
+    flag_name: str,
+    flag_value: str,
+) -> None:
+    import src.data_generator.mode_b as mode_b
+    from src.data_generator.mode_b import (
+        build_explicit_hf_candidates,
+        fetch_hf_datasets,
+    )
+
+    monkeypatch.setenv(flag_name, flag_value)
+    monkeypatch.delenv(
+        "DATA_GENERATOR_OFFLINE" if flag_name == "NO_SPEND" else "NO_SPEND",
+        raising=False,
+    )
+    monkeypatch.setenv("DATA_GENERATOR_MAX_ROWS_PER_DATASET", "1")
+    monkeypatch.setattr(
+        mode_b,
+        "_fetch_with_hf_datasets",
+        lambda *_args, **_kwargs: pytest.fail("offline Mode B should not load HF datasets"),
+    )
+
+    raw_data = fetch_hf_datasets(
+        build_explicit_hf_candidates(["SetFit/sst2"], "text_classification")
+    )
+
+    assert raw_data["records"][0]["dataset_id"] == "SetFit/sst2"
+    assert raw_data["records"][0]["input"]
+    assert raw_data["records"][0]["output"]
+
+
 def test_offline_mode_b_curation_produces_trainable_rows_and_keeps_splits(
     monkeypatch,
     tmp_path: Path,
