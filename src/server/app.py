@@ -446,7 +446,7 @@ def _artifact_view(
         exists=exists,
         sizeBytes=path.stat().st_size if exists and path is not None else None,
         contentType=content_type,
-        downloadPath=f"/runs/{run_id}/artifacts/{name}" if downloadable else None,
+        downloadPath=f"/api/runs/{run_id}/artifacts/{name}" if downloadable else None,
     )
 
 
