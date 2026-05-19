@@ -71,7 +71,13 @@ def invoke_manager_graph(
 # ─── NODE FUNCTIONS ───────────────────────────────────────────────────────────
 
 def query_data_node(state: ManagerState) -> dict:
-    """LangGraph node. Calls query_user_for_data(). Returns: { has_data, data_path }."""
+    """LangGraph node. Resolves user-provided data. Returns: { has_data, data_path }."""
+    supplied_path = state.get("data_path")
+    if supplied_path is not None:
+        if os.path.exists(supplied_path):
+            return {"has_data": True, "data_path": os.path.abspath(supplied_path)}
+        return {"has_data": False, "data_path": None}
+
     path = query_user_for_data()
     return {"has_data": path is not None, "data_path": path}
 

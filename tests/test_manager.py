@@ -10,6 +10,7 @@ from src.manager.manager import (
     build_orchestration_config,
     log_decision,
     orchestrate_node,
+    query_data_node,
     reason_about_task,
 )
 from src.types import OrchestrationConfig, TaskReasoning
@@ -81,6 +82,51 @@ def test_reason_about_task_returns_task_reasoning():
 
 def test_invoke_manager_graph_returns_trained_model():
     pytest.skip("end-to-end graph test requires LangGraph + live sub-agents")
+
+
+# ── query_data_node ──────────────────────────────────────────────────────────
+
+def test_query_data_node_uses_supplied_data_path(tmp_path, monkeypatch):
+    data_path = tmp_path / "train.jsonl"
+    data_path.write_text('{"input": "hello", "output": "world"}\n')
+
+    def fail_input(*_args, **_kwargs):
+        raise AssertionError("query_data_node should not prompt when data_path is supplied")
+
+    monkeypatch.setattr("builtins.input", fail_input)
+    out = query_data_node(
+        {
+            "prompt": "classify sentiment",
+            "budget": 50.0,
+            "data_path": str(data_path),
+            "has_data": True,
+            "task_reasoning": None,
+            "config": None,
+            "result": None,
+        }
+    )
+
+    assert out == {"has_data": True, "data_path": os.path.abspath(data_path)}
+
+
+def test_query_data_node_rejects_missing_supplied_data_path(monkeypatch):
+    def fail_input(*_args, **_kwargs):
+        raise AssertionError("query_data_node should not prompt for an invalid supplied path")
+
+    monkeypatch.setattr("builtins.input", fail_input)
+    out = query_data_node(
+        {
+            "prompt": "classify sentiment",
+            "budget": 50.0,
+            "data_path": "/definitely/missing/train.jsonl",
+            "has_data": True,
+            "task_reasoning": None,
+            "config": None,
+            "result": None,
+        }
+    )
+
+    assert out == {"has_data": False, "data_path": None}
 
 
 # ── _handoff_to_dataset_result ────────────────────────────────────────────────
