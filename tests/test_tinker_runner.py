@@ -102,7 +102,7 @@ def test_run_tinker_sft_experiment_writes_artifacts(tmp_path, monkeypatch):
     run_dir = tmp_path / "experiments" / "unit-run"
     assert result["status"] == "COMPLETED"
     assert result["model_path"] == str(run_dir)
-    assert json.loads((run_dir / "metrics.json").read_text())["val_loss"] == pytest.approx(0.25)
+    assert json.loads((run_dir / "metrics.json").read_text())["val_loss"] == pytest.approx(0.375)
     assert (run_dir / "metrics.jsonl").read_text().count("\n") == 2
     manifest = json.loads((run_dir / "manifest.json").read_text())
     assert manifest["checkpoints"]["state_path"].startswith("tinker://state/")
@@ -187,8 +187,8 @@ def test_run_tinker_sft_experiment_reads_tinker_loss_sum_metric(
 
     run_dir = tmp_path / "experiments" / "loss-sum-run"
     metrics = json.loads((run_dir / "metrics.json").read_text())
-    assert result["metrics"]["train_loss"] == pytest.approx(2.25)
-    assert metrics["primary_metric"] == pytest.approx(1.0 / 3.25)
+    assert result["metrics"]["train_loss"] == pytest.approx(2.875)
+    assert metrics["primary_metric"] == pytest.approx(1.0 / 3.875)
 
 
 def test_run_tinker_sft_experiment_stops_on_cancel_and_writes_artifacts(tmp_path, monkeypatch):
