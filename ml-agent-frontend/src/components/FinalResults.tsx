@@ -34,9 +34,12 @@ export default function FinalResults({ state, onReset }: Props) {
   const bestLabel = primaryMetricLabel(bestIter?.primaryMetricLabel ?? lastMetric?.primaryMetricLabel);
   const finalScoreLabel = `Final ${shortMetricLabel(bestLabel)}`;
   const latestLabel = primaryMetricLabel(lastMetric?.primaryMetricLabel ?? bestLabel);
+  const finalScoreValue = bestIter ? iterationMetricValue(bestIter) : metricPointValue(lastMetric);
+  const diaryArtifact = artifactFiles.find(file => file.name === 'diary' && file.downloadPath);
+  const diaryHref = resolveApiHref(diaryArtifact?.downloadPath);
 
-  const handleExportDiary = () => {
-    const diary = {
+  const handleExportSnapshot = () => {
+    const snapshot = {
       prompt: state.prompt,
       budget: state.budget,
       taskType: state.taskType,
@@ -48,11 +51,11 @@ export default function FinalResults({ state, onReset }: Props) {
       artifacts: state.artifacts ?? null,
       result: state.result ?? null,
     };
-    const blob = new Blob([JSON.stringify(diary, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'research-diary.json';
+    a.download = 'run-snapshot.json';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -60,7 +63,7 @@ export default function FinalResults({ state, onReset }: Props) {
   const results: Array<{ label: string; value: string; tooltipKey: ResultTooltipKey }> = [
     {
       label: finalScoreLabel,
-      value: formatPrimaryMetric(iterationMetricValue(bestIter), bestLabel),
+      value: formatPrimaryMetric(finalScoreValue, bestLabel),
       tooltipKey: 'score',
     },
     {
@@ -192,25 +195,51 @@ export default function FinalResults({ state, onReset }: Props) {
 
       <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
         <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-          <button
-            onClick={handleExportDiary}
-            style={{
-              padding: '0.5rem 1rem',
-              background: 'var(--accent-dim)',
-              border: '0.5px solid var(--accent)',
-              borderRadius: '6px',
-              color: 'var(--accent)',
-              fontSize: '13px',
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-            aria-label="Export research diary as JSON"
-          >
-            Export Research Diary
-          </button>
+          {diaryHref ? (
+            <a
+              href={diaryHref}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                padding: '0.5rem 1rem',
+                background: 'var(--accent-dim)',
+                border: '0.5px solid var(--accent)',
+                borderRadius: '6px',
+                color: 'var(--accent)',
+                fontSize: '13px',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                textDecoration: 'none',
+              }}
+              aria-label="Open backend research diary artifact"
+            >
+              Open Research Diary
+            </a>
+          ) : (
+            <button
+              onClick={handleExportSnapshot}
+              style={{
+                padding: '0.5rem 1rem',
+                background: 'var(--accent-dim)',
+                border: '0.5px solid var(--accent)',
+                borderRadius: '6px',
+                color: 'var(--accent)',
+                fontSize: '13px',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+              aria-label="Export run snapshot as JSON"
+            >
+              Export Run Snapshot
+            </button>
+          )}
           <Tooltip
-            label="Export Research Diary"
-            body="Downloads a JSON file with every experiment, metric, and log event from this run. Useful for reproducibility and offline analysis."
+            label={diaryHref ? 'Research Diary' : 'Run Snapshot'}
+            body={
+              diaryHref
+                ? 'Opens the backend research diary artifact produced by AutoResearch for this run.'
+                : 'Exports the visible run state as JSON. This is a UI snapshot, not a backend research diary artifact.'
+            }
             placement="top"
           />
         </span>

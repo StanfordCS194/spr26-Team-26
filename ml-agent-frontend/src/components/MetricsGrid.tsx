@@ -22,8 +22,8 @@ const TOOLTIPS: Record<string, { label: string; body: string }> = {
     body: 'Amount counted against the run budget so far. Dry-run and no-spend runs use reserved or estimated budget, not provider-billed spend.',
   },
   iter: {
-    label: 'Experiment Iterations',
-    body: 'How many hyperparameter configurations have been tried out of the planned total. More iterations generally improve the final model but cost more.',
+    label: 'Metric Points',
+    body: 'How many metric points the backend has reported for this run. The API does not expose a planned total for every backend.',
   },
 };
 
@@ -63,7 +63,7 @@ export default function MetricsGrid({ metrics, costSpent }: Props) {
   const scoreLabel = primaryMetricLabel(last?.primaryMetricLabel);
   const score = formatPrimaryMetric(metricPointValue(last), scoreLabel);
   const cost = `$${costSpent.toFixed(2)}`;
-  const iter = `${metrics.length}/${Math.max(metrics.length, 12)}`;
+  const metricCount = metrics.length ? String(metrics.length) : '—';
 
   return (
     <div
@@ -78,7 +78,7 @@ export default function MetricsGrid({ metrics, costSpent }: Props) {
       <MetricCard label="Training Loss" value={loss} tooltipKey="loss" />
       <MetricCard label={scoreLabel} value={score} tooltipKey="primary" />
       <MetricCard label="Budget Used" value={cost} tooltipKey="cost" />
-      <MetricCard label="Iterations" value={iter} tooltipKey="iter" />
+      <MetricCard label="Metric Points" value={metricCount} tooltipKey="iter" />
     </div>
   );
 }
