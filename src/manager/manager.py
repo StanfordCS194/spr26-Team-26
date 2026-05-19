@@ -254,11 +254,11 @@ def _use_local_reasoner() -> bool:
     mode = _manager_reasoner_mode()
     if _env_flag_enabled("NO_SPEND"):
         return True
-    if mode == "local":
+    if mode in {"auto", "local"}:
         return True
     if mode == "claude":
         return False
-    return not bool(os.getenv("ANTHROPIC_API_KEY"))
+    return True
 
 
 def _env_flag_enabled(name: str) -> bool:

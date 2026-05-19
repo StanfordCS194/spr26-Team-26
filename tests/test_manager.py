@@ -134,6 +134,21 @@ def test_reason_about_task_uses_local_fallback_without_anthropic_key(monkeypatch
     assert "Local deterministic planner" in result["notes"]
 
 
+def test_reason_about_task_auto_mode_is_credential_blind(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "present-but-not-used")
+    monkeypatch.delenv("MANAGER_REASONER", raising=False)
+
+    def fail_anthropic():
+        raise AssertionError("MANAGER_REASONER=auto should not construct Anthropic")
+
+    monkeypatch.setattr("anthropic.Anthropic", fail_anthropic)
+
+    result = reason_about_task("Classify support tickets by urgency", 5.0, False)
+
+    assert result["task_type"] == "text-classification"
+    assert "Local deterministic planner" in result["notes"]
+
+
 def test_reason_about_task_local_mode_overrides_available_key(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "present-but-not-used")
     monkeypatch.setenv("MANAGER_REASONER", "local")
