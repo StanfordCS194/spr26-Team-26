@@ -71,3 +71,6 @@ Operating rules:
 - 2026-05-19 07:32 PDT — Draft PR #60 opened: final Tinker `metrics.json` now averages observed step losses and recomputes `primary_metric` from averaged `val_loss`, while `metrics.jsonl` remains the per-step trace.
 - 2026-05-19 07:33 PDT — Local unpublished stack with #55, #56, #57, #58, #59, and #60 passed compileall and the broad non-live suite (`200 passed, 7 skipped`).
 - 2026-05-19 07:34 PDT — Live #60 validation passed: a 5-step `learning_rate=0.0005` Tinker run wrote averaged `metrics.json` loss `11.902454127464443`, exactly matching the mean of `metrics.jsonl`.
+- 2026-05-19 07:39 PDT — Ran a real-proposer AutoResearch loop with #60 averaged metrics: batch-size increase regressed, `learning_rate=0.0005` improved +39.3%, and `lora_rank=16` only improved +0.1%, exposing that AutoResearch needed a material-improvement threshold.
+- 2026-05-19 07:40 PDT — Draft PR #61 opened: AutoResearch now requires at least 1% relative improvement before keeping a candidate, while still allowing any positive improvement from a zero baseline.
+- 2026-05-19 07:41 PDT — Local unpublished stack with #55 through #61 passed compileall and the broad non-live suite (`202 passed, 7 skipped`).
