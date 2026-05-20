@@ -7,10 +7,13 @@ This is the dedicated test area for `src/data_generator`.
 - Mode B acquisition routing from explicit Hugging Face dataset IDs.
 - Handoff contract to sub-agent 2 (`validate_hf_dataset`).
 - Uses the previous real example report at:
-  - `src/data_generator/tests/fixtures/hf_robust_structuring_run_v1/example_orchestrator_mode_b.json`
+- `tests/data_generator/fixtures/hf_robust_structuring_run_v1/example_orchestrator_mode_b.json`
+- Live Hugging Face retrieval is opt-in:
+  - `RUN_LIVE_HF_RETRIEVAL=1 python -m pytest tests/data_generator/test_mode_b_hf_retrieval.py -q -s`
+  - `LIVE_HF_DATASET_COUNT` overrides the default 50-dataset run.
+  - `LIVE_HF_SMALL_DATASET_COUNT` overrides the default 10-dataset run.
 
 ## Output Location
 
 Generated test artifacts are written to:
-- `src/data_generator/tests/results/hf_robust_structuring_run_v1/`
-This keeps both fixtures and outputs colocated with the Data Generator module.
+- `artifacts/data_generator/`

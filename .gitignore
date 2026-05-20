@@ -2,12 +2,12 @@
 .venv/
 __pycache__/
 *.pyc
+.pytest_cache/
 
 # Retrieval outputs
 raw/
 human_readable/
 # Python
-__pycache__/
 *.pyc
 *.pyo
 *.pyd
@@ -32,3 +32,7 @@ outputs/
 .vscode/
 *.swp
 *.swo
+
+
+artifacts/
+tests/data_generator/results/
