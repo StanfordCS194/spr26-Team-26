@@ -1,14 +1,9 @@
 """
-AutoResearch training configuration.
+Hyperparameter config for AutoResearch.
 
-TrainingConfig is the shared hyperparameter representation used by the
-Decision Engine (which produces the baseline) and the AutoResearch Loop
-(which iterates on it). apply_patch always returns a new instance so the
-original is never mutated in-place.
-
-BOUNDS is the single source of truth for what values are legal. Both
-ProposalStrategy (algorithmic sampling) and apply_patch (validation) read
-from it, so adding a new knob means editing exactly one place.
+TrainingConfig is passed from the Decision Engine to the AutoResearch Loop.
+BOUNDS defines what values are legal — both the sampling strategies and
+apply_patch validate against it, so adding a new parameter means one edit here.
 """
 
 from __future__ import annotations
@@ -19,11 +14,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 
-# ─── SAFETY BOUNDS ────────────────────────────────────────────────────────────
-# Each entry declares how a parameter may be changed.
-# "scale" is used by sampling strategies: "log" for params that span decades
-# (lr, seq_length), "linear" otherwise.
-# "candidates" means only discrete values are allowed.
+# Legal ranges per parameter. "scale": "log" for params that span orders of magnitude;
+# "candidates" for discrete choices.
 
 BOUNDS: dict[str, dict[str, Any]] = {
     "learning_rate":  {"min": 1e-6,  "max": 1e-2,  "scale": "log"},
@@ -43,13 +35,7 @@ BOUNDS: dict[str, dict[str, Any]] = {
 
 @dataclass
 class TrainingConfig:
-    """
-    Hyperparameter snapshot for one training run.
-
-    Consumed by Decision Engine to produce a baseline, then mutated by the
-    AutoResearch Loop via apply_patch(). Immutable in practice: every patch
-    returns a new instance.
-    """
+    """Hyperparameter snapshot for one training run. Patches always return a new instance."""
     model_name: str
     learning_rate: float = 3e-4
     batch_size: int = 16
@@ -62,7 +48,7 @@ class TrainingConfig:
     warmup_steps: int = 100
     dropout: float = 0.1
 
-    # ── Serialisation ──────────────────────────────────────────────────────
+    # Serialisation
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -83,16 +69,10 @@ class TrainingConfig:
         with open(p, "w") as f:
             json.dump(self.to_dict(), f, indent=2)
 
-    # ── Patching ───────────────────────────────────────────────────────────
+    # Patching
 
     def apply_patch(self, patch: dict[str, Any]) -> "TrainingConfig":
-        """
-        Returns a new TrainingConfig with patch values applied and validated.
-
-        Raises ValueError if any patched value is out of bounds or wrong type.
-        Validates against BOUNDS — unknown keys are rejected to prevent silent
-        drift from the spec.
-        """
+        """Returns a new config with patch applied. Raises ValueError on unknown keys or out-of-range values."""
         updated = self.to_dict()
         for key, value in patch.items():
             if key == "model_name":
@@ -109,8 +89,7 @@ class TrainingConfig:
                 raise ValueError(
                     f"{key}={value!r} not in allowed candidates {spec['candidates']}"
                 )
-            # NaN is not a valid hyperparameter value — reject before bound checks
-            # because NaN comparisons always return False, letting it silently pass.
+            # NaN comparisons always return False, so check it explicitly before bound checks.
             if isinstance(value, float) and (value != value):  # NaN check
                 raise ValueError(f"{key}: NaN is not a valid hyperparameter value")
             # Continuous bounds

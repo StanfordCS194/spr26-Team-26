@@ -1,0 +1,81 @@
+\documentclass[11pt,letterpaper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{parskip}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{hyperref}
+\usepackage{microtype}
+
+\titleformat{\section}{\large\bfseries}{}{0em}{}[\titlerule]
+\titleformat{\subsection}{\normalsize\bfseries}{}{0em}{}
+
+\setlist[itemize]{noitemsep, topsep=2pt}
+
+\title{\textbf{AutoResearch Loop}\\
+\large Individual Work Review --- Matthew Torre}
+\author{Stanford CS194W, Team 26}
+\date{May 2026}
+
+\begin{document}
+\maketitle
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{What the Code Does}
+
+The AutoResearch Loop is the system's core search engine. It takes a training plan from the Manager and automatically tries different hyperparameter configurations, keeps the ones that help, and rolls back the ones that don't --- all without any human input between iterations.
+
+Each iteration does four things: proposes one config change, runs a training job on Tinker's GPU infrastructure, evaluates the result, and either commits or reverts the change. Every iteration gets logged to a research diary (a JSONL file) so there's a full record of what was tried and why. The loop stops when one of three things happens: the compute budget runs out, performance stops improving for three consecutive iterations, or it hits a hard cap of 20 iterations.
+
+The evaluation sub-feature, also owned by this team, is responsible for deciding how good a trained model actually is. It creates an eval suite at the start (picking metrics like F1 or ROUGE-L based on task type), scores each model after training by reading the metrics saved alongside the checkpoint, and for high-complexity tasks sends sample outputs to Claude Haiku for a qualitative assessment. Every ten iterations, it also analyzes patterns in recently-reverted experiments and adds new metrics to catch whatever the loop has been consistently getting wrong.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Architecture, Dependencies, and Why This Structure}
+
+\subsection{The Graph}
+
+The loop is built as a cyclic LangGraph \texttt{StateGraph}. The flow looks like this:
+
+\begin{center}
+\texttt{init $\to$ baseline $\to$ [propose $\to$ run $\to$ evaluate $\to$ keep/revert $\to$ log] $\times$ N $\to$ end}
+\end{center}
+
+There are nine nodes and three conditional edges. The conditional edges are what make the cycle work: one checks for catastrophic failures right after training (NaN loss, exploding gradients) and skips evaluation if the job was clearly broken; one decides keep-or-revert based on whether the score improved; and one decides whether to loop again or stop based on budget, plateau streak, and iteration count.
+
+Every node is a pure function --- it takes the current state and returns only the fields it changed. No node mutates state directly. This is a LangGraph requirement, but it's also what makes the nodes independently testable: you can pass a hand-crafted state dict to \texttt{continue\_edge} and assert the output with no setup.
+
+\subsection{Dependencies}
+
+\begin{itemize}
+  \item \textbf{LangGraph} --- compiles and runs the graph, handles state passing between nodes
+  \item \textbf{Anthropic SDK} (\texttt{claude-haiku-4-5}) --- called inside \texttt{propose\_node} to generate each config change, and inside \texttt{adapt\_eval\_suite} to identify eval weaknesses
+  \item \textbf{Tinker SDK} --- runs the actual training job in a background thread; the main graph thread blocks on \texttt{wait\_for\_experiment()} with a timeout
+  \item \textbf{\texttt{src/types.py}} --- shared TypedDicts (\texttt{AutoResearchState}, \texttt{TrainingPlan}, \texttt{EvalScore}, etc.) that define what flows between nodes
+  \item \textbf{Observability module} --- all logging goes through \texttt{log\_event()} rather than print statements
+\end{itemize}
+
+The five source files each have a single job: \texttt{autoresearch.py} owns the graph and evaluator logic, \texttt{config.py} defines the hyperparameter schema and bounds, \texttt{diff\_utils.py} handles serializing patches to/from diff strings, \texttt{proposer.py} implements two algorithmic proposal strategies, and \texttt{loop.py} is a lightweight CLI scaffold for testing the proposal step in isolation without running a full training job.
+
+\subsection{Why This Structure Is Best}
+
+The main reason LangGraph was chosen over a plain loop is that the control flow here is genuinely branchy. There are two structurally different revert paths (catastrophic failure vs.\ no-improvement), a linear baseline-before-loop entry, budget checking after every iteration, and periodic eval suite adaptation. In a while loop, all of that becomes nested conditionals sharing mutable local variables --- hard to read, hard to test, and easy to break when adding new behavior. With LangGraph, the graph definition itself is the documentation: reading \texttt{build\_autoresearch\_graph()} tells you the full execution model without touching any node code.
+
+Config-level patching (editing \texttt{configs/current.json}) was chosen over script-level patching (editing \texttt{train.py} with unified diffs) because JSON patches are structured and validatable. Before writing anything to disk, every patch is checked against the \texttt{BOUNDS} dictionary in \texttt{config.py}, which rejects out-of-range values, unknown parameters, and NaN. Writes are also atomic via a temp-file rename, so a crash mid-write can't leave a corrupt config. Patching Python source files would bypass all of that: whitespace, import ordering, and indentation differences all cause patch failures, and a corrupted \texttt{train.py} mid-run is much harder to recover from than a corrupt JSON file.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Alternatives Considered}
+
+\textbf{Plain while loop.} This was prototyped first. It works for the happy path, but the two distinct revert paths and the non-symmetric entry (baseline runs once, not every iteration) required awkward flag variables to track state between steps. Testing any individual decision required running the whole loop. Dropped in favor of LangGraph once it was clear the control flow wasn't going to simplify.
+
+\textbf{Optuna or Ray Tune.} Both are mature hyperparameter optimization frameworks with Bayesian search built in. They were ruled out for two reasons: they don't integrate with Tinker's training API (they expect to call your training function directly), and they don't produce a natural language research diary, which is a hard requirement from the spec. They would also have been a heavy external dependency for a project that already uses LangGraph.
+
+\textbf{Script-level patching.} The original spec described ``a single mutable training script plus patch log,'' implying unified diffs of \texttt{train.py}. This was attempted but abandoned after patch application kept failing on formatting edge cases. Config-level patching covers 90\% of what the spec actually requires (hyperparameter search), and the script-patching path is stubbed with a clear \texttt{NotImplementedError} and a comment explaining what would be needed to implement it properly.
+
+\textbf{Claude-only proposals.} An earlier design called Claude for every proposal decision. The problem was that testing the proposal infrastructure would have required an API key and cost money per test run. The current design uses algorithmic strategies (\texttt{RandomSearch} and \texttt{LocalPerturbation}) for the CLI scaffold and test suite, and Claude for the full LangGraph graph. This lets the proposal infra be tested exhaustively for free, while still using Claude's reasoning in production.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{A Note on Implementation Status}
+
+The full graph is wired and all nodes are implemented. The one gap is that \texttt{run\_evals()} was until recently a stub --- it depended on downloading a trained model artifact from Tinker and running inference over a test split, which requires Feature 4 (Tinker API) to be fully settled. The implemented version reads the \texttt{metrics.json} file that the training job saves alongside each checkpoint, maps those metrics onto the eval suite's named metrics, and optionally blends in a Claude Haiku quality score for high-complexity tasks. Full inference-based evaluation can be dropped in when the Tinker artifact download API is confirmed.
+
+\end{document}

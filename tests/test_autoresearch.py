@@ -3,6 +3,7 @@
 import json
 import math
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -16,6 +17,7 @@ from src.autoresearch.autoresearch import (
     flag_regression,
     log_iteration,
     revert_patch,
+    run_evals,
 )
 from src.autoresearch.config import TrainingConfig
 
@@ -298,3 +300,95 @@ def test_continue_edge_ends_at_max_iterations():
     from src.autoresearch.autoresearch import _MAX_ITERATIONS
     state = _make_state(iteration=_MAX_ITERATIONS)
     assert continue_edge(state) == "__end__"
+
+
+# ─── run_evals ────────────────────────────────────────────────────────────────
+
+def _minimal_eval_suite(test_split_path: str = "/tmp/nonexistent") -> dict:
+    return {
+        "primary_metric": "f1",
+        "metrics": ["f1", "accuracy"],
+        "test_split_path": test_split_path,
+        "use_llm_grading": False,
+    }
+
+
+def test_run_evals_returns_evalcore_shape(tmp_path):
+    model_dir = tmp_path / "model"
+    model_dir.mkdir()
+    metrics = {"train_loss": 0.3, "val_loss": 0.25, "test_loss": 0.27, "primary_metric": 0.82}
+    (model_dir.parent / "metrics.json").write_text(json.dumps(metrics))
+
+    result = run_evals(str(model_dir), _minimal_eval_suite())
+
+    assert "scalar" in result
+    assert "metrics" in result
+    assert "critique" in result
+    assert isinstance(result["scalar"], float)
+
+
+def test_run_evals_scalar_derived_from_metrics_json(tmp_path):
+    model_dir = tmp_path / "model"
+    model_dir.mkdir()
+    (model_dir.parent / "metrics.json").write_text(
+        json.dumps({"val_loss": 0.4, "primary_metric": 0.78})
+    )
+    result = run_evals(str(model_dir), _minimal_eval_suite())
+    assert 0.0 <= result["scalar"] <= 1.0
+
+
+def test_run_evals_missing_metrics_file_uses_proxy(tmp_path):
+    model_dir = tmp_path / "model"
+    model_dir.mkdir()
+    # No metrics.json — falls back to proxy derived from val_loss default of 1.0
+    result = run_evals(str(model_dir), _minimal_eval_suite())
+    assert result["scalar"] == pytest.approx(0.0)  # 1.0 - 1.0 proxy
+
+
+def test_run_evals_corrupt_metrics_file_uses_proxy(tmp_path):
+    model_dir = tmp_path / "model"
+    model_dir.mkdir()
+    (model_dir.parent / "metrics.json").write_text("NOT_VALID_JSON{{{")
+    result = run_evals(str(model_dir), _minimal_eval_suite())
+    assert isinstance(result["scalar"], float)
+
+
+def test_run_evals_no_llm_grading_skips_api(tmp_path):
+    model_dir = tmp_path / "model"
+    model_dir.mkdir()
+    (model_dir.parent / "metrics.json").write_text(json.dumps({"val_loss": 0.2}))
+    suite = _minimal_eval_suite()
+    suite["use_llm_grading"] = False
+
+    # If this makes a real API call it will raise without a key — the test confirms it doesn't.
+    with patch("anthropic.Anthropic") as mock_client:
+        run_evals(str(model_dir), suite)
+        mock_client.assert_not_called()
+
+
+def test_run_evals_llm_grading_with_empty_test_split(tmp_path):
+    model_dir = tmp_path / "model"
+    model_dir.mkdir()
+    (model_dir.parent / "metrics.json").write_text(json.dumps({"val_loss": 0.3}))
+    empty_split = tmp_path / "test"
+    empty_split.mkdir()
+    suite = _minimal_eval_suite(str(empty_split))
+    suite["use_llm_grading"] = True
+
+    # Empty test split falls back to prior_score without calling Claude.
+    with patch("anthropic.Anthropic") as mock_client:
+        result = run_evals(str(model_dir), suite)
+        mock_client.assert_not_called()
+    assert isinstance(result["scalar"], float)
+
+
+def test_run_evals_per_metric_dict_contains_suite_metrics(tmp_path):
+    model_dir = tmp_path / "model"
+    model_dir.mkdir()
+    (model_dir.parent / "metrics.json").write_text(
+        json.dumps({"val_loss": 0.2, "primary_metric": 0.85})
+    )
+    suite = _minimal_eval_suite()
+    result = run_evals(str(model_dir), suite)
+    for metric in suite["metrics"]:
+        assert metric in result["metrics"]
