@@ -1,23 +1,15 @@
 """
-Proposal strategies for the PROPOSE phase of the AutoResearch Loop.
+Proposal strategies for the AutoResearch PROPOSE phase.
 
-Two concrete strategies are provided:
+RandomSearchProposalStrategy samples one parameter uniformly from its full
+range — useful early on when there's no signal yet.
 
-  RandomSearchProposalStrategy
-    Samples one tunable parameter uniformly (or log-uniformly) within its
-    safe range, independent of history. Useful early in the search when
-    there is little prior information.
+LocalPerturbationProposalStrategy applies a small ±perturbation around the
+current config, biasing away from parameters that recently caused reverts.
 
-  LocalPerturbationProposalStrategy
-    Applies a small ±perturbation around the current best config. Biases
-    away from parameters that recently caused REVERTED entries, so the loop
-    spends less time re-testing known-bad directions.
-
-Both strategies are pure algorithmic — no Claude API calls — so they are
-cheap, fast, and deterministic given a seed. The LangGraph propose_node
-uses Claude (propose_hypothesis in autoresearch.py) for richer reasoning;
-these strategies are used by the CLI scaffold (AutoResearchLoop in loop.py)
-and can also be composed with the Claude path.
+Both are pure algorithmic (no API calls), deterministic given a seed, and
+used by the CLI scaffold. The full LangGraph graph calls Claude directly
+via propose_hypothesis() in autoresearch.py.
 """
 
 from __future__ import annotations
@@ -37,16 +29,7 @@ from src.types import IterationRecord
 
 @dataclass
 class Proposal:
-    """
-    Atomic config-level proposal from a ProposalStrategy.
-
-    hypothesis: natural-language description of the change and its rationale.
-    patch:      dict with exactly one key — the parameter being changed.
-    target:     what is being patched (always "training_config" for now;
-                "training_script" will be used once train.py patching is wired in).
-    metadata:   strategy name, seed, and any strategy-specific context for
-                diary logging and reproducibility.
-    """
+    """One proposed config change from a ProposalStrategy."""
     hypothesis: str
     patch: dict[str, Any]
     target: str = "training_config"
@@ -56,12 +39,7 @@ class Proposal:
 # ─── SEARCH SPACE ─────────────────────────────────────────────────────────────
 
 class SearchSpace:
-    """
-    Declares which parameters are tunable and how to sample or perturb them.
-
-    Reads directly from BOUNDS in config.py so adding a new hyperparameter
-    there automatically makes it available for exploration here.
-    """
+    """Which parameters are tunable and how to sample or perturb them. Reads from BOUNDS in config.py."""
 
     # Parameters the proposer should never touch
     NON_TUNABLE: frozenset[str] = frozenset({"model_name"})
@@ -87,13 +65,7 @@ class SearchSpace:
 
     @classmethod
     def perturb_value(cls, param: str, current: Any, factor: float, rng: random.Random) -> Any:
-        """
-        Apply a multiplicative ±factor perturbation around current, clamped to bounds.
-
-        For discrete candidates, moves one step up or down the ordered list.
-        If current is None (e.g. lora_rank=None meaning LoRA is disabled),
-        falls back to sampling a fresh value from the full range.
-        """
+        """Multiplicative ±factor perturbation, clamped to bounds. Falls back to full-range sample if current is None."""
         spec = BOUNDS[param]
         if "candidates" in spec:
             candidates = spec["candidates"]
@@ -106,8 +78,7 @@ class SearchSpace:
             delta = rng.choice([-1, 0, 1])
             new_idx = max(0, min(len(candidates) - 1, idx + delta))
             return candidates[new_idx]
-        # current=None or current=0 with a multiplicative scheme would get stuck;
-        # fall back to sampling from the full range in those cases.
+        # Multiplicative perturbation doesn't work on zero or None — sample fresh instead.
         if current is None or current == 0:
             return cls.sample_value(param, rng)
         multiplier = 1.0 + rng.uniform(-factor, factor)
@@ -123,13 +94,7 @@ class SearchSpace:
 # ─── ABSTRACT BASE ────────────────────────────────────────────────────────────
 
 class ProposalStrategy(abc.ABC):
-    """
-    Abstract base for all proposal strategies.
-
-    Each concrete strategy must implement propose(), which takes the current
-    best TrainingConfig and the recent diary history and returns an atomic
-    Proposal changing exactly one hyperparameter.
-    """
+    """Base class for proposal strategies. propose() must return a Proposal changing exactly one hyperparameter."""
 
     @abc.abstractmethod
     def propose(
@@ -143,17 +108,10 @@ class ProposalStrategy(abc.ABC):
 # ─── RANDOM SEARCH ────────────────────────────────────────────────────────────
 
 class RandomSearchProposalStrategy(ProposalStrategy):
-    """
-    Samples one tunable parameter uniformly (or log-uniformly) within its
-    allowed range, independent of history.
-
-    Best for early exploration when there is little prior signal. The seed
-    stored in Proposal.metadata makes any iteration reproducible.
-    """
+    """Samples one parameter uniformly from its full range, ignoring history. Good for early exploration."""
 
     def __init__(self, seed: int | None = None) -> None:
-        # _next_seed advances on each call so a fixed initial seed still
-        # produces a distinct proposal every iteration.
+        # Advance the seed each call so a fixed initial seed still varies across iterations.
         self._next_seed = seed
         self._initial_seed = seed
 
@@ -182,15 +140,9 @@ class RandomSearchProposalStrategy(ProposalStrategy):
 
 class LocalPerturbationProposalStrategy(ProposalStrategy):
     """
-    Applies a small ±perturbation around the current best config.
-
-    Uses recent diary history to bias the choice of parameter: parameters
-    that recently caused REVERTED entries are deprioritised, so the strategy
-    naturally avoids re-testing known-bad directions.
-
-    perturbation_factor: relative magnitude of the perturbation, e.g.
-        0.2 means ±20% of the current value.
-    history_window: how many recent diary entries to consider for bias.
+    Perturbs one parameter by ±perturbation_factor around its current value.
+    Parameters that recently caused REVERTED entries are deprioritised so the
+    loop avoids re-testing directions that already failed.
     """
 
     def __init__(
@@ -212,9 +164,7 @@ class LocalPerturbationProposalStrategy(ProposalStrategy):
         rng = random.Random(seed)
         candidates = SearchSpace.tunable_params()
 
-        # Collect params that appeared in recently REVERTED patches.
-        # The diary "patch" field is a diff string (format_patch_as_diff output),
-        # not JSON — extract changed keys by parsing "+ key: value" lines.
+        # The diary patch field is a diff string, not JSON — parse "+ key: value" lines.
         regressed: set[str] = set()
         for entry in history[-self._window:]:
             if entry.get("decision") == "REVERTED":

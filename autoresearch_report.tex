@@ -1,0 +1,416 @@
+\documentclass[11pt,letterpaper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{parskip}
+
+\definecolor{codegray}{rgb}{0.95,0.95,0.95}
+\definecolor{commentgreen}{rgb}{0.13,0.54,0.13}
+\definecolor{keywordblue}{rgb}{0.0,0.0,0.6}
+\definecolor{stringred}{rgb}{0.6,0.0,0.0}
+
+\lstset{
+  language=Python,
+  backgroundcolor=\color{codegray},
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{keywordblue}\bfseries,
+  stringstyle=\color{stringred},
+  commentstyle=\color{commentgreen}\itshape,
+  breaklines=true,
+  showstringspaces=false,
+  frame=single,
+  framesep=4pt,
+  xleftmargin=6pt,
+  xrightmargin=6pt,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  numbersep=6pt,
+}
+
+\title{\textbf{AutoResearch Loop: Implementation Report}\\
+\large Feature 3 --- Autonomous Hyperparameter Search via Cyclic LangGraph}
+\author{Matthew Torre \and Hayley Antczak \\
+\small Stanford CS194W --- Team 26}
+\date{May 2026}
+
+\begin{document}
+\maketitle
+
+\tableofcontents
+\newpage
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Overview}
+
+The AutoResearch Loop is the core iterative engine of the autonomous ML training
+system. It accepts a \texttt{TrainingPlan} and \texttt{OrchestrationConfig}
+from the Manager (Feature 0), and autonomously searches for hyperparameter
+configurations that improve model performance---without any human intervention
+between iterations.
+
+The loop is implemented as a cyclic LangGraph \texttt{StateGraph} with nine
+nodes and three conditional edges. Each iteration proposes one configuration
+change, trains a model on Tinker's GPU infrastructure, evaluates the result,
+and either commits or reverts the change. The process terminates when the budget
+is exhausted, performance plateaus, or a hard iteration cap is reached. The
+full experiment history is recorded in a JSONL research diary for
+reproducibility and post-hoc analysis.
+
+This report covers the architecture, design decisions, implementation details,
+and the evaluation sub-feature (create/run/adapt eval suites).
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Architecture}
+
+\subsection{Graph Topology}
+
+The loop is structured as a LangGraph \texttt{StateGraph(AutoResearchState)}.
+The graph has a linear entry path and a cyclic core:
+
+\begin{center}
+\texttt{init} $\to$ \texttt{baseline} $\to$
+$[$\texttt{propose} $\to$ \texttt{run} $\xrightarrow{\text{early-stop?}}$
+\texttt{evaluate} $\xrightarrow{\text{keep/revert}}$
+\texttt{log}$]^N$ $\to$ \texttt{END}
+\end{center}
+
+The graph is built once at startup by \texttt{build\_autoresearch\_graph()}
+and executed via \texttt{graph.invoke(initial\_state)}. Table~\ref{tab:nodes}
+summarises each node's responsibility.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Node} & \textbf{Phase} & \textbf{Responsibility} \\
+\midrule
+\texttt{init}               & Setup    & Creates the eval suite \\
+\texttt{baseline}           & Setup    & Runs unmodified script; establishes reference score \\
+\texttt{propose}            & Cycle    & Asks Claude for one config change; patches \texttt{current.json} \\
+\texttt{run}                & Cycle    & Submits Tinker job; blocks until done \\
+\texttt{revert\_and\_continue} & Cycle & Early-stop path on catastrophic failure \\
+\texttt{evaluate}           & Cycle    & Scores the model; computes delta vs.\ baseline \\
+\texttt{keep}               & Cycle    & Commits patch; resets plateau counter \\
+\texttt{revert}             & Cycle    & Rolls back patch; increments plateau counter \\
+\texttt{log}                & Cycle    & Writes diary entry; adapts eval suite every 10 iters \\
+\bottomrule
+\end{tabular}
+\caption{Node responsibilities in the AutoResearch graph.}
+\label{tab:nodes}
+\end{table}
+
+\subsection{Conditional Edges}
+
+Three conditional edge functions control the cycle:
+
+\begin{itemize}[noitemsep]
+  \item \textbf{\texttt{early\_stop\_edge}} (after \texttt{run}): returns
+        \texttt{revert\_and\_continue} on catastrophic failure (NaN/inf loss,
+        loss $> 10$, accuracy $< 0.01$); otherwise \texttt{evaluate}.
+  \item \textbf{\texttt{decision\_edge}} (after \texttt{evaluate}): returns
+        \texttt{keep} if \texttt{last\_delta.improved} is true, else
+        \texttt{revert}.
+  \item \textbf{\texttt{continue\_edge}} (after \texttt{log}): returns
+        \texttt{\_\_end\_\_} when the budget is exhausted, the plateau counter
+        reaches $\texttt{\_MAX\_NO\_IMPROVE}=3$, or total iterations reach
+        $\texttt{\_MAX\_ITERATIONS}=20$; otherwise \texttt{propose}.
+\end{itemize}
+
+Each conditional edge is a pure function with no side effects, making them
+independently testable with simple dict assertions.
+
+\subsection{State Object}
+
+All inter-node communication flows through a single \texttt{AutoResearchState}
+TypedDict (defined in \texttt{src/types.py}). Nodes return only the fields
+they update---never a full copy of state---which keeps LangGraph's
+checkpointing overhead low and makes each node's contract explicit.
+
+\subsection{File Layout}
+
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{File} & \textbf{Role} \\
+\midrule
+\texttt{src/autoresearch/autoresearch.py} & LangGraph graph, all nodes/edges, evaluator \\
+\texttt{src/autoresearch/config.py}       & \texttt{TrainingConfig} dataclass + \texttt{BOUNDS} \\
+\texttt{src/autoresearch/diff\_utils.py}  & Patch $\leftrightarrow$ diff-string serialisation \\
+\texttt{src/autoresearch/proposer.py}     & Algorithmic proposal strategies \\
+\texttt{src/autoresearch/loop.py}         & CLI scaffold for PROPOSE-only testing \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Design Decisions and Alternatives Considered}
+
+\subsection{LangGraph vs.\ a Plain While Loop}
+
+The most obvious alternative was a \texttt{while True} loop with
+\texttt{if/else} branches for the keep/revert decision. This was prototyped
+first. The problem: two structurally distinct revert paths (catastrophic
+failure vs.\ no-improvement), the linear baseline-before-loop entry, budget
+checking after every iteration, and eval suite adaptation every ten
+iterations---all share mutable local state in a \texttt{while} loop, turning
+control flow into nested conditionals that are hard to test or trace.
+
+LangGraph solves this cleanly. The graph topology itself encodes the control
+flow; reading \texttt{build\_autoresearch\_graph()} tells you the full cycle
+without touching any node code. Nodes are pure functions testable in
+isolation. LangGraph also provides checkpointing for free, which matters for
+long-running GPU jobs that may need to resume after a preemption.
+
+\subsection{Config-Level Patching vs.\ Script Patching}
+
+The original spec described ``a single mutable training script plus patch
+log,'' implying unified diffs of \texttt{train.py}. In practice, patching
+Python source files with unified diffs is fragile: whitespace differences,
+import ordering, and comment placement all cause patch application failures.
+A corrupt \texttt{train.py} mid-run means the next job fails for reasons
+unrelated to the hyperparameter being tested.
+
+Patching \texttt{configs/current.json} instead avoids these issues entirely.
+JSON is a structured format with a defined schema (\texttt{BOUNDS}), so every
+patch can be validated before it touches disk. Writes are atomic via a
+\texttt{.tmp} rename, so a crash mid-write never leaves a partial config.
+The \texttt{.py} patching path is stubbed in \texttt{apply\_patch} with a
+clear \texttt{NotImplementedError} for when it is eventually needed.
+
+\subsection{Algorithmic Strategies vs.\ Claude-Only Proposals}
+
+Two algorithmic proposal strategies (\texttt{RandomSearchProposalStrategy}
+and \texttt{LocalPerturbationProposalStrategy}) were implemented alongside the
+Claude API path. The strategies are used by the CLI scaffold for fast
+testing without spending API budget. \texttt{LocalPerturbation} also
+implements history-aware bias: it parses the diary's diff strings for
+recently-reverted parameters and deprioritises them, which empirically
+reduces wasted iterations in early testing.
+
+Using Claude exclusively for proposals would have made the PROPOSE phase
+impossible to test without an API key, and expensive to iterate on locally.
+The dual-path design (strategies for testing, Claude for production) was
+a deliberate trade-off.
+
+\subsection{Stopping Conditions}
+
+Three independent stopping conditions guard against runaway costs:
+
+\begin{enumerate}[noitemsep]
+  \item \textbf{Budget}: sum of \texttt{cost\_usd} across all diary entries
+        $\geq$ \texttt{compute\_budget} from the \texttt{OrchestrationConfig}.
+  \item \textbf{Convergence}: three consecutive non-improving iterations
+        (\texttt{no\_improve\_streak} $\geq$ \texttt{\_MAX\_NO\_IMPROVE}).
+  \item \textbf{Hard cap}: total iterations $\geq$ \texttt{\_MAX\_ITERATIONS}
+        (20), regardless of improvement.
+\end{enumerate}
+
+Alternatives considered: Bayesian stopping criteria (too complex for the
+evaluation timeline), fixed-iteration budgets (ignores budget and convergence),
+and improvement-threshold stopping (too sensitive to noise in early iterations).
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{The Evaluator Sub-Feature}
+
+\subsection{create\_eval\_suite}
+
+Called by \texttt{init\_node}, this function determines which metrics matter
+for the task type and whether LLM grading is needed. A \texttt{\_METRIC\_MAP}
+maps task types to primary and supporting metrics (e.g.,
+\texttt{text-classification} $\to$ F1 + accuracy + precision + recall). A
+caller-specified \texttt{eval\_metric} in the \texttt{OrchestrationConfig}
+overrides the default. LLM grading is enabled automatically for
+high-complexity tasks.
+
+\subsection{run\_evals}
+
+This function was the main implementation gap at PR time. The full pipeline
+requires loading a trained model from a Tinker artifact and running inference
+on the test split---infrastructure that depends on Feature 4 (Tinker API)
+being fully wired.
+
+The implementation reads the \texttt{metrics.json} file saved by
+\texttt{submit\_experiment} alongside each model checkpoint. This file
+contains \texttt{train\_loss}, \texttt{val\_loss}, and \texttt{primary\_metric}
+from the training run. These are mapped onto the eval suite's named metrics.
+When no metrics file exists (e.g., the job failed before saving), a proxy
+score of $\max(0, 1 - \text{val\_loss})$ is used.
+
+For tasks with \texttt{use\_llm\_grading} enabled, up to five examples from
+the test split are sampled and sent to Claude Haiku, which returns a quality
+score and one-sentence critique. The final scalar is an 80/20 blend of the
+training-derived score and the LLM grade:
+\[
+  s_{\text{final}} = 0.8 \cdot s_{\text{train}} + 0.2 \cdot s_{\text{llm}}
+\]
+This blending was chosen to keep the LLM grade as a signal rather than a
+replacement: training metrics are more reliable for regression detection, but
+LLM grading catches output quality issues that loss alone misses.
+
+\subsection{adapt\_eval\_suite}
+
+Called every ten iterations by \texttt{log\_node}. Collects the
+\texttt{notes} fields from the last ten reverted iterations and asks Claude
+Haiku to identify additional metrics or stress-test categories that would
+surface those weaknesses. The returned metric names are merged into the eval
+suite without duplicates. Once called, LLM grading is permanently enabled for
+the suite, since the detected weaknesses imply heuristic metrics are
+insufficient.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Key Implementation Details}
+
+\subsection{Atomic Config Writes}
+
+\texttt{apply\_patch} uses a write-then-rename pattern to prevent partial
+writes from leaving a corrupt config on disk:
+
+\begin{lstlisting}
+tmp = path.with_suffix(".json.tmp")
+tmp.write_text(json.dumps(config_dict, indent=2))
+tmp.replace(path)
+\end{lstlisting}
+
+On POSIX systems, \texttt{Path.replace()} is guaranteed atomic. The original
+file content is returned as a string so \texttt{revert\_patch} can restore it
+byte-for-byte.
+
+\subsection{Background Training Thread}
+
+\texttt{submit\_experiment} launches a background \texttt{Thread} that runs
+the Tinker SDK training loop. The thread stores its result in a module-level
+dict keyed by job ID. \texttt{wait\_for\_experiment} joins the thread with a
+configurable timeout (default 5 minutes) and raises \texttt{TimeoutError} if
+the job does not complete in time.
+
+\subsection{Early Stop Detection}
+
+\texttt{check\_early\_stop} catches three failure modes before calling
+\texttt{run\_evals}:
+
+\begin{itemize}[noitemsep]
+  \item \textbf{NaN/Inf loss}: \texttt{math.isnan} or \texttt{math.isinf}
+        on \texttt{train\_loss} or \texttt{val\_loss}.
+  \item \textbf{Exploding loss}: \texttt{train\_loss} $> 10.0$.
+  \item \textbf{Accuracy collapse}: \texttt{primary\_metric} $< 0.01$.
+\end{itemize}
+
+Catching these before evaluation avoids spending API budget grading a clearly
+failed model.
+
+\subsection{Research Diary}
+
+Every iteration appends one \texttt{IterationRecord} to
+\texttt{outputs/logs/research\_diary.jsonl}. Each record contains the
+iteration number, Claude's natural-language hypothesis, the git-style diff
+of the config change, cost in USD, training metrics, and the
+KEPT/REVERTED/PENDING decision. The diary serves as both an audit trail
+and the context window that Claude reads when proposing the next change.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Testing}
+
+Three test files cover the AutoResearch module:
+
+\begin{itemize}
+  \item \textbf{\texttt{test\_autoresearch.py}} --- Unit tests for every
+        graph helper: \texttt{apply\_patch}/\texttt{revert\_patch} round-trips,
+        \texttt{check\_early\_stop} on NaN/inf/exploding loss/accuracy collapse,
+        \texttt{compare\_scores}, \texttt{decide\_keep\_or\_revert},
+        \texttt{flag\_regression}, \texttt{log\_iteration}, all three
+        \texttt{continue\_edge} stopping conditions, and the new
+        \texttt{run\_evals} suite (seven tests covering missing/corrupt metrics
+        files, the proxy fallback, per-metric dict completeness, and LLM
+        grading skipping when the test split is empty).
+
+  \item \textbf{\texttt{test\_propose\_infra.py}} --- Regression tests for
+        eight specific bugs found during code review: NaN rejection in
+        \texttt{apply\_patch}, \texttt{perturb\_value} handling
+        \texttt{current=None}, seed increment across calls,
+        \texttt{LocalPerturbation} reading regressed params from diff strings
+        (not JSON), empty-patch guard in \texttt{run\_iteration}, corrupted
+        diary line skipping, malformed diff line parsing, and atomic write
+        leaving no temp file.
+
+  \item \textbf{\texttt{test\_e2e\_propose.py}} --- End-to-end multi-iteration
+        tests at three levels: mechanical (no API, fast), Claude API
+        integration (skipped without \texttt{ANTHROPIC\_API\_KEY}), and a
+        human-readable state trace.
+\end{itemize}
+
+All tests mock network calls with \texttt{unittest.mock.patch} and use
+\texttt{tmp\_path} fixtures. The full suite runs in under one second:
+
+\begin{center}
+\texttt{python3 -m pytest tests/test\_autoresearch.py tests/test\_propose\_infra.py tests/test\_e2e\_propose.py -q}
+\end{center}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Code Review Dimensions}
+
+\subsection{Readability}
+The graph topology in \texttt{build\_autoresearch\_graph()} serves as a
+high-level map of the system. Each node is a short function (10--30 lines)
+with a clear name. Conditional edges are named after the decision they
+encode (\texttt{early\_stop\_edge}, \texttt{decision\_edge},
+\texttt{continue\_edge}).
+
+\subsection{Reusability}
+\texttt{TrainingConfig} and \texttt{BOUNDS} are consumed by both the Decision
+Engine and the AutoResearch Loop. \texttt{ProposalStrategy} is an abstract
+base class, making it straightforward to plug in new strategies (e.g.,
+Bayesian optimisation) without touching graph code.
+
+\subsection{Security}
+No user input reaches \texttt{subprocess} or \texttt{exec}. Config patches
+are validated against \texttt{BOUNDS} before being written to disk.
+The Claude API is called only with model-controlled system and user prompts
+constructed entirely from typed Python objects.
+
+\subsection{Performance}
+Training jobs run in background threads, so the graph's main thread is
+non-blocking. The research diary is appended incrementally (one JSONL line
+per iteration) rather than rewritten, avoiding $O(n)$ writes per iteration.
+
+\subsection{Robustness}
+Three layers of failure handling: \texttt{check\_early\_stop} catches
+catastrophic metrics before evaluation; \texttt{revert\_patch} restores the
+config on any non-improvement; and \texttt{wait\_for\_experiment} raises
+\texttt{TimeoutError} rather than hanging indefinitely. Corrupted diary lines
+are silently skipped by \texttt{\_load\_history}.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Known Limitations and Future Work}
+
+\begin{enumerate}
+  \item \textbf{Inference-based evaluation}: \texttt{run\_evals} currently
+        reads training metrics as a proxy. Full inference (loading a model
+        from a Tinker artifact and running it over a held-out test split)
+        requires Feature 4 (Tinker artifact download) to be fully wired. The
+        structure is ready; it is a matter of plugging in the model-loading
+        layer.
+
+  \item \textbf{Cost Manager integration}: the \texttt{cost\_manager}
+        parameter accepted by \texttt{invoke\_autoresearch\_graph} is not yet
+        used; budget enforcement relies on summing diary costs. Wiring in the
+        Cost Manager's polling API would provide real-time guardrails rather
+        than post-hoc accounting.
+
+  \item \textbf{Script-level patching}: \texttt{apply\_patch} raises
+        \texttt{NotImplementedError} for \texttt{.py} files. Extending to
+        unified diffs of \texttt{train.py} would allow the loop to explore
+        architectural changes (e.g., adding gradient checkpointing), not just
+        hyperparameter changes.
+
+  \item \textbf{Thread safety}: \texttt{\_experiment\_results} and
+        \texttt{\_experiment\_threads} are module-level dicts without locking.
+        Sufficient for single-run use; would need a \texttt{threading.Lock}
+        or a proper job queue for concurrent invocations.
+\end{enumerate}
+
+\end{document}

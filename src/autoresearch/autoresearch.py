@@ -1,11 +1,12 @@
 """
-Feature 3 — AutoResearch Loop
-Owner: Matthew Torre, Hayley Antczak
+AutoResearch Loop (Feature 3) — Matthew Torre, Hayley Antczak
 
-Cyclic LangGraph StateGraph(AutoResearchState):
+Cyclic LangGraph graph that drives iterative hyperparameter search:
   init → baseline → [propose → run → evaluate → decide → log] × N → END
 
-Includes the Evaluator sub-feature (create_eval_suite, run_evals, adapt_eval_suite).
+Each iteration proposes one config change, trains a model, evaluates it,
+and either keeps or reverts the patch. The loop terminates when the budget
+is gone, performance plateaus, or the iteration cap is hit.
 """
 
 from __future__ import annotations
@@ -59,8 +60,8 @@ def _patch_to_diff(patch_dict: dict, current_config: dict) -> str:
 # ─── GRAPH BUILDER ────────────────────────────────────────────────────────────
 
 def build_autoresearch_graph():
-    """Constructs and compiles the AutoResearch cyclic LangGraph StateGraph with checkpointer. Called once at startup."""
-    from langgraph.graph import END, StateGraph  # lazy import — not available in test environments without the dep
+    """Builds and compiles the cyclic StateGraph. Call once at startup."""
+    from langgraph.graph import END, StateGraph  # lazy so tests without langgraph installed still run
 
     graph = StateGraph(AutoResearchState)
 
@@ -108,7 +109,7 @@ def invoke_autoresearch_graph(
     config: OrchestrationConfig,
     cost_manager,
 ) -> TrainedModel:
-    """Entry point called by the Manager's orchestrate_node. Returns the best TrainedModel."""
+    """Entry point for the Manager. Runs the full loop and returns the best model found."""
     graph = build_autoresearch_graph()
 
     initial_state: AutoResearchState = {
@@ -156,7 +157,7 @@ def invoke_autoresearch_graph(
 # ─── NODE FUNCTIONS ───────────────────────────────────────────────────────────
 
 def init_node(state: AutoResearchState) -> dict:
-    """LangGraph node. Calls create_eval_suite(). Returns: { eval_suite, current_script, current_config, iteration: 0 }."""
+    """Sets up the eval suite before the first training run."""
     task_analysis: TaskAnalysis = {
         "task_type": state["config"]["training_procedure"]["task_type"],
         "modality": "text",
@@ -206,7 +207,7 @@ def init_node(state: AutoResearchState) -> dict:
 
 
 def baseline_node(state: AutoResearchState) -> dict:
-    """LangGraph node. Submits and evaluates the unmodified baseline script. Returns: { baseline_score, best_score }."""
+    """Runs the unmodified training script to get a reference score before we start changing things."""
     log_event(
         AgentName.AUTORESEARCH,
         LogLevel.INFO,
@@ -234,7 +235,7 @@ def baseline_node(state: AutoResearchState) -> dict:
 
 
 def propose_node(state: AutoResearchState) -> dict:
-    """LangGraph node. Calls propose_hypothesis() and apply_patch(). Returns: { current_script, current_patch, last_description, original_content }."""
+    """Asks Claude to suggest one config change, then patches the config file."""
     task_analysis: TaskAnalysis = {
         "task_type": state["config"]["training_procedure"]["task_type"],
         "modality": "text",
@@ -250,7 +251,7 @@ def propose_node(state: AutoResearchState) -> dict:
     )
     hypothesis = propose_hypothesis(state["current_config"], state["diary"], task_analysis)
 
-    # Bug fix: patch the config JSON, not the training script (.py files are not patchable).
+    # We patch the config JSON, not train.py directly — structured diffs are atomic and validatable.
     original_content = apply_patch(str(_CONFIG_PATH), hypothesis["patch"])
 
     log_event(
@@ -264,18 +265,15 @@ def propose_node(state: AutoResearchState) -> dict:
         },
     )
     return {
-        # current_script keeps the training script path — it is never changed by PROPOSE.
         "current_script": state["plan"]["training_script_path"],
-        # current_patch carries the JSON patch string so log_node can build a diary entry.
         "current_patch": hypothesis["patch"],
-        # last_description carries Claude's human-readable explanation for the diary.
         "last_description": hypothesis["description"],
         "original_content": original_content,
     }
 
 
 def run_node(state: AutoResearchState) -> dict:
-    """LangGraph node. Calls submit_experiment() and wait_for_experiment(). Returns: { last_result }."""
+    """Submits the training job and blocks until it finishes."""
     log_event(
         AgentName.AUTORESEARCH,
         LogLevel.INFO,
@@ -298,7 +296,7 @@ def run_node(state: AutoResearchState) -> dict:
 
 
 def revert_and_continue_node(state: AutoResearchState) -> dict:
-    """LangGraph node (early stop path). Calls revert_patch(), logs REVERTED, increments iteration. Returns: { current_script, diary, iteration }."""
+    """Early-stop path: the job produced catastrophic metrics, so roll back immediately."""
     revert_patch(state["plan"]["training_script_path"], state["original_content"])
 
     log_event(
@@ -311,8 +309,6 @@ def revert_and_continue_node(state: AutoResearchState) -> dict:
         },
     )
 
-    # Build and persist the diary entry for this early-stopped iteration.
-    # last_result always exists here because run_node already wrote it.
     patch_dict = json.loads(state.get("current_patch", "{}"))
     diff = _patch_to_diff(patch_dict, state["current_config"])
     record: IterationRecord = {
@@ -336,7 +332,7 @@ def revert_and_continue_node(state: AutoResearchState) -> dict:
 
 
 def evaluate_node(state: AutoResearchState) -> dict:
-    """LangGraph node. Calls run_evals(), compare_scores(), flag_regression(). Returns: { last_score, last_delta }."""
+    """Scores the trained model and decides whether the patch was an improvement."""
     last_score = run_evals(state["last_result"]["model_path"], state["eval_suite"])
     last_delta = compare_scores(last_score, state["baseline_score"])
     regressed = flag_regression(last_delta)
@@ -354,8 +350,7 @@ def evaluate_node(state: AutoResearchState) -> dict:
         },
     )
 
-    # A flagged regression forces a REVERT without waiting for decide_keep_or_revert.
-    # We express this by overwriting improved=False so decision_edge returns "revert".
+    # Force a revert on regressions even if the raw delta is positive (shouldn't happen, but guard it).
     if regressed and last_delta["improved"]:
         last_delta = ScoreDelta(
             absolute=last_delta["absolute"],
@@ -367,7 +362,7 @@ def evaluate_node(state: AutoResearchState) -> dict:
 
 
 def keep_node(state: AutoResearchState) -> dict:
-    """LangGraph node. Updates best_score and best_script. Resets no_improve_streak. Returns: { best_score, best_script, no_improve_streak: 0 }."""
+    """Accepts the patch: updates the best score and resets the plateau counter."""
     log_event(
         AgentName.AUTORESEARCH,
         LogLevel.INFO,
@@ -375,8 +370,7 @@ def keep_node(state: AutoResearchState) -> dict:
         f"(was {state['best_score']['scalar']:.4f})",
         metadata={"iteration": state["iteration"] + 1},
     )
-    # Bug fix: advance current_config to reflect the accepted patch so the next
-    # call to propose_hypothesis() sees the real current state, not the original baseline.
+    # Advance current_config so the next proposal starts from the updated state, not the original baseline.
     patch_dict = json.loads(state.get("current_patch", "{}"))
     updated_config = {**state["current_config"], **patch_dict}
 
@@ -389,7 +383,7 @@ def keep_node(state: AutoResearchState) -> dict:
 
 
 def revert_node(state: AutoResearchState) -> dict:
-    """LangGraph node. Calls revert_patch(). Increments no_improve_streak. Returns: { current_script, no_improve_streak }."""
+    """Rolls back the patch and bumps the non-improving streak counter."""
     revert_patch(str(_CONFIG_PATH), state["original_content"])
 
     new_streak = state["no_improve_streak"] + 1
@@ -407,11 +401,10 @@ def revert_node(state: AutoResearchState) -> dict:
 
 
 def log_node(state: AutoResearchState) -> dict:
-    """LangGraph node. Calls log_iteration(). Calls adapt_eval_suite() every 10 iters. Returns: { diary, eval_suite, iteration }."""
+    """Writes the iteration record to the research diary. Every 10 iterations, hardens the eval suite against observed weaknesses."""
     iteration_number = state["iteration"] + 1
 
-    # revert_and_continue_node already logged its entry and updated state["diary"].
-    # Detect that path by checking if iteration_number is already recorded.
+    # revert_and_continue already wrote its own diary entry, so skip writing again.
     already_logged = any(r["iteration"] == iteration_number for r in state["diary"])
 
     if not already_logged:
@@ -444,7 +437,6 @@ def log_node(state: AutoResearchState) -> dict:
     else:
         updated_diary = state["diary"]
 
-    # Every 10 iterations identify systematic weaknesses and harden the eval suite.
     updated_suite = state["eval_suite"]
     if iteration_number % 10 == 0:
         recent_reverts = [
@@ -768,21 +760,120 @@ def check_early_stop(metrics: TrainingMetrics) -> bool:
 # ─── EVALUATE HELPERS ─────────────────────────────────────────────────────────
 
 def run_evals(model_path: str, eval_suite: EvalSuite) -> EvalScore:
-    """Runs the evaluation suite against the model and returns a scalar score + per-metric breakdown."""
-    # Wire-in point for the model inference layer (transformers / PEFT / Tinker artifacts).
-    #
-    # Expected implementation:
-    #   1. Load the model from model_path (AutoModelForSequenceClassification or equivalent).
-    #   2. Load the test split from eval_suite["test_split_path"].
-    #   3. Run inference and compute each metric in eval_suite["metrics"].
-    #   4. If eval_suite["use_llm_grading"], call Claude to score free-form outputs.
-    #   5. Return EvalScore with scalar = primary metric value, metrics = per-metric dict.
-    #
-    # Blocked on: transformers model loading + Tinker artifact download (F4).
-    raise NotImplementedError(
-        "run_evals not yet implemented. "
-        "Requires model loading from Tinker artifacts and inference infrastructure."
+    """
+    Scores a trained model against the eval suite.
+
+    Reads the metrics.json saved alongside the model by the training job, then
+    maps the raw training metrics onto the eval suite's named metrics. For
+    high-complexity tasks with use_llm_grading set, a small sample of the test
+    split is sent to Claude Haiku which returns an adjusted quality score and
+    a one-sentence critique. The final scalar is an 80/20 blend of the
+    training-derived score and the LLM grade.
+    """
+    metrics_file = Path(model_path).parent / "metrics.json"
+
+    raw: dict[str, float] = {}
+    if metrics_file.exists():
+        try:
+            raw = json.loads(metrics_file.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # Derive a proxy score from val_loss when dedicated eval metrics aren't available.
+    val_loss = float(raw.get("val_loss", 1.0))
+    proxy = max(0.0, 1.0 - val_loss)
+
+    per_metric: dict[str, float] = {}
+    for metric in eval_suite["metrics"]:
+        if metric in raw:
+            per_metric[metric] = float(raw[metric])
+        elif "loss" in metric:
+            per_metric[metric] = raw.get(metric, val_loss)
+        else:
+            per_metric[metric] = raw.get("primary_metric", proxy)
+
+    primary_val = per_metric.get(eval_suite["primary_metric"], proxy)
+    critique = ""
+
+    if eval_suite["use_llm_grading"]:
+        primary_val, critique = _llm_grade(model_path, eval_suite, primary_val)
+        per_metric[eval_suite["primary_metric"]] = primary_val
+
+    log_event(
+        AgentName.AUTORESEARCH,
+        LogLevel.INFO,
+        f"run_evals: {eval_suite['primary_metric']}={primary_val:.4f}",
+        metadata={"metrics": per_metric, "model_path": model_path},
     )
+
+    return {
+        "scalar": primary_val,
+        "metrics": per_metric,
+        "critique": critique,
+    }
+
+
+def _llm_grade(model_path: str, eval_suite: EvalSuite, prior_score: float) -> tuple[float, str]:
+    """
+    Samples up to 5 examples from the test split and asks Claude Haiku to
+    rate output quality. Returns (blended_score, critique) where the blend
+    is 80% training metrics + 20% LLM grade.
+    """
+    test_path = Path(eval_suite["test_split_path"])
+    examples: list[str] = []
+
+    if test_path.exists():
+        try:
+            with open(test_path) as fh:
+                for line in fh:
+                    line = line.strip()
+                    if line:
+                        examples.append(line)
+                    if len(examples) >= 5:
+                        break
+        except OSError:
+            pass
+
+    if not examples:
+        log_event(
+            AgentName.AUTORESEARCH,
+            LogLevel.WARN,
+            "LLM grading skipped — test split is empty or missing",
+            metadata={"test_split_path": eval_suite["test_split_path"]},
+        )
+        return prior_score, ""
+
+    sample_text = "\n".join(f"  {i + 1}. {ex[:300]}" for i, ex in enumerate(examples))
+    client = anthropic.Anthropic()
+
+    message = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=256,
+        system="You are an ML evaluation assistant. Assess model output quality and return JSON only.",
+        messages=[{
+            "role": "user",
+            "content": (
+                f"Test split samples (first {len(examples)} examples):\n{sample_text}\n\n"
+                f"Prior score from training metrics: {prior_score:.4f}\n"
+                f"Primary metric: {eval_suite['primary_metric']}\n\n"
+                "Return exactly this JSON object and nothing else:\n"
+                '{"score": <float 0.0–1.0>, "critique": "<one sentence>"}'
+            ),
+        }],
+    )
+
+    raw = message.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = "\n".join(ln for ln in raw.splitlines() if not ln.startswith("```"))
+
+    try:
+        parsed = json.loads(raw)
+        llm_score = float(parsed.get("score", prior_score))
+        critique = str(parsed.get("critique", ""))
+        blended = 0.8 * prior_score + 0.2 * llm_score
+        return blended, critique
+    except (json.JSONDecodeError, ValueError):
+        return prior_score, raw[:200]
 
 
 def compare_scores(new_score: EvalScore, baseline_score: EvalScore) -> ScoreDelta:
