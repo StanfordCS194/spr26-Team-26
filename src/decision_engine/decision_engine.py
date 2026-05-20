@@ -8,9 +8,12 @@ estimates cost, and writes the training script passed to AutoResearch.
 
 from __future__ import annotations
 
+import math
 import os
+from pathlib import Path
 from textwrap import dedent
 
+from src.runtime_context import get_output_root
 from src.types import (
     CostEstimate,
     DatasetResult,
@@ -19,12 +22,14 @@ from src.types import (
     TaskAnalysis,
     TrainingPlan,
 )
+from src.tinker_api.sft_runner import DEFAULT_TINKER_MODEL
 
 # Cost per GPU-hour on Tinker (USD) — update when Tinker docs confirm pricing
 _TINKER_GPU_COST_PER_HOUR = 2.50
 
 # Rough model-size → GPU-hours-per-epoch lookup (for cost estimation)
 _MODEL_COST_PROFILE = {
+    DEFAULT_TINKER_MODEL:           {"gpu_hours_per_epoch": 0.15, "strategy": "fine-tune"},
     "bert-base-uncased":        {"gpu_hours_per_epoch": 0.1,  "strategy": "fine-tune"},
     "bert-large-uncased":       {"gpu_hours_per_epoch": 0.3,  "strategy": "fine-tune"},
     "distilbert-base-uncased":  {"gpu_hours_per_epoch": 0.05, "strategy": "fine-tune"},
@@ -34,12 +39,13 @@ _MODEL_COST_PROFILE = {
 }
 
 _TASK_TO_BASE_MODEL = {
-    "text-classification":       "distilbert-base-uncased",
-    "token-classification":      "bert-base-uncased",
-    "seq2seq":                   "t5-small",
-    "question-answering":        "bert-base-uncased",
-    "summarization":             "t5-base",
-    "translation":               "t5-small",
+    "text-classification":       DEFAULT_TINKER_MODEL,
+    "token-classification":      DEFAULT_TINKER_MODEL,
+    "seq2seq":                   DEFAULT_TINKER_MODEL,
+    "question-answering":        DEFAULT_TINKER_MODEL,
+    "summarization":             DEFAULT_TINKER_MODEL,
+    "translation":               DEFAULT_TINKER_MODEL,
+    "custom":                    DEFAULT_TINKER_MODEL,
 }
 
 _TASK_TO_METRIC = {
@@ -59,7 +65,10 @@ def run_decision_engine(
     """Top-level dispatcher. Runs task analysis → model selection → cost estimation → script generation."""
     task = analyze_task(config)
     budget = config["compute_budget"]
+    backend = "tinker_sft"
     model_id = find_base_model(task, budget)
+    if backend == "tinker_sft" and model_id is None:
+        model_id = _tinker_base_model_for_task(task)
     strategy = "fine-tune" if model_id else "pre-train"
     cost = estimate_training_cost(model_id, dataset, strategy)
 
@@ -75,10 +84,51 @@ def run_decision_engine(
         base_model=model_id,
         lora_config=lora,
         estimated_cost=cost["estimated_usd"],
+        estimated_run_cost_usd=estimate_autoresearch_run_cost(cost, config, dataset),
         estimated_time_min=cost["estimated_time_min"],
         training_script_path=script_path,
-        eval_metric=task["eval_metric"],
+        eval_metric="primary_metric" if backend == "tinker_sft" else task["eval_metric"],
+        backend=backend,
+        dataset_path=dataset["dataset"]["path"],
+        dataset=dataset["dataset"],
     )
+
+
+def _tinker_base_model_for_task(task: TaskAnalysis) -> str:
+    """Return the SDK-native Tinker SFT base model for V1 plans."""
+    return _TASK_TO_BASE_MODEL.get(task["task_type"], DEFAULT_TINKER_MODEL)
+
+
+def estimate_autoresearch_run_cost(
+    cost: CostEstimate,
+    config: OrchestrationConfig,
+    dataset: DatasetResult,
+) -> float:
+    """Estimate one bounded AutoResearch Tinker launch from the full plan cost."""
+    total_cost = max(0.0, float(cost["estimated_usd"]))
+    if total_cost == 0.0:
+        return 0.0
+
+    hp = config["training_procedure"].get("hyperparameters", {})
+    max_steps = hp.get("max_steps")
+    if max_steps is None:
+        return round(total_cost, 4)
+
+    train_size = _positive_int(dataset["dataset"].get("train_size"), default=1)
+    batch_size = _positive_int(hp.get("batch_size"), default=16)
+    epochs = _positive_int(hp.get("num_epochs", hp.get("epochs")), default=3)
+    full_steps = max(1, math.ceil(train_size / batch_size) * epochs)
+    bounded_steps = _positive_int(max_steps, default=full_steps)
+    ratio = min(1.0, bounded_steps / full_steps)
+    return round(min(total_cost, max(0.01, total_cost * ratio)), 4)
+
+
+def _positive_int(value, *, default: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
 
 
 def analyze_task(config: OrchestrationConfig) -> TaskAnalysis:
@@ -152,8 +202,7 @@ def write_finetune_script(
     config: OrchestrationConfig,
 ) -> str:
     """Generates a complete LoRA fine-tuning train.py. Returns the path to the written script."""
-    os.makedirs("outputs/scripts", exist_ok=True)
-    path = "outputs/scripts/train.py"
+    path = _training_script_path()
     hp = config["training_procedure"]["hyperparameters"]
 
     script = dedent(f"""\
@@ -217,8 +266,7 @@ def write_pretrain_script(
     config: OrchestrationConfig,
 ) -> str:
     """Generates a from-scratch train.py for pre-training. Returns the path to the written script."""
-    os.makedirs("outputs/scripts", exist_ok=True)
-    path = "outputs/scripts/train.py"
+    path = _training_script_path()
     hp = config["training_procedure"]["hyperparameters"]
 
     script = dedent(f"""\
@@ -262,3 +310,14 @@ def write_pretrain_script(
     with open(path, "w") as f:
         f.write(script)
     return os.path.abspath(path)
+
+
+def _training_script_path() -> str:
+    root = get_output_root()
+    path = (
+        root / "scripts" / "train.py"
+        if root is not None
+        else Path("outputs/scripts/train.py")
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return str(path)

@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from src.autoresearch.config import BOUNDS, TrainingConfig
+from src.tinker_api.sft_runner import SUPPORTED_TINKER_TUNABLES
 from src.types import IterationRecord
 
 
@@ -67,8 +68,11 @@ class SearchSpace:
     NON_TUNABLE: frozenset[str] = frozenset({"model_name"})
 
     @classmethod
-    def tunable_params(cls) -> list[str]:
-        return [k for k in BOUNDS if k not in cls.NON_TUNABLE]
+    def tunable_params(cls, backend: str | None = None) -> list[str]:
+        params = [k for k in BOUNDS if k not in cls.NON_TUNABLE]
+        if backend == "tinker_sft":
+            return [k for k in params if k in SUPPORTED_TINKER_TUNABLES]
+        return params
 
     @classmethod
     def sample_value(cls, param: str, rng: random.Random) -> Any:
@@ -84,6 +88,31 @@ class SearchSpace:
         if spec.get("type") == int:
             val = int(round(val))
         return val
+
+    @classmethod
+    def sample_value_except(cls, param: str, current: Any, rng: random.Random) -> Any:
+        """Sample a valid value that differs from current when the space allows it."""
+        spec = BOUNDS[param]
+        if "candidates" in spec:
+            candidates = [value for value in spec["candidates"] if value != current]
+            return rng.choice(candidates or spec["candidates"])
+
+        for _ in range(16):
+            val = cls.sample_value(param, rng)
+            if val != current:
+                return val
+
+        lo = spec.get("min", current)
+        hi = spec.get("max", current)
+        if spec.get("type") == int:
+            current_int = int(current)
+            if current_int < hi:
+                return current_int + 1
+            if current_int > lo:
+                return current_int - 1
+        if current != lo:
+            return lo
+        return hi
 
     @classmethod
     def perturb_value(cls, param: str, current: Any, factor: float, rng: random.Random) -> Any:
@@ -102,21 +131,38 @@ class SearchSpace:
             try:
                 idx = candidates.index(current)
             except ValueError:
-                idx = 0
-            delta = rng.choice([-1, 0, 1])
-            new_idx = max(0, min(len(candidates) - 1, idx + delta))
+                return cls.sample_value_except(param, current, rng)
+            neighbor_indices = [i for i in (idx - 1, idx + 1) if 0 <= i < len(candidates)]
+            if not neighbor_indices:
+                return current
+            new_idx = rng.choice(neighbor_indices)
             return candidates[new_idx]
         # current=None or current=0 with a multiplicative scheme would get stuck;
         # fall back to sampling from the full range in those cases.
         if current is None or current == 0:
-            return cls.sample_value(param, rng)
-        multiplier = 1.0 + rng.uniform(-factor, factor)
-        val = current * multiplier
-        lo = spec.get("min", val)
-        hi = spec.get("max", val)
-        val = max(lo, min(hi, val))
+            return cls.sample_value_except(param, current, rng)
+        lo = spec.get("min", current)
+        hi = spec.get("max", current)
         if spec.get("type") == int:
-            val = int(round(val))
+            current_int = int(current)
+            direction = rng.choice([-1, 1])
+            if current_int <= lo:
+                direction = 1
+            elif current_int >= hi:
+                direction = -1
+            max_step = max(1, int(round(abs(current_int) * factor)))
+            step = rng.randint(1, max_step) * direction
+            val = max(lo, min(hi, current_int + step))
+            if val == current_int:
+                return cls.sample_value_except(param, current_int, rng)
+            return int(val)
+        direction = rng.choice([-1.0, 1.0])
+        magnitude = rng.uniform(max(factor * 0.1, 1e-12), factor)
+        multiplier = 1.0 + direction * magnitude
+        val = current * multiplier
+        val = max(lo, min(hi, val))
+        if val == current:
+            return cls.sample_value_except(param, current, rng)
         return val
 
 
@@ -151,11 +197,12 @@ class RandomSearchProposalStrategy(ProposalStrategy):
     stored in Proposal.metadata makes any iteration reproducible.
     """
 
-    def __init__(self, seed: int | None = None) -> None:
+    def __init__(self, seed: int | None = None, backend: str | None = None) -> None:
         # _next_seed advances on each call so a fixed initial seed still
         # produces a distinct proposal every iteration.
         self._next_seed = seed
         self._initial_seed = seed
+        self._backend = backend
 
     def propose(self, config: TrainingConfig, history: list[IterationRecord]) -> Proposal:
         if self._next_seed is not None:
@@ -164,9 +211,9 @@ class RandomSearchProposalStrategy(ProposalStrategy):
         else:
             seed = random.randint(0, 2**32 - 1)
         rng = random.Random(seed)
-        param = rng.choice(SearchSpace.tunable_params())
+        param = rng.choice(SearchSpace.tunable_params(self._backend))
         old_val = getattr(config, param, None)
-        new_val = SearchSpace.sample_value(param, rng)
+        new_val = SearchSpace.sample_value_except(param, old_val, rng)
         hypothesis = (
             f"Change {param} from {old_val} to {new_val} via random search "
             f"to explore a different region of the hyperparameter space."
@@ -198,10 +245,12 @@ class LocalPerturbationProposalStrategy(ProposalStrategy):
         perturbation_factor: float = 0.2,
         seed: int | None = None,
         history_window: int = 5,
+        backend: str | None = None,
     ) -> None:
         self._factor = perturbation_factor
         self._next_seed = seed
         self._window = history_window
+        self._backend = backend
 
     def propose(self, config: TrainingConfig, history: list[IterationRecord]) -> Proposal:
         if self._next_seed is not None:
@@ -210,7 +259,7 @@ class LocalPerturbationProposalStrategy(ProposalStrategy):
         else:
             seed = random.randint(0, 2**32 - 1)
         rng = random.Random(seed)
-        candidates = SearchSpace.tunable_params()
+        candidates = SearchSpace.tunable_params(self._backend)
 
         # Collect params that appeared in recently REVERTED patches.
         # The diary "patch" field is a diff string (format_patch_as_diff output),

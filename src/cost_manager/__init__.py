@@ -1,3 +1,3 @@
-from .cost_manager import start_cost_monitor, generate_cost_report
+from .cost_manager import CostManager, generate_cost_report, start_cost_monitor
 
-__all__ = ["start_cost_monitor", "generate_cost_report"]
+__all__ = ["CostManager", "start_cost_monitor", "generate_cost_report"]
