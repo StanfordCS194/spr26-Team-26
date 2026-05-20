@@ -54,12 +54,62 @@ BOS_TOKEN = "<|reserved_0|>"
 # Data download
 # ---------------------------------------------------------------------------
 
+OFFLINE_DOWNLOAD_ENV_VARS = ("NO_SPEND", "DATA_GENERATOR_OFFLINE")
+
+
+def _env_flag_enabled(name):
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _active_download_blockers():
+    return [name for name in OFFLINE_DOWNLOAD_ENV_VARS if _env_flag_enabled(name)]
+
+
+def _shard_filename(index):
+    return f"shard_{index:05d}.parquet"
+
+
+def _shard_path(index):
+    return os.path.join(DATA_DIR, _shard_filename(index))
+
+
+def _required_shard_ids(num_shards):
+    num_train = min(num_shards, MAX_SHARD)
+    ids = list(range(num_train))
+    if VAL_SHARD not in ids:
+        ids.append(VAL_SHARD)
+    return ids
+
+
+def _format_missing_shards(missing_ids, limit=8):
+    filenames = [_shard_filename(i) for i in missing_ids[:limit]]
+    extra = len(missing_ids) - len(filenames)
+    if extra > 0:
+        filenames.append(f"... and {extra} more")
+    return ", ".join(filenames)
+
+
+def _raise_if_download_blocked(missing_ids):
+    blockers = _active_download_blockers()
+    if not blockers:
+        return
+
+    blocker_text = " or ".join(f"{name}=1" for name in blockers)
+    missing_text = _format_missing_shards(missing_ids)
+    raise RuntimeError(
+        f"Data download disabled by {blocker_text}; missing required cached shards "
+        f"at {DATA_DIR}: {missing_text}. Pre-populate the cache or unset the offline/no-spend guard."
+    )
+
+
 def download_single_shard(index):
     """Download one parquet shard with retries. Returns True on success."""
-    filename = f"shard_{index:05d}.parquet"
-    filepath = os.path.join(DATA_DIR, filename)
+    filename = _shard_filename(index)
+    filepath = _shard_path(index)
     if os.path.exists(filepath):
         return True
+
+    _raise_if_download_blocked([index])
 
     url = f"{BASE_URL}/{filename}"
     max_attempts = 5
@@ -91,16 +141,16 @@ def download_single_shard(index):
 def download_data(num_shards, download_workers=8):
     """Download training shards + pinned validation shard."""
     os.makedirs(DATA_DIR, exist_ok=True)
-    num_train = min(num_shards, MAX_SHARD)
-    ids = list(range(num_train))
-    if VAL_SHARD not in ids:
-        ids.append(VAL_SHARD)
+    ids = _required_shard_ids(num_shards)
 
     # Count what's already downloaded
-    existing = sum(1 for i in ids if os.path.exists(os.path.join(DATA_DIR, f"shard_{i:05d}.parquet")))
+    missing = [i for i in ids if not os.path.exists(_shard_path(i))]
+    existing = len(ids) - len(missing)
     if existing == len(ids):
         print(f"Data: all {len(ids)} shards already downloaded at {DATA_DIR}")
         return
+
+    _raise_if_download_blocked(missing)
 
     needed = len(ids) - existing
     print(f"Data: downloading {needed} shards ({existing} already exist)...")
