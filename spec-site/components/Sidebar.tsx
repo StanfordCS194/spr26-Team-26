@@ -30,7 +30,7 @@ export default function Sidebar() {
         : "text-neutral-400 hover:text-neutral-200 hover:bg-white/5"
     }`;
 
-  const Nav = () => (
+  const renderNav = () => (
     <nav className="space-y-0.5">
       <a href="#architecture" onClick={() => setMobileOpen(false)} className={linkClass("architecture")}>
         System Architecture
@@ -75,12 +75,12 @@ export default function Sidebar() {
       )}
 
       <div className={`lg:hidden fixed top-0 left-0 z-50 h-full w-64 bg-neutral-900 border-r border-neutral-800 p-4 pt-14 overflow-y-auto transition-transform ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <Nav />
+        {renderNav()}
       </div>
 
       <aside className="hidden lg:block sticky top-0 h-screen w-60 flex-shrink-0 overflow-y-auto border-r border-neutral-800 bg-neutral-950/80 backdrop-blur">
         <div className="p-4 pt-6">
-          <Nav />
+          {renderNav()}
         </div>
       </aside>
     </>

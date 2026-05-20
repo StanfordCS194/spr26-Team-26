@@ -38,7 +38,7 @@ export type FeatureSpec = {
 export const systemArchitecture = {
   overview: `The system is a linear pipeline with one autonomous feedback loop. The user provides a single prompt and a budget. The Manager reasons about the task and emits a config object that every other agent reads from. Control then flows through three sequential stages — data, decisions, training — with the Cost Manager running as a background watchdog throughout.
 
-LangGraph is used for the three stateful, multi-step agent processes: the Manager (linear graph with one Claude call), the Data Generator (conditional routing graph), and the AutoResearch loop (cyclic graph). The Decision Engine, Cost Manager, Observability module, and Tinker API wrapper are plain Python — they have no branching agent logic that would benefit from a graph runtime.
+LangGraph is used for the three stateful, multi-step agent processes: the Manager (linear graph with configurable local or Claude reasoning), the Data Generator (conditional routing graph), and the AutoResearch loop (cyclic graph with local or Claude proposal modes). The Decision Engine, Cost Manager, Observability module, and Tinker SDK helpers are plain Python — they have no branching agent logic that would benefit from a graph runtime.
 
 LangGraph gives us: (1) built-in checkpointing so a long AutoResearch run can resume after a crash, (2) a typed state object (TypedDict) that makes inter-node data flow explicit and auditable, and (3) conditional edges that make the Mode A/B/C and KEEP/REVERT branching readable and testable.`,
   flowDiagram: `
@@ -61,10 +61,12 @@ User
 │   Data Generator  [LangGraph]       │
 │   StateGraph(DataGenState)          │
 │                                     │
-│   route ──► mode_a ──► validate     │
-│         └─► mode_b_search           │◄── HuggingFace Hub API
-│               ├─► mode_b_download   │
-│               └─► mode_c ──────────►│◄── Claude API (teacher)
+│   Sub-agent 1: acquisition/routing  │
+│   route ──► mode_a / mode_b / mode_c│
+│         (HF + web/teacher retrieval)│
+│                 │ handoff payload   │
+│   Sub-agent 2: curation/validation  │
+│   structure_data + validate + split │
 └───────────────┬─────────────────────┘
                 │  DatasetResult  (in DataGenState)
                 ▼
@@ -142,11 +144,11 @@ export const features: FeatureSpec[] = [
       "Central orchestrator. Takes the user's raw prompt and budget, reasons about the task, queries for optional data, and emits the OrchestrationConfig JSON consumed by every downstream agent.",
     architecture: `The Manager is implemented as a LangGraph StateGraph(ManagerState). It is the only agent the user interacts with directly and runs entirely locally — no GPU required.
 
-Why LangGraph here: the Manager makes a Claude API call whose output determines what happens next (does the task need fine-tuning or pre-training? does the user have data?). Modeling this as a graph makes the state transitions explicit, checkpointable, and easy to extend with human-in-the-loop pauses later.
+Why LangGraph here: the Manager reasoning node determines what happens next (what task is being trained, what data format is expected, and whether the user supplied data). In live mode it can use Claude; in local/no-spend mode it uses a deterministic planner. Modeling this as a graph makes the state transitions explicit, checkpointable, and easy to extend with human-in-the-loop pauses later.
 
 Graph nodes (4 nodes, linear with no cycles):
   1. query_data_node — asks the user if they have existing data; writes has_data + data_path into ManagerState
-  2. reason_node — calls Claude API with the prompt; writes task_reasoning into ManagerState
+  2. reason_node — calls reason_about_task() with local/Claude mode selection; writes task_reasoning into ManagerState
   3. build_config_node — assembles OrchestrationConfig from ManagerState fields; writes config
   4. orchestrate_node — calls the downstream pipeline (DataGen → DecisionEngine → AutoResearch) using the config from state; writes result into ManagerState
 
@@ -167,7 +169,7 @@ Graph nodes and edges:
   query_data_node          calls: query_user_for_data()
     │  writes: has_data, data_path
     ▼
-  reason_node              calls: reason_about_task()  [Claude API]
+  reason_node              calls: reason_about_task()  [local/Claude]
     │  writes: task_reasoning
     ▼
   build_config_node        calls: build_orchestration_config(), log_decision()
@@ -238,7 +240,7 @@ invoke_manager_graph(prompt, budget, data_path?) → TrainedModel
       {
         name: "reason_about_task",
         signature: "reason_about_task(prompt: str, budget: float, has_data: bool) -> TaskReasoning",
-        description: "Helper (called inside reason_node). Calls the Claude API to infer task type, data format, training type, base model, and starting hyperparameters.",
+        description: "Helper called inside reason_node. Uses MANAGER_REASONER=auto/local/claude; NO_SPEND forces local deterministic planning. Infers task type, data format, training type, base model, and starting hyperparameters.",
         params: [
           { name: "prompt", type: "str", description: "Raw user task description." },
           { name: "budget", type: "float", description: "Budget cap in USD." },
@@ -282,63 +284,54 @@ invoke_manager_graph(prompt, budget, data_path?) → TrainedModel
     architecture: `The Data Generator is implemented as a LangGraph StateGraph(DataGenState). Its defining characteristic is three-way conditional routing — the right path depends on runtime information (does the user have data? does a HuggingFace dataset exist for this task?) that isn't knowable upfront. LangGraph conditional edges make this branching explicit and testable.
 
 Graph nodes and routing:
-  route_node — inspects state.data_path and dispatches to mode_a_node, or to mode_b_search_node (preferred), or directly to mode_c_node (if we already know search will fail).
-  mode_a_node — loads, detects, normalizes, and optionally augments user-provided data.
-  mode_b_search_node — searches HuggingFace Hub for a candidate dataset.
-  hf_found_edge — conditional edge: if a candidate was found, go to mode_b_download_node; otherwise fall through to mode_c_node.
-  mode_b_download_node — downloads and normalizes the HuggingFace dataset.
-  mode_c_node — generates synthetic data via Claude API (or scrapes web as fallback), then morphs to standard format.
-  validate_node — runs on every path before END; produces the ValidationReport in DatasetResult.
+  route_node — inspects state.data_path + explicit HF dataset IDs and sets state.mode ('A' | 'B' | 'C').
+  select_mode_edge — conditional edge: mode A -> acquire_user_data_node, mode B -> acquire_hf_data_node, mode C -> acquire_web_data_node.
+  select_curation_edge — conditional edge after acquisition: mode A/C -> handoff_structure_data_node, mode B -> handoff_validate_hf_node.
+  acquire_user_data_node — loads user-provided raw data.
+  acquire_hf_data_node — parses explicit HF IDs/URLs and fetches records from Hugging Face datasets.
+  acquire_web_data_node — fallback acquisition path for Mode C.
+  handoff_structure_data_node / handoff_validate_hf_node — emits the handoff payload for Data Curation sub-agent.
 
-All existing implementation functions (load_raw_data, search_huggingface, generate_synthetic_data, etc.) are called inside their respective node functions. Their signatures don't change — they remain plain functions that take explicit arguments.
+Mode B uses parse_explicit_hf_dataset_ids, build_explicit_hf_candidates, and fetch_hf_datasets inside acquire_hf_data_node.
 
-The external interface is invoke_data_generator_graph(config, data_path) — the orchestrate_node in the Manager graph calls this.`,
+The external interface is invoke_data_generator_graph(config, data_path) — the orchestrate_node in the Manager graph calls this and receives a handoff payload for sub-agent 2.`,
     flowDiagram: `
 build_data_generator_graph() → CompiledStateGraph[DataGenState]
 
 DataGenState = TypedDict:
   config, data_path, mode,
   raw_data, hf_candidates, selected_candidate,
-  schema, dataset, validation_report
+  schema, dataset, validation_report, handoff
 
 Graph nodes and edges:
   START
     │
     ▼
-  route_node               inspects data_path → sets mode
+  route_node               inspects data_path + explicit HF IDs → sets mode
     │
     ├─[mode == "A"]──────────────────────────────────────────────
     │   ▼
-    │   mode_a_node         load_raw_data → detect_format →
-    │                       normalize_and_clean → augment_with_synthetic?
+    │   acquire_user_data   load_raw_data
     │   │
-    │   └──────────────────────────────────────────► validate_node
+    │   └──────────────► select_curation_edge ─► structure_data
     │
     ├─[mode == "B"]──────────────────────────────────────────────
     │   ▼
-    │   mode_b_search_node  search_huggingface → rank_hf_candidates
-    │     │
-    │     ├─[hf_found_edge: candidate found]──────────────────
-    │     │   ▼
-    │     │   mode_b_download_node  download_hf_dataset →
-    │     │                         normalize_and_clean
-    │     │   └──────────────────────────────────► validate_node
-    │     │
-    │     └─[hf_found_edge: no candidate]────────────────────
-    │         ▼
-    │         mode_c_node  (see below)
+    │   acquire_hf_data     parse_explicit_hf_dataset_ids →
+    │                       build_explicit_hf_candidates →
+    │                       fetch_hf_datasets
+    │   │
+    │   └──────────────► select_curation_edge ─► validate_hf_data
     │
     └─[mode == "C"]──────────────────────────────────────────────
         ▼
-        mode_c_node        determine_data_schema  [Claude API]
-                           → generate_synthetic_data [Claude API]
-                             OR scrape_web (fallback)
-                           → morph_to_standard
-          └──────────────────────────────────────► validate_node
+        acquire_web_data    acquire_web_data(query)
+          │
+          └──────────────► select_curation_edge ─► structure_data
                                                       │
                                                       ▼
                                                     END
-                                    writes DatasetResult to state
+                                  writes handoff payload to state
     `,
     functions: [
       {
@@ -346,17 +339,17 @@ Graph nodes and edges:
         signature: "build_data_generator_graph() -> CompiledStateGraph[DataGenState]",
         description: "Constructs and compiles the Data Generator LangGraph StateGraph with all nodes and conditional edges. Called once at startup.",
         params: [],
-        returns: { type: "CompiledStateGraph[DataGenState]", description: "Compiled graph with nodes: route → mode_a/mode_b_search/mode_c → validate." },
+        returns: { type: "CompiledStateGraph[DataGenState]", description: "Compiled graph with nodes: route → acquire_user/acquire_hf/acquire_web → structure_data/validate_hf_data." },
       },
       {
         name: "invoke_data_generator_graph",
-        signature: "invoke_data_generator_graph(config: OrchestrationConfig, data_path: str | None) -> DatasetResult",
-        description: "Entry point called by the Manager's orchestrate_node. Invokes the compiled DataGen graph and returns the DatasetResult from final state.",
+        signature: "invoke_data_generator_graph(config: OrchestrationConfig, data_path: str | None) -> dict[str, Any]",
+        description: "Entry point called by the Manager's orchestrate_node. Invokes the compiled DataGen graph and returns the handoff payload from final state.",
         params: [
           { name: "config", type: "OrchestrationConfig", description: "Orchestration config from the Manager." },
           { name: "data_path", type: "str | None", description: "Path to user-provided raw data, or None." },
         ],
-        returns: { type: "DatasetResult", description: "Standardized dataset with split sizes, mode used, and quality notes." },
+        returns: { type: "dict[str, Any]", description: "Handoff payload for sub-agent 2 (target_subagent, action, verification_level, raw_data, config, ...)." },
       },
       {
         name: "route_node",
@@ -367,52 +360,52 @@ Graph nodes and edges:
       },
       {
         name: "select_mode_edge",
-        signature: "select_mode_edge(state: DataGenState) -> Literal['mode_a', 'mode_b_search', 'mode_c']",
+        signature: "select_mode_edge(state: DataGenState) -> Literal['acquire_user_data', 'acquire_hf_data', 'acquire_web_data']",
         description: "LangGraph conditional edge function. Reads state.mode and returns the name of the next node to execute.",
         params: [{ name: "state", type: "DataGenState", description: "Current graph state (mode must be set)." }],
-        returns: { type: "Literal['mode_a', 'mode_b_search', 'mode_c']", description: "Target node name." },
+        returns: { type: "Literal['acquire_user_data', 'acquire_hf_data', 'acquire_web_data']", description: "Target node name." },
       },
       {
-        name: "hf_found_edge",
-        signature: "hf_found_edge(state: DataGenState) -> Literal['mode_b_download', 'mode_c']",
-        description: "LangGraph conditional edge function on mode_b_search_node. Returns 'mode_b_download' if a valid HuggingFace candidate was found, 'mode_c' otherwise.",
+        name: "select_curation_edge",
+        signature: "select_curation_edge(state: DataGenState) -> Literal['structure_data', 'validate_hf_data']",
+        description: "LangGraph conditional edge function after acquisition nodes. Returns 'structure_data' for mode A/C and 'validate_hf_data' for mode B.",
         params: [{ name: "state", type: "DataGenState", description: "Current graph state (hf_candidates + selected_candidate must be set)." }],
-        returns: { type: "Literal['mode_b_download', 'mode_c']", description: "Target node name." },
+        returns: { type: "Literal['structure_data', 'validate_hf_data']", description: "Target node name." },
       },
       {
-        name: "mode_a_node",
-        signature: "mode_a_node(state: DataGenState) -> dict",
-        description: "LangGraph node for Mode A. Calls load_raw_data → detect_format → normalize_and_clean → (optionally) augment_with_synthetic. Writes dataset to state.",
+        name: "acquire_user_data_node",
+        signature: "acquire_user_data_node(state: DataGenState) -> dict",
+        description: "LangGraph acquisition node for Mode A. Calls load_raw_data(data_path). Writes raw_data to state.",
         params: [{ name: "state", type: "DataGenState", description: "Current graph state (data_path must be set)." }],
-        returns: { type: "dict", description: "Partial state update: { raw_data, dataset }." },
+        returns: { type: "dict", description: "Partial state update: { raw_data }." },
       },
       {
-        name: "mode_b_search_node",
-        signature: "mode_b_search_node(state: DataGenState) -> dict",
-        description: "LangGraph node. Calls search_huggingface and rank_hf_candidates. Writes candidates and selected_candidate to state. hf_found_edge reads from state to decide next node.",
+        name: "acquire_hf_data_node",
+        signature: "acquire_hf_data_node(state: DataGenState) -> dict",
+        description: "LangGraph acquisition node for Mode B. Calls parse_explicit_hf_dataset_ids, build_explicit_hf_candidates, and fetch_hf_datasets. Writes hf_candidates, selected_candidate, and raw_data to state.",
         params: [{ name: "state", type: "DataGenState", description: "Current graph state." }],
-        returns: { type: "dict", description: "Partial state update: { hf_candidates: list, selected_candidate: HFCandidate | None }." },
+        returns: { type: "dict", description: "Partial state update: { hf_candidates: list[HFCandidate], selected_candidate: HFCandidate | None, raw_data: RawData }." },
       },
       {
-        name: "mode_b_download_node",
-        signature: "mode_b_download_node(state: DataGenState) -> dict",
-        description: "LangGraph node. Calls download_hf_dataset and normalize_and_clean. Writes dataset to state.",
-        params: [{ name: "state", type: "DataGenState", description: "Current graph state (selected_candidate must be set)." }],
-        returns: { type: "dict", description: "Partial state update: { raw_data, dataset }." },
-      },
-      {
-        name: "mode_c_node",
-        signature: "mode_c_node(state: DataGenState) -> dict",
-        description: "LangGraph node. Calls determine_data_schema, then generate_synthetic_data (or scrape_web as fallback), then morph_to_standard. Writes dataset to state.",
+        name: "acquire_web_data_node",
+        signature: "acquire_web_data_node(state: DataGenState) -> dict",
+        description: "LangGraph acquisition node for Mode C. Calls acquire_web_data(query) and writes raw_data to state.",
         params: [{ name: "state", type: "DataGenState", description: "Current graph state." }],
-        returns: { type: "dict", description: "Partial state update: { schema, raw_data, dataset }." },
+        returns: { type: "dict", description: "Partial state update: { raw_data }." },
       },
       {
-        name: "validate_node",
-        signature: "validate_node(state: DataGenState) -> dict",
-        description: "LangGraph node. Called after every mode. Runs validate_dataset() and writes the ValidationReport to state. This is the final node before END.",
-        params: [{ name: "state", type: "DataGenState", description: "Current graph state (dataset must be set)." }],
-        returns: { type: "dict", description: "Partial state update: { validation_report: ValidationReport }." },
+        name: "handoff_structure_data_node",
+        signature: "handoff_structure_data_node(state: DataGenState) -> dict",
+        description: "LangGraph handoff node. Produces handoff payload for sub-agent 2 with action='structure_data'.",
+        params: [{ name: "state", type: "DataGenState", description: "Current graph state." }],
+        returns: { type: "dict", description: "Partial state update: { handoff: dict }." },
+      },
+      {
+        name: "handoff_validate_hf_node",
+        signature: "handoff_validate_hf_node(state: DataGenState) -> dict",
+        description: "LangGraph handoff node. Produces handoff payload for sub-agent 2 with action='validate_hf_dataset'.",
+        params: [{ name: "state", type: "DataGenState", description: "Current graph state (mode should be B)." }],
+        returns: { type: "dict", description: "Partial state update: { handoff: dict }." },
       },
       // ── Mode A ──
       {
@@ -456,33 +449,33 @@ Graph nodes and edges:
       },
       // ── Mode B ──
       {
-        name: "search_huggingface",
-        signature: "search_huggingface(task_description: str, task_type: str) -> list[HFCandidate]",
-        description: "Queries the HuggingFace Hub datasets API for candidates matching the task description and type. Returns up to 10 ranked candidates.",
+        name: "parse_explicit_hf_dataset_ids",
+        signature: "parse_explicit_hf_dataset_ids(config: OrchestrationConfig, data_path: str | None = None) -> list[str]",
+        description: "Extracts explicit Hugging Face dataset IDs from config fields, training_procedure notes/sources, prompt text, and optional hf:// data_path.",
         params: [
-          { name: "task_description", type: "str", description: "Natural-language task description from OrchestrationConfig." },
-          { name: "task_type", type: "str", description: "Structured task type (e.g. 'text-classification', 'token-classification', 'seq2seq')." },
+          { name: "config", type: "OrchestrationConfig", description: "Orchestration config that may include explicit HF sources." },
+          { name: "data_path", type: "str | None", description: "Optional user path that may use hf://<org>/<dataset> syntax.", optional: true },
         ],
-        returns: { type: "list[HFCandidate]", description: "Up to 10 candidates with id, name, num_examples, license, task_categories, download_size." },
+        returns: { type: "list[str]", description: "Normalized HF dataset IDs like ['org/name', ...]." },
       },
       {
-        name: "rank_hf_candidates",
-        signature: "rank_hf_candidates(candidates: list[HFCandidate], config: OrchestrationConfig) -> HFCandidate | None",
-        description: "Scores candidates by relevance to task, dataset size, license compatibility, and download size. Returns the best candidate or None if all fail the minimum quality bar.",
+        name: "build_explicit_hf_candidates",
+        signature: "build_explicit_hf_candidates(dataset_ids: list[str], task_type: str) -> list[HFCandidate]",
+        description: "Builds candidate metadata objects for explicit HF dataset IDs so downstream retrieval can fetch each source.",
         params: [
-          { name: "candidates", type: "list[HFCandidate]", description: "Output of search_huggingface." },
-          { name: "config", type: "OrchestrationConfig", description: "Used to weight task relevance and size requirements." },
+          { name: "dataset_ids", type: "list[str]", description: "Normalized explicit HF dataset IDs." },
+          { name: "task_type", type: "str", description: "Task category used in candidate metadata." },
         ],
-        returns: { type: "HFCandidate | None", description: "Best-ranked candidate, or None if no candidate meets quality threshold." },
+        returns: { type: "list[HFCandidate]", description: "Candidate list preserving user-provided source order." },
       },
       {
-        name: "download_hf_dataset",
-        signature: "download_hf_dataset(candidate: HFCandidate) -> RawData",
-        description: "Downloads the selected HuggingFace dataset to disk and loads it into a RawData object.",
+        name: "fetch_hf_datasets",
+        signature: "fetch_hf_datasets(candidates: list[HFCandidate]) -> RawData",
+        description: "Fetches records from Hugging Face datasets for each explicit candidate and returns a combined RawData bundle.",
         params: [
-          { name: "candidate", type: "HFCandidate", description: "Selected candidate from rank_hf_candidates." },
+          { name: "candidates", type: "list[HFCandidate]", description: "Explicit candidates from build_explicit_hf_candidates." },
         ],
-        returns: { type: "RawData", description: "Downloaded dataset as RawData, ready for normalize_and_clean." },
+        returns: { type: "RawData", description: "Combined records with source attribution and HF bundle metadata." },
       },
       {
         name: "validate_dataset",
@@ -498,7 +491,7 @@ Graph nodes and edges:
       {
         name: "determine_data_schema",
         signature: "determine_data_schema(config: OrchestrationConfig) -> DataSchema",
-        description: "Uses the Claude API to infer the input/output schema for synthetic data generation from the OrchestrationConfig training_procedure.",
+        description: "Infers the input/output schema for synthetic data generation from the OrchestrationConfig training_procedure. Live teacher-assisted schema inference is optional; no-spend/offline runs use deterministic schema defaults.",
         params: [
           { name: "config", type: "OrchestrationConfig", description: "Orchestration config with training_procedure details." },
         ],
@@ -511,7 +504,7 @@ Graph nodes and edges:
         params: [
           { name: "schema", type: "DataSchema", description: "Input/output schema from determine_data_schema." },
           { name: "n_examples", type: "int", description: "Number of examples to generate." },
-          { name: "teacher_model", type: "str", description: "Claude model ID for the LLM teacher. Defaults to Haiku for cost efficiency.", optional: true },
+          { name: "teacher_model", type: "str", description: "Optional Claude model ID for the live LLM teacher. Disabled in no-spend/offline runs.", optional: true },
         ],
         returns: { type: "RawData", description: "Generated examples as RawData, ready for morph_to_standard." },
       },
@@ -545,18 +538,16 @@ Graph nodes and edges:
     title: "Feature 2 — Decision Engine",
     owner: "Ron Polonsky, Angel Raychev",
     description:
-      "Analyzes the task and budget to choose a training strategy (fine-tune vs. pre-train), select a base model, configure LoRA if applicable, and write the training script handed to AutoResearch.",
-    architecture: `The Decision Engine is a pure decision function — no LLM calls, no side effects beyond writing train.py to disk. It takes the OrchestrationConfig + DatasetResult and produces a TrainingPlan.
+      "Analyzes the task and budget to choose a training strategy, select a base model, configure LoRA, and produce the TrainingPlan handed to AutoResearch.",
+    architecture: `The Decision Engine is a pure decision function — no LLM calls, no side effects beyond writing the compatibility train.py artifact. It takes the OrchestrationConfig + DatasetResult and produces a TrainingPlan.
 
-The key decision is fine-tune vs. pre-train. The engine checks whether a suitable pretrained model exists on HuggingFace and whether fine-tuning it would fit within the budget. If both are true, it takes the fine-tune path (Case A). Otherwise it writes a model from scratch (Case B).
+The active V1 decision is the SDK-native Tinker chat/SFT path. The engine chooses a base model, estimates full-plan and bounded-run cost, configures LoRA, writes a compatibility train.py artifact, and emits backend="tinker_sft" plus dataset_path. If budget is too small, the plan still stays on Tinker SFT and AutoResearch's budget preflight skips or stops launches; it does not switch to pre-training from scratch.
 
-Case A — Fine-tune with LoRA:
-Find the best pretrained base model → estimate the cost of fine-tuning it → configure LoRA parameters appropriate for the model architecture → generate train.py that wraps the base model with LoRA adapters, sets up the optimizer and data loaders from the DatasetResult, and includes standardized checkpoint saves and metric logging hooks.
+V1 path — Tinker chat/SFT with LoRA:
+Find the best pretrained base model → estimate the cost of fine-tuning it → configure LoRA parameters appropriate for the model architecture → generate a compatibility train.py artifact and emit backend="tinker_sft" with dataset_path for the SDK-native runner.
 
-Case B — Pre-train from scratch:
-Generate both model.py (architecture definition) and train.py (training loop) targeting the task type. The architecture is sized to fit within the remaining budget.
-
-In both cases the output is a TrainingPlan with the path to train.py. AutoResearch will treat this script as mutable and apply patches to it during the search loop — so the script must follow a consistent, patchable structure with clearly separated config, model, and training loop sections.`,
+Compatibility-only note:
+Older code and specs may mention write_pretrain_script(), but full pre-training is out of scope for V1. For the active path, AutoResearch uses backend="tinker_sft", base_model, lora_config, estimated_run_cost_usd, and dataset_path directly; training_script_path remains compatibility baggage for older paths and generated artifacts.`,
     flowDiagram: `
 run_decision_engine(config, dataset)
   │
@@ -569,28 +560,27 @@ run_decision_engine(config, dataset)
   ├─► estimate_training_cost(model_id, dataset, strategy)
   │     └─► CostEstimate  { estimated_usd, estimated_time_min }
   │
-  ├─[model found AND cost fits budget]──────── CASE A: Fine-tune
-  │   ├─► configure_lora(base_model, task)
-  │   │     └─► LoRAConfig  { rank, alpha, dropout, target_modules }
-  │   └─► write_finetune_script(base_model, dataset, lora, config)
-  │         └─► train.py path
+  ├─► configure_lora(base_model, task)
+  │     └─► LoRAConfig  { rank, alpha, dropout, target_modules }
   │
-  └─[no model OR cost too high]────────────── CASE B: Pre-train
-      └─► write_pretrain_script(task, dataset, config)
-            └─► train.py path
+  ├─► write_finetune_script(base_model, dataset, lora, config)
+  │     └─► compatibility train.py path
+  │
+  ├─► estimate bounded Tinker run cost
+  │     └─► estimated_run_cost_usd
 
-  └─► TrainingPlan  (returned to Manager → AutoResearch)
+  └─► TrainingPlan  { backend, dataset_path, base_model, lora_config, training_script_path }
     `,
     functions: [
       {
         name: "run_decision_engine",
         signature: "run_decision_engine(config: OrchestrationConfig, dataset: DatasetResult) -> TrainingPlan",
-        description: "Top-level dispatcher. Runs task analysis, model selection, cost estimation, and script generation. Returns a complete TrainingPlan.",
+        description: "Top-level dispatcher. Runs task analysis, model selection, cost estimation, compatibility script generation, and returns a complete TrainingPlan for AutoResearch.",
         params: [
           { name: "config", type: "OrchestrationConfig", description: "Orchestration config from Manager." },
           { name: "dataset", type: "DatasetResult", description: "Output of run_data_generator." },
         ],
-        returns: { type: "TrainingPlan", description: "{ strategy, base_model, lora_config, estimated_cost, estimated_time_min, training_script_path, eval_metric }." },
+        returns: { type: "TrainingPlan", description: "{ strategy, base_model, lora_config, estimated_cost, estimated_time_min, training_script_path, eval_metric, backend, dataset_path }." },
       },
       {
         name: "analyze_task",
@@ -603,22 +593,22 @@ run_decision_engine(config, dataset)
       },
       {
         name: "find_base_model",
-        signature: "find_base_model(task: TaskAnalysis, budget: float) -> str | None",
-        description: "Searches HuggingFace Hub for the best pretrained base model matching the task type and budget constraints. Returns the model ID or None if pre-training is required.",
+        signature: "find_base_model(task: TaskAnalysis, budget: float) -> str",
+        description: "Searches HuggingFace Hub for the best pretrained base model matching the task type and budget constraints. For Tinker SFT V1, falls back to the supported default base model rather than switching to pre-training.",
         params: [
           { name: "task", type: "TaskAnalysis", description: "Output of analyze_task." },
           { name: "budget", type: "float", description: "Remaining budget in USD." },
         ],
-        returns: { type: "str | None", description: "HuggingFace model ID (e.g. 'bert-base-uncased') or None." },
+        returns: { type: "str", description: "HuggingFace/Tinker model ID, defaulting to the supported Tinker chat/SFT base model when needed." },
       },
       {
         name: "estimate_training_cost",
-        signature: "estimate_training_cost(model_id: str | None, dataset: DatasetResult, strategy: str) -> CostEstimate",
-        description: "Estimates GPU-hours and USD cost for a training run based on model size, dataset size, and strategy (fine-tune or pre-train).",
+        signature: "estimate_training_cost(model_id: str, dataset: DatasetResult, strategy: str) -> CostEstimate",
+        description: "Estimates GPU-hours and USD cost for the Tinker SFT plan and bounded AutoResearch launches.",
         params: [
-          { name: "model_id", type: "str | None", description: "HuggingFace model ID, or None for pre-train." },
+          { name: "model_id", type: "str", description: "HuggingFace/Tinker model ID." },
           { name: "dataset", type: "DatasetResult", description: "Dataset result (used for num_examples and input length)." },
-          { name: "strategy", type: "str", description: "'fine-tune' or 'pre-train'." },
+          { name: "strategy", type: "str", description: "'fine-tune' / Tinker SFT for the active V1 path." },
         ],
         returns: { type: "CostEstimate", description: "{ estimated_usd: float, estimated_gpu_hours: float, estimated_time_min: int, confidence: 'low'|'medium'|'high' }." },
       },
@@ -635,7 +625,7 @@ run_decision_engine(config, dataset)
       {
         name: "write_finetune_script",
         signature: "write_finetune_script(base_model: str, dataset: DatasetResult, lora: LoRAConfig, config: OrchestrationConfig) -> str",
-        description: "Generates a complete train.py fine-tuning script with LoRA, standard logging hooks, and checkpoint saves. Returns the path to the written script.",
+        description: "Generates a compatibility train.py fine-tuning artifact with LoRA. The SDK-native Tinker runner is the execution path; the script path is preserved for older callers and inspection.",
         params: [
           { name: "base_model", type: "str", description: "HuggingFace model ID." },
           { name: "dataset", type: "DatasetResult", description: "Dataset result used to set data paths in the script." },
@@ -647,7 +637,7 @@ run_decision_engine(config, dataset)
       {
         name: "write_pretrain_script",
         signature: "write_pretrain_script(task: TaskAnalysis, dataset: DatasetResult, config: OrchestrationConfig) -> str",
-        description: "Generates a from-scratch model.py + train.py for novel architecture pre-training. Returns the path to the written script.",
+        description: "Compatibility-only legacy helper for older pre-training experiments. Full pre-training is out of scope for Tinker chat/SFT V1 and is not selected by the active DecisionEngine path.",
         params: [
           { name: "task", type: "TaskAnalysis", description: "Task analysis output." },
           { name: "dataset", type: "DatasetResult", description: "Dataset result." },
@@ -670,7 +660,7 @@ run_decision_engine(config, dataset)
 Why LangGraph here (most important use):
   - The loop must be resumable. If a Tinker job crashes mid-run or the process is killed, LangGraph's built-in checkpointing lets the loop resume from the last completed node rather than restarting from scratch.
   - The conditional branching (early stop vs. evaluate, keep vs. revert, continue vs. stop) maps directly to LangGraph conditional edges, making the control flow readable and independently testable.
-  - AutoResearchState holds all mutable loop data (diary, current_script, best_score, iteration count) in one typed dict. No hidden globals or class state.
+  - AutoResearchState holds all mutable loop data (diary, current_config, current_patch, best_score, iteration count) in one typed dict. No hidden globals or class state.
 
 Graph structure (cyclic):
   init_node → baseline_node → propose_node → run_node → [early_stop_edge] → evaluate_node → [decision_edge] → log_node → [continue_edge] → propose_node (loop) or END
@@ -686,7 +676,7 @@ build_autoresearch_graph() → CompiledStateGraph[AutoResearchState]
 
 AutoResearchState = TypedDict:
   plan, config, eval_suite,
-  current_script, current_config, original_content,
+  current_script, current_config, current_patch, original_content,
   diary, baseline_score, best_score,
   last_result, last_score, last_delta,
   iteration, no_improve_streak, should_stop
@@ -698,15 +688,15 @@ Graph nodes and edges:
   init_node              create_eval_suite()
     │
     ▼
-  baseline_node          submit_experiment → wait → run_evals
+  baseline_node          run_tinker_sft_experiment() → run_evals
     │                    sets baseline_score + best_score
     ▼
   propose_node  ◄────────────────────────────────────┐
-    │           propose_hypothesis()  [Claude API]   │
-    │           apply_patch() → saves original_content│
+    │           proposer [local/Claude]              │
+    │           apply_patch(config JSON) → current_patch + original_content
     ▼                                                 │
-  run_node               submit_experiment()          │
-    │                    wait_for_experiment()         │
+  run_node               run_tinker_sft_experiment()  │
+    │                    with pending proposal patch   │
     │                                                 │
     ├─[early_stop_edge: catastrophic failure]──────   │
     │   ▼                                             │
@@ -715,7 +705,7 @@ Graph nodes and edges:
     │
     └─[early_stop_edge: normal]──────────────────────
         ▼
-      evaluate_node       run_evals() → compare_scores() → flag_regression()
+      evaluate_node       run_evals() → compare_scores(vs best) → flag_regression()
         │
         ├─[decision_edge: KEEP]──────────────────────
         │   ▼
@@ -760,29 +750,29 @@ Graph nodes and edges:
       {
         name: "init_node",
         signature: "init_node(state: AutoResearchState) -> dict",
-        description: "LangGraph node. Calls create_eval_suite() and sets up the initial state for the loop (eval_suite, current_script from plan, iteration=0).",
+        description: "LangGraph node. Calls create_eval_suite(), seeds configs/current.json from state, and sets up eval_suite/current_config/iteration for the loop.",
         params: [{ name: "state", type: "AutoResearchState", description: "Initial state with plan and config populated." }],
         returns: { type: "dict", description: "Partial state update: { eval_suite, current_script, current_config, iteration: 0 }." },
       },
       {
         name: "baseline_node",
         signature: "baseline_node(state: AutoResearchState) -> dict",
-        description: "LangGraph node. Submits and runs the unmodified baseline training script, evaluates it, and sets baseline_score and best_score in state.",
+        description: "LangGraph node. Runs the unmodified baseline through the SDK-native Tinker SFT runner, evaluates it, records cost, and sets baseline_score and best_score.",
         params: [{ name: "state", type: "AutoResearchState", description: "State after init_node." }],
         returns: { type: "dict", description: "Partial state update: { baseline_score, best_score }." },
       },
       {
         name: "propose_node",
         signature: "propose_node(state: AutoResearchState) -> dict",
-        description: "LangGraph node. Calls propose_hypothesis() with the research diary and current config. Applies the returned patch to the script and saves original_content for revert.",
+        description: "LangGraph node. Calls the configured proposer with the research diary and current config. AUTORESEARCH_PROPOSER=auto uses local mode without credentials or under NO_SPEND, and can use Claude when explicitly/live configured. Applies a validated JSON config patch and saves original_content for revert.",
         params: [{ name: "state", type: "AutoResearchState", description: "Current loop state." }],
-        returns: { type: "dict", description: "Partial state update: { current_script (patched), original_content, last_hypothesis }." },
+        returns: { type: "dict", description: "Partial state update: { current_script, current_patch, original_content, last_description }." },
       },
       {
         name: "run_node",
         signature: "run_node(state: AutoResearchState) -> dict",
-        description: "LangGraph node. Calls submit_experiment and wait_for_experiment with the patched script. Writes ExperimentResult to state. early_stop_edge reads from state after this node.",
-        params: [{ name: "state", type: "AutoResearchState", description: "Current loop state (current_script must be patched)." }],
+        description: "LangGraph node. Calls run_tinker_sft_experiment with the current config plus pending patch. Writes ExperimentResult and budget stop signal to state.",
+        params: [{ name: "state", type: "AutoResearchState", description: "Current loop state with current_patch populated by propose_node." }],
         returns: { type: "dict", description: "Partial state update: { last_result: ExperimentResult }." },
       },
       {
@@ -802,7 +792,7 @@ Graph nodes and edges:
       {
         name: "evaluate_node",
         signature: "evaluate_node(state: AutoResearchState) -> dict",
-        description: "LangGraph node. Calls run_evals, compare_scores, and flag_regression. Writes last_score and last_delta to state. decision_edge reads from state after this node.",
+        description: "LangGraph node. Calls run_evals, compares the candidate against the current best score, and flags regressions. decision_edge reads last_delta.",
         params: [{ name: "state", type: "AutoResearchState", description: "State after run_node (normal completion)." }],
         returns: { type: "dict", description: "Partial state update: { last_score: EvalScore, last_delta: ScoreDelta }." },
       },
@@ -845,7 +835,7 @@ Graph nodes and edges:
       {
         name: "propose_hypothesis",
         signature: "propose_hypothesis(current_config: dict, diary: ResearchDiary, task: TaskAnalysis) -> Hypothesis",
-        description: "Calls the Claude API with the research diary and current config to generate a single testable hypothesis as a code/config diff. Uses random search over bounded ranges, local perturbations around the current best, and playbook heuristics.",
+        description: "Live Claude proposer for generating a single testable hypothesis as a code/config diff. The default AutoResearch path can use a deterministic local proposer under no-key/no-spend settings; both modes restrict Tinker V1 search to supported tunables.",
         params: [
           { name: "current_config", type: "dict", description: "Current training hyperparameters and architecture settings." },
           { name: "diary", type: "ResearchDiary", description: "All past iterations and their outcomes." },
@@ -856,19 +846,19 @@ Graph nodes and edges:
       {
         name: "apply_patch",
         signature: "apply_patch(script_path: str, patch: str) -> str",
-        description: "Applies a unified diff patch to the training script. Saves the original content before patching so revert_patch can restore it.",
+        description: "Applies a validated JSON hyperparameter patch to configs/current.json. Saves the original content before patching so revert_patch can restore it.",
         params: [
-          { name: "script_path", type: "str", description: "Path to the current train.py." },
-          { name: "patch", type: "str", description: "Unified diff string from propose_hypothesis." },
+          { name: "script_path", type: "str", description: "Path to configs/current.json for the Tinker SFT v1 path." },
+          { name: "patch", type: "str", description: "JSON-encoded config patch from propose_hypothesis." },
         ],
-        returns: { type: "str", description: "The original script content (to pass to revert_patch if needed)." },
+        returns: { type: "str", description: "The original JSON content (to pass to revert_patch if needed)." },
       },
       {
         name: "revert_patch",
         signature: "revert_patch(script_path: str, original_content: str) -> None",
-        description: "Restores train.py to its pre-patch content when a hypothesis is rejected.",
+        description: "Restores configs/current.json to its pre-patch content when a hypothesis is rejected.",
         params: [
-          { name: "script_path", type: "str", description: "Path to the patched train.py." },
+          { name: "script_path", type: "str", description: "Path to the patched config JSON." },
           { name: "original_content", type: "str", description: "Original file content returned by apply_patch." },
         ],
         returns: { type: "None", description: "Writes to disk only." },
@@ -877,20 +867,20 @@ Graph nodes and edges:
       {
         name: "submit_experiment",
         signature: "submit_experiment(script_path: str, plan: TrainingPlan, timeout_min: int = 5) -> str",
-        description: "Submits a constrained (short, budgeted) training run to Tinker for a single hypothesis test. Returns the Tinker job ID.",
+        description: "Compatibility wrapper for older call sites. It now runs a constrained SDK-native Tinker SFT experiment and returns the run ID.",
         params: [
-          { name: "script_path", type: "str", description: "Path to the patched train.py to submit." },
+          { name: "script_path", type: "str", description: "Compatibility training script path; ignored by the SDK-native Tinker path." },
           { name: "plan", type: "TrainingPlan", description: "Training plan (used for resource config)." },
           { name: "timeout_min", type: "int", description: "Max wall-clock minutes for this experiment. Defaults to 5 for mini runs.", optional: true },
         ],
-        returns: { type: "str", description: "Tinker job ID." },
+        returns: { type: "str", description: "Tinker run ID." },
       },
       {
         name: "wait_for_experiment",
         signature: "wait_for_experiment(job_id: str, timeout_min: int) -> ExperimentResult",
-        description: "Polls Tinker for job completion and returns the result. Raises TimeoutError if timeout_min is exceeded.",
+        description: "Compatibility wrapper for older call sites. It returns a cached or artifact-backed SDK-native ExperimentResult; it does not poll a REST job queue.",
         params: [
-          { name: "job_id", type: "str", description: "Tinker job ID from submit_experiment." },
+          { name: "job_id", type: "str", description: "Tinker run ID from submit_experiment." },
           { name: "timeout_min", type: "int", description: "Maximum wait time in minutes." },
         ],
         returns: { type: "ExperimentResult", description: "{ job_id, status, metrics: TrainingMetrics, model_path, cost_usd, logs_path }." },
@@ -985,58 +975,44 @@ Graph nodes and edges:
     title: "Feature 4 — Cost Manager",
     owner: "Sid Potti",
     description:
-      "Hard financial guardrail. Continuously polls Tinker billing API every 30 seconds. Saves checkpoint at 90% of budget; kills the GPU instance at 100%. Returns final weights and a cost breakdown.",
-    architecture: `The Cost Manager runs as a background thread — it never blocks the main training loop and never needs to be awaited. It is started once per Tinker job via start_cost_monitor(), which spawns the monitor thread and returns immediately.
+      "Financial guardrail for live runs. It records in-process AutoResearch/Tinker spend, can run a legacy polling monitor, and returns final cost breakdowns.",
+    architecture: `The Cost Manager has two layers.
 
-The monitor thread runs a tight polling loop:
-  every 30 seconds → poll_spend(job_id) → check_budget_status(spent, budget)
-  → OK: do nothing
-  → WARNING (≥90%): call save_checkpoint() and emit a log warning
-  → EXCEEDED (≥100%): call save_checkpoint(), then kill_job(), then stop the thread
+Current AutoResearch/Tinker path:
+  - Manager creates CostManager(budget) and passes it into AutoResearch.
+  - AutoResearch calls cost_manager.start(run_id) around each SDK-native Tinker run.
+  - After each run, AutoResearch calls record_spend(result.cost_usd, category="training").
+  - continue_edge and final TrainedModel cost reports read cost_manager.spent_usd and cost_breakdown().
+  - If the manager reaches EXCEEDED, AutoResearch stops after the current bounded run.
 
-In addition to the budget-triggered saves, the training script itself calls save_checkpoint() every 5–10 minutes during the training loop. This ensures we always have a recent checkpoint even if the kill happens between polling cycles.
+Legacy monitor path:
+  start_cost_monitor(job_id, budget) still exists for older script-style jobs. It polls poll_spend(), writes checkpoint signal files at WARNING/EXCEEDED, and calls kill_job() at EXCEEDED.
 
-The Cost Manager also runs during AutoResearch mini-runs, not just the final training run. Each 5-minute experiment is registered with start_cost_monitor() so it can be killed if it somehow overruns.
-
-At the end of the run (whether natural completion or budget kill), generate_cost_report() is called to produce the final CostBreakdown that gets returned to the user as part of TrainedModel.`,
+V1 limitation:
+  The SDK-native Tinker path still relies on local token/cost estimates returned by the runner. This is a budget guard, not authoritative billing.`,
     flowDiagram: `
-start_cost_monitor(job_id, budget, poll_interval=30)
-  └─► spawns background thread, returns immediately
+Manager:
+  CostManager(budget)
+    └─► AutoResearch state
 
-BACKGROUND THREAD:
-  loop every 30s:
-    ├─► poll_spend(job_id)           ← Tinker billing API
-    │     └─► spent: float
-    │
-    ├─► check_budget_status(spent, budget)
-    │     └─► BudgetStatus: OK | WARNING | EXCEEDED
-    │
-    ├─[OK]──► continue polling
-    │
-    ├─[WARNING ≥90%]──────────────────────────────────
-    │   ├─► save_checkpoint(job_id, output_dir)
-    │   └─► log_event(COST_MANAGER, WARN, "90% budget used")
-    │
-    └─[EXCEEDED ≥100%]────────────────────────────────
-        ├─► save_checkpoint(job_id, output_dir)
-        ├─► kill_job(job_id)          ← Tinker API: terminate instance
-        ├─► log_event(COST_MANAGER, WARN, "Budget limit reached")
-        └─► stop thread
+Each Tinker run:
+  cost_manager.start(run_id)
+    └─► optional monitor thread for compatibility
+  run_tinker_sft_experiment(...)
+  cost_manager.record_spend(cost_usd, "training")
+    └─► BudgetStatus: OK | WARNING | EXCEEDED
 
-TRAINING SCRIPT (every 5-10 min):
-  └─► save_checkpoint()  ← called from within train.py directly
-
-END OF RUN:
-  └─► generate_cost_report(job_id)
-        └─► CostBreakdown  { data_gen_usd, training_usd, llm_calls_usd, total_usd }
+Final response:
+  cost_manager.cost_breakdown(termination_reason)
+    └─► CostBreakdown { data_gen_usd, training_usd, llm_calls_usd, total_usd }
     `,
     functions: [
       {
         name: "start_cost_monitor",
         signature: "start_cost_monitor(job_id: str, budget: float, poll_interval_sec: int = 30) -> threading.Thread",
-        description: "Starts a background thread that polls Tinker billing every poll_interval_sec seconds. The thread calls save_checkpoint at 90% budget and kill_job at 100%.",
+        description: "Starts the legacy background monitor for script-style jobs. SDK-native AutoResearch also calls this through CostManager.start(), but spend is recorded in-process after each bounded run.",
         params: [
-          { name: "job_id", type: "str", description: "Tinker job ID to monitor." },
+          { name: "job_id", type: "str", description: "Tinker run/job ID to monitor." },
           { name: "budget", type: "float", description: "Hard budget cap in USD." },
           { name: "poll_interval_sec", type: "int", description: "Polling interval in seconds. Default 30.", optional: true },
         ],
@@ -1045,9 +1021,9 @@ END OF RUN:
       {
         name: "poll_spend",
         signature: "poll_spend(job_id: str) -> float",
-        description: "Calls Tinker billing API to fetch cumulative USD spend for a job.",
+        description: "Fetches cumulative USD spend for a run/job through the low-level Tinker helper.",
         params: [
-          { name: "job_id", type: "str", description: "Tinker job ID." },
+          { name: "job_id", type: "str", description: "Tinker run/job ID." },
         ],
         returns: { type: "float", description: "Cumulative USD spend so far." },
       },
@@ -1064,9 +1040,9 @@ END OF RUN:
       {
         name: "save_checkpoint",
         signature: "save_checkpoint(job_id: str, output_dir: str) -> str",
-        description: "Saves the current model state_dict to disk. Called automatically at 90% budget and every 5–10 minutes during training.",
+        description: "Writes a checkpoint signal file for legacy script-style training. SDK-native Tinker checkpoints are saved by the runner manifest path.",
         params: [
-          { name: "job_id", type: "str", description: "Tinker job ID (used to locate the running process)." },
+          { name: "job_id", type: "str", description: "Tinker run/job ID." },
           { name: "output_dir", type: "str", description: "Directory to write the checkpoint file." },
         ],
         returns: { type: "str", description: "Absolute path to the saved checkpoint file." },
@@ -1074,18 +1050,18 @@ END OF RUN:
       {
         name: "kill_job",
         signature: "kill_job(job_id: str) -> None",
-        description: "Calls Tinker API to immediately terminate the GPU instance for job_id. Called when spend >= budget.",
+        description: "Requests cancellation for the run/job. In the SDK-native path this sets a local cancellation signal checked between training steps.",
         params: [
-          { name: "job_id", type: "str", description: "Tinker job ID to kill." },
+          { name: "job_id", type: "str", description: "Tinker run/job ID to cancel." },
         ],
-        returns: { type: "None", description: "Side effect only: terminates the Tinker job." },
+        returns: { type: "None", description: "Side effect only: requests cancellation." },
       },
       {
         name: "generate_cost_report",
         signature: "generate_cost_report(job_id: str) -> CostBreakdown",
-        description: "Fetches the final cost breakdown from Tinker and splits it into components (data generation, training, LLM calls). Returned to the user at end of run.",
+        description: "Legacy helper that fetches cumulative spend and estimates a component breakdown. CostManager.cost_breakdown() is preferred for in-process AutoResearch runs.",
         params: [
-          { name: "job_id", type: "str", description: "Completed or terminated Tinker job ID." },
+          { name: "job_id", type: "str", description: "Completed or cancelled Tinker run/job ID." },
         ],
         returns: { type: "CostBreakdown", description: "{ data_gen_usd, training_usd, llm_calls_usd, total_usd, termination_reason }." },
       },
@@ -1179,106 +1155,135 @@ Cost Manager calls:
     ],
   },
 
-  // ─── TINKER API WRAPPER ───────────────────────────────────────────────────────
+  // ─── TINKER SDK RUNNER ────────────────────────────────────────────────────────
   {
     id: "tinker-api",
-    title: "Tinker API Wrapper",
+    title: "Tinker SDK Runner",
     owner: "Sid Potti",
     description:
-      "Thin wrapper around Tinker's job submission and billing REST APIs. All GPU training runs and cost monitoring go through these functions.",
-    architecture: `The Tinker API Wrapper is a pure HTTP client — no business logic, no state. It exists to give the rest of the system a typed, mockable interface to Tinker's REST APIs so that every other feature doesn't need to know about auth headers, retry logic, or response parsing.
+      "SDK-native Tinker chat/SFT runner plus low-level Tinker helpers. AutoResearch calls this path directly instead of submitting REST jobs.",
+    architecture: `The current implementation is SDK-native. AutoResearch does not submit a REST job or poll a remote job queue. It builds a TrainingConfig and DatasetResult, then calls run_tinker_sft_experiment(), which creates a tinker.ServiceClient and a LoRA training client in-process.
 
-Two Tinker APIs are used:
-  Job API: submit_job, get_job_status, cancel_job, get_job_logs, list_jobs
-  Billing API: get_cumulative_spend
+Supported v1 path:
+  JSONL chat/SFT data
+    -> DataGen curation writes local train_data.jsonl
+    -> Decision Engine emits backend="tinker_sft" and dataset_path
+    -> AutoResearch calls run_tinker_sft_experiment()
+    -> Tinker SDK LoRA training, checkpoint, sample, metrics, manifest
+    -> AutoResearch scores metrics with primary_metric = 1 / (1 + val_loss)
 
-Callers:
-  AutoResearch calls submit_job() and wait_for_experiment() (which polls get_job_status()).
-  Cost Manager calls get_cumulative_spend() every 30 seconds and cancel_job() when budget is exceeded.
-  Observability optionally calls get_job_logs() to stream training output.
+Runner responsibilities:
+  - Normalize JSONL records with messages or input/output-style fields.
+  - Create tinker.ServiceClient().
+  - Create a LoRA training client with create_lora_training_client(base_model=model_name, rank=lora_rank).
+  - Resolve tokenizer and renderer through tinker_cookbook; Qwen/Qwen3.5-9B falls back to qwen3_5_disable_thinking when the registry has no direct recommendation.
+  - Render conversations with TrainOnWhat.LAST_ASSISTANT_MESSAGE and split multi-assistant examples into one target per assistant turn.
+  - Run pipelined forward_backward and optim_step calls, recording token usage.
+  - Save final checkpoint/sampling identifiers and write metrics.json, metrics.jsonl, manifest.json, and sample.json.
 
-All functions raise a TinkerAPIError on non-2xx responses. Retry logic (exponential backoff, max 3 attempts) is handled internally so callers don't need to implement it.
+Cost/cancel behavior:
+  Cost Manager wraps each AutoResearch Tinker run with start()/stop(), records the runner's reported cost_usd, and can cancel between SDK steps through the shared cancellation signal. Token-estimate spend is still a local budget guard, not authoritative billing.
 
-NOTE: Tinker API docs + auth credentials are a hard dependency. This wrapper cannot be built until Sid confirms the API spec (target: Apr 18). All other features can be built with a mock implementation of this module in the meantime.`,
+Compatibility:
+  submit_experiment() and wait_for_experiment() remain compatibility wrappers for old call sites, but they no longer represent the full graph execution path. New work should call run_tinker_sft_experiment() directly.`,
     flowDiagram: `
 AutoResearch:
-  submit_job(script_path, job_config)  ──►  POST /jobs
-    └─► job_id: str (UUID)
+  TrainingPlan(backend="tinker_sft", dataset_path)
+    └─► run_tinker_sft_experiment(config, dataset, max_steps)
+          ├─► tinker.ServiceClient()
+          ├─► create_lora_training_client(base_model, rank)
+          ├─► renderer + tokenizer from tinker_cookbook
+          ├─► forward_backward + optim_step loop
+          ├─► save checkpoint/sampler
+          └─► metrics + manifest + sample artifacts
 
-  get_job_status(job_id)  ──────────►  GET /jobs/{id}/status
-    └─► JobStatus: PENDING | RUNNING | COMPLETED | FAILED
+Data path:
+  JSONL records
+    ├─► messages[{role, content}]
+    └─► input|prompt|question|content + output|answer|label|target
 
 Cost Manager:
-  get_cumulative_spend(job_id)  ──────►  GET /billing/{id}/spend
-    └─► float (USD)
+  start(run_id)
+    └─► AutoResearch/Tinker run
+          ├─► record_spend(cost_usd)
+          └─► cancel_job(run_id) sets a local signal checked between SDK steps
 
-  cancel_job(job_id)  ────────────────►  POST /jobs/{id}/cancel
-
-Observability (optional):
-  get_job_logs(job_id, tail=100)  ─────►  GET /jobs/{id}/logs?tail=100
-    └─► list[str]
+Artifacts:
+  outputs/experiments/<run_id>/
+    ├─► metrics.json
+    ├─► metrics.jsonl
+    ├─► manifest.json
+    └─► sample.json
 
 All functions:
-  - Raise TinkerAPIError on non-2xx
-  - Retry up to 3× with exponential backoff
+  - Raise TinkerAPIError for SDK failures
+  - Reject malformed or targetless chat/SFT rows before training
   - Log every call via log_event(TINKER_API, INFO, ...)
     `,
     functions: [
       {
-        name: "submit_job",
-        signature: "submit_job(script_path: str, job_config: JobConfig) -> str",
-        description: "Submits a training script to Tinker for execution on a GPU instance. Returns the Tinker job ID.",
+        name: "run_tinker_sft_experiment",
+        signature: "run_tinker_sft_experiment(config, dataset, *, run_id=None, max_steps=None, output_dir='outputs/experiments', service_client=None) -> ExperimentResult",
+        description: "Runs one SDK-native chat/SFT LoRA experiment and writes metrics, manifest, sample, and checkpoint metadata artifacts.",
         params: [
-          { name: "script_path", type: "str", description: "Absolute path to the train.py script." },
-          { name: "job_config", type: "JobConfig", description: "{ gpu_type, num_gpus, timeout_min, env_vars, output_dir }." },
+          { name: "config", type: "TrainingConfig | Mapping", description: "Model and supported v1 tunables: learning_rate, batch_size, max_seq_length, lora_rank, num_epochs." },
+          { name: "dataset", type: "DatasetResult | Sequence[dict]", description: "Local JSONL DatasetResult or in-memory chat/SFT records." },
+          { name: "run_id", type: "str | None", description: "Optional stable run ID used for artifact directory and cancellation signal.", optional: true },
+          { name: "max_steps", type: "int | None", description: "Optional step cap. Live smoke default is 5.", optional: true },
+          { name: "output_dir", type: "str", description: "Experiment artifact root.", optional: true },
+          { name: "service_client", type: "Any | None", description: "Optional injected Tinker ServiceClient for tests.", optional: true },
         ],
-        returns: { type: "str", description: "Tinker job ID (UUID string)." },
+        returns: { type: "ExperimentResult", description: "{ job_id, status, metrics, model_path, cost_usd, logs_path }." },
       },
       {
-        name: "get_job_status",
-        signature: "get_job_status(job_id: str) -> JobStatus",
-        description: "Fetches the current status of a Tinker job.",
+        name: "record_to_conversation",
+        signature: "record_to_conversation(record: Mapping[str, Any]) -> list[dict[str, str]]",
+        description: "Converts one JSONL record into a chat conversation, accepting either messages or input/output-style fields.",
         params: [
-          { name: "job_id", type: "str", description: "Tinker job ID." },
+          { name: "record", type: "Mapping[str, Any]", description: "One candidate SFT record." },
         ],
-        returns: { type: "JobStatus", description: "Enum: PENDING | RUNNING | COMPLETED | FAILED | CANCELLED." },
+        returns: { type: "list[dict[str, str]]", description: "Normalized messages with user and assistant target." },
       },
       {
-        name: "get_cumulative_spend",
-        signature: "get_cumulative_spend(job_id: str) -> float",
-        description: "Returns the cumulative USD spend for a job from the Tinker billing API.",
+        name: "resolve_renderer_name",
+        signature: "resolve_renderer_name(model_name: str) -> str",
+        description: "Returns the cookbook-recommended renderer, with a Qwen/Qwen3.5-9B fallback to qwen3_5_disable_thinking.",
         params: [
-          { name: "job_id", type: "str", description: "Tinker job ID." },
+          { name: "model_name", type: "str", description: "Tinker base model ID." },
         ],
-        returns: { type: "float", description: "Cumulative spend in USD." },
+        returns: { type: "str", description: "Renderer name passed to tinker_cookbook renderers." },
+      },
+      {
+        name: "create_lora_training_client",
+        signature: "create_lora_training_client(service_client, base_model: str, rank: int)",
+        description: "Low-level helper that delegates to Tinker's create_lora_training_client SDK call.",
+        params: [
+          { name: "service_client", type: "Any", description: "Authenticated Tinker ServiceClient." },
+          { name: "base_model", type: "str", description: "Tinker base model ID." },
+          { name: "rank", type: "int", description: "LoRA rank." },
+        ],
+        returns: { type: "Any", description: "Tinker LoRA training client." },
+      },
+      {
+        name: "run_training_step",
+        signature: "run_training_step(training_client, batch, learning_rate: float, job_id: str | None = None)",
+        description: "Low-level helper for one forward_backward + optim_step call, including local token accounting.",
+        params: [
+          { name: "training_client", type: "Any", description: "Tinker LoRA training client." },
+          { name: "batch", type: "list[Datum]", description: "Rendered supervised datums." },
+          { name: "learning_rate", type: "float", description: "Adam learning rate." },
+          { name: "job_id", type: "str | None", description: "Optional cost-accounting ID.", optional: true },
+        ],
+        returns: { type: "Any", description: "SDK training step result." },
       },
       {
         name: "cancel_job",
         signature: "cancel_job(job_id: str) -> None",
-        description: "Immediately cancels and terminates a Tinker job, releasing the GPU instance.",
+        description: "Sets a local cancellation signal. SDK-native training checks the signal between steps.",
         params: [
-          { name: "job_id", type: "str", description: "Tinker job ID to cancel." },
+          { name: "job_id", type: "str", description: "Run ID to cancel." },
         ],
-        returns: { type: "None", description: "Side effect: Tinker terminates the GPU instance." },
-      },
-      {
-        name: "get_job_logs",
-        signature: "get_job_logs(job_id: str, tail: int = 100) -> list[str]",
-        description: "Fetches the last N lines of stdout/stderr from a running or completed Tinker job.",
-        params: [
-          { name: "job_id", type: "str", description: "Tinker job ID." },
-          { name: "tail", type: "int", description: "Number of log lines to return from the end. Default 100.", optional: true },
-        ],
-        returns: { type: "list[str]", description: "List of log line strings." },
-      },
-      {
-        name: "list_jobs",
-        signature: "list_jobs(limit: int = 20) -> list[JobSummary]",
-        description: "Lists recent Tinker jobs for the current account, ordered by submission time descending.",
-        params: [
-          { name: "limit", type: "int", description: "Maximum number of jobs to return.", optional: true },
-        ],
-        returns: { type: "list[JobSummary]", description: "List of JobSummary: { job_id, status, submitted_at, cost_usd, script_name }." },
+        returns: { type: "None", description: "Side effect: future loop checks see the run as cancelled." },
       },
     ],
   },
@@ -1300,7 +1305,7 @@ export const sharedTypes: TypeDef[] = [
       { name: "budget", type: "float", description: "Hard budget cap in USD." },
       { name: "data_path", type: "str | None", description: "Path to user-provided data, or None." },
       { name: "has_data", type: "bool", description: "Set by query_data_node." },
-      { name: "task_reasoning", type: "TaskReasoning", description: "Set by reason_node after Claude API call." },
+      { name: "task_reasoning", type: "TaskReasoning", description: "Set by reason_node after local or Claude task reasoning." },
       { name: "config", type: "OrchestrationConfig", description: "Set by build_config_node. Passed to all downstream agents." },
       { name: "result", type: "TrainedModel | None", description: "Set by orchestrate_node. Final output." },
     ],
@@ -1312,12 +1317,13 @@ export const sharedTypes: TypeDef[] = [
       { name: "config", type: "OrchestrationConfig", description: "Orchestration config from Manager." },
       { name: "data_path", type: "str | None", description: "User-provided data path, or None." },
       { name: "mode", type: "str | None", description: "Set by route_node: 'A' | 'B' | 'C'." },
-      { name: "raw_data", type: "RawData | None", description: "Set by mode nodes after loading/generating data." },
-      { name: "hf_candidates", type: "list[HFCandidate]", description: "Set by mode_b_search_node." },
-      { name: "selected_candidate", type: "HFCandidate | None", description: "Set by mode_b_search_node after ranking." },
-      { name: "schema", type: "DataSchema | None", description: "Set by mode_c_node after determine_data_schema." },
-      { name: "dataset", type: "StandardDataset | None", description: "Set by mode nodes after normalization." },
-      { name: "validation_report", type: "ValidationReport | None", description: "Set by validate_node." },
+      { name: "raw_data", type: "RawData | None", description: "Set by acquire_user_data_node / acquire_hf_data_node / acquire_web_data_node." },
+      { name: "hf_candidates", type: "list[HFCandidate]", description: "Set by acquire_hf_data_node." },
+      { name: "selected_candidate", type: "HFCandidate | None", description: "Set by acquire_hf_data_node." },
+      { name: "schema", type: "DataSchema | None", description: "Reserved for downstream curation/synthesis stages." },
+      { name: "dataset", type: "StandardDataset | None", description: "Reserved for downstream curation/validation stages." },
+      { name: "validation_report", type: "ValidationReport | None", description: "Reserved for downstream validation stage." },
+      { name: "handoff", type: "dict | None", description: "Set by handoff_structure_data_node or handoff_validate_hf_node." },
     ],
   },
   {
@@ -1326,9 +1332,11 @@ export const sharedTypes: TypeDef[] = [
     fields: [
       { name: "plan", type: "TrainingPlan", description: "Training plan from Decision Engine." },
       { name: "config", type: "OrchestrationConfig", description: "Orchestration config." },
+      { name: "cost_manager", type: "Any", description: "CostManager instance used for in-process spend accounting." },
       { name: "eval_suite", type: "EvalSuite", description: "Set by init_node. Reused every iteration." },
-      { name: "current_script", type: "str", description: "Path to the current (possibly patched) train.py." },
-      { name: "current_config", type: "dict", description: "Current hyperparameter config dict." },
+      { name: "current_script", type: "str", description: "Compatibility training script path from the plan." },
+      { name: "current_config", type: "dict", description: "Current accepted hyperparameter config dict." },
+      { name: "current_patch", type: "str | None", description: "JSON-encoded pending proposal patch." },
       { name: "original_content", type: "str | None", description: "Pre-patch file content saved by propose_node for revert." },
       { name: "diary", type: "ResearchDiary", description: "Append-only list of IterationRecords. Updated by log_node." },
       { name: "baseline_score", type: "EvalScore", description: "Score of unmodified baseline. Set by baseline_node." },
@@ -1358,8 +1366,8 @@ export const sharedTypes: TypeDef[] = [
     fields: [
       { name: "task_type", type: "str", description: "e.g. 'text-classification', 'seq2seq', 'custom'." },
       { name: "data_format", type: "str", description: "Expected format for training data." },
-      { name: "training_type", type: "str", description: "'SFT', 'RL', or 'pre-train'." },
-      { name: "base_model", type: "str | None", description: "HuggingFace model ID or None for pre-train." },
+      { name: "training_type", type: "str", description: "'SFT' for the active Tinker chat/SFT V1 path." },
+      { name: "base_model", type: "str | None", description: "HuggingFace/Tinker model ID for the SFT base model." },
       { name: "hyperparameters", type: "dict", description: "Starting lr, batch_size, epochs, etc." },
       { name: "notes", type: "str", description: "Free-text notes from manager reasoning." },
     ],
@@ -1389,13 +1397,15 @@ export const sharedTypes: TypeDef[] = [
     name: "TrainingPlan",
     description: "Return type of run_decision_engine.",
     fields: [
-      { name: "strategy", type: "str", description: "'fine-tune' | 'pre-train'." },
-      { name: "base_model", type: "str | None", description: "HuggingFace model ID or None." },
+      { name: "strategy", type: "str", description: "'fine-tune' for the active Tinker chat/SFT V1 path." },
+      { name: "base_model", type: "str", description: "HuggingFace/Tinker model ID used by the Tinker SFT runner." },
       { name: "lora_config", type: "LoRAConfig | None", description: "LoRA settings if fine-tuning." },
       { name: "estimated_cost", type: "float", description: "Estimated USD for full training run." },
       { name: "estimated_time_min", type: "int", description: "Estimated wall-clock minutes." },
-      { name: "training_script_path", type: "str", description: "Path to generated train.py." },
+      { name: "training_script_path", type: "str", description: "Path to generated compatibility train.py." },
       { name: "eval_metric", type: "str", description: "Primary metric to optimize." },
+      { name: "backend", type: "str", description: "'tinker_sft' for the SDK-native Tinker path." },
+      { name: "dataset_path", type: "str", description: "Local JSONL dataset path consumed by the Tinker SFT runner." },
     ],
   },
   {
@@ -1413,7 +1423,7 @@ export const sharedTypes: TypeDef[] = [
     fields: [
       { name: "iteration", type: "int", description: "Iteration number (1-indexed)." },
       { name: "hypothesis", type: "str", description: "Description of what was tested." },
-      { name: "patch", type: "str", description: "The unified diff that was applied." },
+      { name: "patch", type: "str", description: "Human-readable config diff for the tested hyperparameter patch." },
       { name: "cost_usd", type: "float", description: "USD cost of this experiment." },
       { name: "metrics", type: "TrainingMetrics", description: "train_loss, val_loss, test_loss, primary_metric." },
       { name: "decision", type: "str", description: "'KEPT' | 'REVERTED'." },
@@ -1426,7 +1436,7 @@ export const sharedTypes: TypeDef[] = [
     fields: [
       { name: "data_gen_usd", type: "float", description: "Cost of data generation (API calls, downloads)." },
       { name: "training_usd", type: "float", description: "Cost of GPU training time on Tinker." },
-      { name: "llm_calls_usd", type: "float", description: "Cost of Claude API calls during AutoResearch." },
+      { name: "llm_calls_usd", type: "float", description: "Cost of optional Claude API calls during AutoResearch." },
       { name: "total_usd", type: "float", description: "Total spend." },
       { name: "termination_reason", type: "str", description: "'budget_limit' | 'training_complete' | 'error'." },
     ],
