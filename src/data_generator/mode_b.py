@@ -8,7 +8,11 @@ from src.types import HFCandidate, OrchestrationConfig, RawData
 
 
 def parse_explicit_hf_dataset_ids(config: OrchestrationConfig, data_path: str | None = None) -> list[str]:
-    """Extract explicit HF dataset IDs from config/prompt/path."""
+    """
+        scanning the orchestrator-provided inputs for any explicit Hugging Face dataset references and converting 
+        them into a clean list of dataset IDs.
+        produce something normalized like: ["stanfordnlp/imdb", "ag_news/ag_news"]
+    """
     raw_items: list[str] = []
 
     for key in ("hf_dataset_ids", "hf_dataset_urls", "explicit_hf_datasets", "dataset_ids", "sources"):
@@ -21,7 +25,6 @@ def parse_explicit_hf_dataset_ids(config: OrchestrationConfig, data_path: str | 
             value = tp.get(key)
             raw_items.extend(_coerce_source_tokens(value))
 
-    # New orchestrator envelope format support.
     data_request = config.get("data_request")  # type: ignore[arg-type]
     if isinstance(data_request, dict):
         raw_items.extend(_coerce_source_tokens(data_request.get("sources")))
@@ -69,8 +72,8 @@ def fetch_hf_datasets(candidates: list[HFCandidate]) -> RawData:
     """
     records: list[dict] = []
     offline = os.getenv("DATA_GENERATOR_OFFLINE", "").strip().lower() in {"1", "true", "yes"}
-    max_rows_per_dataset = _read_int_env("DATA_GENERATOR_MAX_ROWS_PER_DATASET", 80)
-    max_total_records = _read_int_env("DATA_GENERATOR_MAX_TOTAL_RECORDS", 5000)
+    max_rows_per_dataset = _read_optional_int_env("DATA_GENERATOR_MAX_ROWS_PER_DATASET")
+    max_total_records = _read_optional_int_env("DATA_GENERATOR_MAX_TOTAL_RECORDS")
 
     if offline:
         for candidate in candidates:
@@ -108,7 +111,7 @@ def fetch_hf_datasets(candidates: list[HFCandidate]) -> RawData:
                     "error": _short_error(exc),
                 }
             )
-        if len(records) >= max_total_records:
+        if max_total_records is not None and len(records) >= max_total_records:
             break
 
     if not records:
@@ -175,7 +178,7 @@ def _normalize_hf_dataset_id(value: str) -> str | None:
     return f"{left}/{right}"
 
 
-def _fetch_with_hf_datasets(dataset_id: str, max_rows_per_dataset: int) -> list[dict]:
+def _fetch_with_hf_datasets(dataset_id: str, max_rows_per_dataset: int | None) -> list[dict]:
     from datasets import get_dataset_config_names, load_dataset
 
     records: list[dict] = []
@@ -188,12 +191,13 @@ def _fetch_with_hf_datasets(dataset_id: str, max_rows_per_dataset: int) -> list[
             raise first_error
         ds_obj = load_dataset(dataset_id, configs[0])
 
-    split_items = ds_obj.items() if hasattr(ds_obj, "items") else [("train", ds_obj)]
-    per_split_limit = max(1, max_rows_per_dataset // max(1, len(list(split_items))))
-    split_items = ds_obj.items() if hasattr(ds_obj, "items") else [("train", ds_obj)]
+    split_items = list(ds_obj.items()) if hasattr(ds_obj, "items") else [("train", ds_obj)]
+    per_split_limit = None
+    if max_rows_per_dataset is not None:
+        per_split_limit = max(1, max_rows_per_dataset // max(1, len(split_items)))
 
     for split_name, split_ds in split_items:
-        take_n = min(per_split_limit, len(split_ds))
+        take_n = len(split_ds) if per_split_limit is None else min(per_split_limit, len(split_ds))
         for row in split_ds.select(range(take_n)):
             text_val, label_val = _extract_input_and_label(row, getattr(split_ds, "features", None))
             if not text_val:
@@ -206,9 +210,9 @@ def _fetch_with_hf_datasets(dataset_id: str, max_rows_per_dataset: int) -> list[
                 "content": text_val[:500],
             }
             records.append(rec)
-            if len(records) >= max_rows_per_dataset:
+            if max_rows_per_dataset is not None and len(records) >= max_rows_per_dataset:
                 break
-        if len(records) >= max_rows_per_dataset:
+        if max_rows_per_dataset is not None and len(records) >= max_rows_per_dataset:
             break
     return records
 
@@ -260,6 +264,17 @@ def _read_int_env(name: str, default: int) -> int:
         return value if value > 0 else default
     except ValueError:
         return default
+
+
+def _read_optional_int_env(name: str) -> int | None:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+        return value if value > 0 else None
+    except ValueError:
+        return None
 
 
 def _short_error(exc: Exception) -> str:

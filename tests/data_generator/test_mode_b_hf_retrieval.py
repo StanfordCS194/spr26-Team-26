@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from src.data_generator.artifacts import save_subagent2_artifacts
 from src.data_generator.graph import invoke_data_generator_graph
 
 EXAMPLE_REPORT_PATH = (
@@ -21,10 +23,15 @@ EXAMPLE_REPORT_PATH = (
 )
 OUTPUT_DIR = (
     REPO_ROOT
-    / "tests"
+    / "artifacts"
     / "data_generator"
-    / "results"
-    / "hf_robust_structuring_run_v1"
+    / "test_mode_b_hf_retrieval"
+)
+SMALL_OUTPUT_DIR = (
+    REPO_ROOT
+    / "artifacts"
+    / "data_generator"
+    / "test_mode_b_hf_retrieval_10_datasets"
 )
 FIXTURE_RUN_DIR = (
     REPO_ROOT
@@ -266,14 +273,9 @@ def _collect_raw_source_previews(
     return previews_by_source
 
 
-def _write_subagent2_artifacts(handoff: dict) -> None:
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-    exact_path = OUTPUT_DIR / "subagent2_input_exact.json"
-    exact_path.write_text(
-        json.dumps(handoff, indent=2),
-        encoding="utf-8",
-    )
+def _write_subagent2_artifacts(handoff: dict, output_dir: Path) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    saved = save_subagent2_artifacts(handoff)
 
     raw_data = handoff.get("raw_data", {})
     records = raw_data.get("records", []) if isinstance(raw_data, dict) else []
@@ -328,7 +330,7 @@ def _write_subagent2_artifacts(handoff: dict) -> None:
                     f"{idx}. label={ex['label']} | input={ex['input']}"
                 )
 
-    (OUTPUT_DIR / "subagent2_labeled_examples_preview.json").write_text(
+    (output_dir / "subagent2_labeled_examples_preview.json").write_text(
         json.dumps(
             {
                 "preview_mode": "live_records" if used_live_examples else "fixture_files",
@@ -344,7 +346,7 @@ def _write_subagent2_artifacts(handoff: dict) -> None:
         ),
         encoding="utf-8",
     )
-    (OUTPUT_DIR / "subagent2_raw_source_previews.json").write_text(
+    (output_dir / "subagent2_raw_source_previews.json").write_text(
         json.dumps(
             {
                 "total_sources": len(source_previews),
@@ -390,26 +392,47 @@ def _write_subagent2_artifacts(handoff: dict) -> None:
             ),
             "",
             "## Exact JSON",
-            "- `subagent2_input_exact.json`",
+            "- `raw_handoff_data.json`",
+            "- `debug_context.json`",
+            "- `curation_human_readable.md`",
             "- `subagent2_labeled_examples_preview.json`",
             "- `subagent2_raw_source_previews.json`",
         ]
     )
 
-    human_path = OUTPUT_DIR / "subagent2_input_human_readable.md"
-    labeled_path = OUTPUT_DIR / "subagent2_labeled_examples_preview.json"
-    raw_source_path = OUTPUT_DIR / "subagent2_raw_source_previews.json"
+    human_path = output_dir / "human_readable.md"
+    curation_path = output_dir / "curation_human_readable.md"
+    labeled_path = output_dir / "subagent2_labeled_examples_preview.json"
+    raw_source_path = output_dir / "subagent2_raw_source_previews.json"
+
+    curation_path.write_text(handoff.get("curation_human_readable", "") + "\n", encoding="utf-8")
     human_path.write_text(md, encoding="utf-8")
+
+    manifest_path = Path(saved["manifest"])
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["files"]["human_readable"] = str(human_path)
+    manifest["files"]["curation_human_readable"] = str(curation_path)
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
     print("")
     print("[artifact] Saved sub-agent artifacts:")
-    print(f"  - exact payload json: {exact_path}")
+    print(f"  - raw handoff json:   {saved['handoff_payload']}")
+    print(f"  - debug context:      {saved['debug_context']}")
     print(f"  - human readable md:  {human_path}")
+    print(f"  - curation summary:   {curation_path}")
     print(f"  - labeled preview:    {labeled_path}")
     print(f"  - raw source preview: {raw_source_path}")
     print("")
 
 
-def test_hf_retreival(monkeypatch, tmp_path: Path) -> None:
+def _run_live_hf_retrieval_test(
+    monkeypatch,
+    tmp_path: Path,
+    *,
+    target_dataset_count: int,
+    output_dir: Path,
+    artifact_filename: str,
+) -> None:
     assert EXAMPLE_REPORT_PATH.exists(), f"Missing example report: {EXAMPLE_REPORT_PATH}"
 
     report = json.loads(EXAMPLE_REPORT_PATH.read_text(encoding="utf-8"))
@@ -418,18 +441,12 @@ def test_hf_retreival(monkeypatch, tmp_path: Path) -> None:
 
     # Force live behavior by removing offline override entirely.
     monkeypatch.delenv("DATA_GENERATOR_OFFLINE", raising=False)
-    monkeypatch.setenv("DATA_GENERATOR_MAX_ROWS_PER_DATASET", "6")
-    monkeypatch.setenv("DATA_GENERATOR_MAX_TOTAL_RECORDS", "600")
+    configured_max_rows = os.getenv("DATA_GENERATOR_MAX_ROWS_PER_DATASET", "").strip()
+    configured_max_total = os.getenv("DATA_GENERATOR_MAX_TOTAL_RECORDS", "").strip()
     print("")
     print("[run] Data Generator HF retrieval test")
-    print(
-        "[run] DATA_GENERATOR_MAX_ROWS_PER_DATASET="
-        "6"
-    )
-    print(
-        "[run] DATA_GENERATOR_MAX_TOTAL_RECORDS="
-        "600"
-    )
+    print(f"[run] DATA_GENERATOR_MAX_ROWS_PER_DATASET={configured_max_rows or '(unlimited)'}")
+    print(f"[run] DATA_GENERATOR_MAX_TOTAL_RECORDS={configured_max_total or '(unlimited)'}")
     # Force a fresh cache location each run so datasets are uncached and
     # HF progress bars are visible (download + preparation steps).
     hf_home = tmp_path / "hf_home"
@@ -438,6 +455,7 @@ def test_hf_retreival(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("HF_HOME", str(hf_home))
     monkeypatch.setenv("HUGGINGFACE_HUB_CACHE", str(hf_hub_cache))
     monkeypatch.setenv("HF_DATASETS_CACHE", str(hf_datasets_cache))
+    monkeypatch.setenv("DATA_GENERATOR_ARTIFACT_DIR", str(output_dir))
     monkeypatch.delenv("HF_HUB_DISABLE_PROGRESS_BARS", raising=False)
     monkeypatch.delenv("DATASETS_DISABLE_PROGRESS_BAR", raising=False)
     print(
@@ -448,21 +466,23 @@ def test_hf_retreival(monkeypatch, tmp_path: Path) -> None:
     print(f"[run] HF_DATASETS_CACHE={hf_datasets_cache}")
     print("")
 
-    requested_dataset_ids = _request_live_hf_dataset_ids(TARGET_LIVE_DATASET_COUNT)
+    requested_dataset_ids = _request_live_hf_dataset_ids(target_dataset_count)
     print(f"[run] Requested dataset count: {len(requested_dataset_ids)}")
     print(f"[run] Requested datasets: {requested_dataset_ids}")
-    assert len(requested_dataset_ids) >= TARGET_LIVE_DATASET_COUNT, (
+    assert len(requested_dataset_ids) >= target_dataset_count, (
         f"Could only request {len(requested_dataset_ids)} datasets; expected "
-        f"{TARGET_LIVE_DATASET_COUNT}. Check HF Hub listing/network."
+        f"{target_dataset_count}. Check HF Hub listing/network."
     )
     config = _build_config_from_report(report, requested_dataset_ids)
     handoff = invoke_data_generator_graph(config=config, data_path=None)
 
     assert handoff["target_subagent"] == "data_curation"
-    assert handoff["action"] == "validate_hf_dataset"
-    assert handoff["verification_level"] == "light"
+    assert handoff["action"] == "structure_data"
+    assert handoff["verification_level"] == "strict"
     assert handoff["mode_used"] == "B"
     assert handoff["hf_candidates"], "Expected non-empty HF candidates in handoff."
+    assert handoff["curation_payload"]["schema_version"] == "data_curation_input.v1"
+    assert handoff["curation_human_readable"]
     records = handoff.get("raw_data", {}).get("records", [])
     successful_rows = [
         rec
@@ -504,9 +524,10 @@ def test_hf_retreival(monkeypatch, tmp_path: Path) -> None:
         f"[run] Sources with >={MIN_EXAMPLES_PER_RETRIEVED_DATASET} examples: "
         f"{len(sources_with_multiple)} / {len(success_by_source)}"
     )
-    assert len(success_by_source) >= 25, (
-        "Expected at least 25 datasets to return usable rows in 50-dataset run, "
-        f"got {len(success_by_source)}."
+    min_expected_success_sources = max(5, target_dataset_count // 2)
+    assert len(success_by_source) >= min_expected_success_sources, (
+        f"Expected at least {min_expected_success_sources} datasets to return usable rows "
+        f"in {target_dataset_count}-dataset run, got {len(success_by_source)}."
     )
     assert len(sources_with_multiple) == len(success_by_source), (
         "Every retrieved dataset must have multiple examples for preview quality. "
@@ -514,16 +535,36 @@ def test_hf_retreival(monkeypatch, tmp_path: Path) -> None:
         f"{len(sources_with_multiple)} / {len(success_by_source)}."
     )
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
     artifact = {
         "source_report": str(EXAMPLE_REPORT_PATH.relative_to(REPO_ROOT)),
         "extracted_hf_dataset_ids": hf_dataset_ids,
         "handoff": handoff,
     }
-    handoff_path = OUTPUT_DIR / "mode_b_handoff_from_report.json"
+    handoff_path = output_dir / artifact_filename
     handoff_path.write_text(
         json.dumps(artifact, indent=2), encoding="utf-8"
     )
     print("[artifact] Saved mode-B handoff:")
     print(f"  - handoff json: {handoff_path}")
-    _write_subagent2_artifacts(handoff)
+    _write_subagent2_artifacts(handoff, output_dir)
+
+
+def test_hf_retreival(monkeypatch, tmp_path: Path) -> None:
+    _run_live_hf_retrieval_test(
+        monkeypatch,
+        tmp_path,
+        target_dataset_count=TARGET_LIVE_DATASET_COUNT,
+        output_dir=OUTPUT_DIR,
+        artifact_filename="mode_b_handoff_from_report.json",
+    )
+
+
+def test_hf_retrieval_10_datasets(monkeypatch, tmp_path: Path) -> None:
+    _run_live_hf_retrieval_test(
+        monkeypatch,
+        tmp_path,
+        target_dataset_count=10,
+        output_dir=SMALL_OUTPUT_DIR,
+        artifact_filename="mode_b_handoff_from_report_10_datasets.json",
+    )
