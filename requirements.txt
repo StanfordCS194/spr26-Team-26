@@ -10,7 +10,9 @@ transformers>=4.40.0
 peft>=0.10.0
 torch>=2.2.0
 pytest>=8.0.0
-
 # Tinker SDK path
 tinker
 tinker-cookbook
+fastapi>=0.115.0
+uvicorn>=0.30.0
+httpx>=0.27.0
