@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import type { TrainingState, PipelineStage, Iteration, LogEntry } from '../types';
+import type { StartTraining, TrainingState, PipelineStage, Iteration, LogEntry } from '../types';
 
 const STAGE_LABELS = [
   'Manager Init',
@@ -11,6 +11,16 @@ const STAGE_LABELS = [
 ];
 
 const STAGE_DURATIONS = [1200, 1800, 1500, 3000, 3000, 1200]; // ms
+const SIMULATION_PROVENANCE = {
+  spendMode: 'simulation',
+  trainingBackend: 'simulation',
+  dataMode: null,
+  modeCFallback: null,
+  budgetPreflightSkipped: false,
+  budgetSkipReason: null,
+  liveServices: [],
+  evidence: [],
+};
 
 function makeStages(): PipelineStage[] {
   return STAGE_LABELS.map((label, i) => ({ id: i, label, status: 'pending' as const }));
@@ -27,36 +37,36 @@ const STAGE_LOGS: Array<Array<{ component: string; message: string; type: LogEnt
     { component: 'CostManager', message: 'Budget guardrail active — monitoring spend', type: 'success' },
   ],
   [
-    { component: 'DataGen', message: 'Querying HuggingFace Hub for matching datasets', type: 'default' },
-    { component: 'DataGen', message: 'Found 3 candidate datasets, scoring relevance', type: 'default' },
-    { component: 'DataGen', message: 'Dataset selected: 42,000 samples loaded', type: 'success' },
+    { component: 'DataGen', message: 'Simulating dataset discovery for matching sources', type: 'default' },
+    { component: 'DataGen', message: 'Simulated 3 candidate datasets and scored relevance', type: 'default' },
+    { component: 'DataGen', message: 'Simulation selected a 42,000-sample dataset profile', type: 'success' },
   ],
   [
-    { component: 'Decision', message: 'Running fine-tune vs pre-train analysis', type: 'default' },
-    { component: 'Decision', message: 'Dataset size favors fine-tuning strategy', type: 'default' },
-    { component: 'Decision', message: 'Base model selected: distilbert-base-uncased', type: 'success' },
+    { component: 'Decision', message: 'Simulating fine-tune vs pre-train analysis', type: 'default' },
+    { component: 'Decision', message: 'Simulated dataset size favors fine-tuning strategy', type: 'default' },
+    { component: 'Decision', message: 'Simulation selected base model distilbert-base-uncased', type: 'success' },
   ],
   [
-    { component: 'Tinker', message: 'Submitting training job to Tinker API', type: 'default' },
-    { component: 'Tinker', message: 'Job accepted — GPU allocation confirmed', type: 'success' },
-    { component: 'CostManager', message: 'Estimated job cost: $14.20', type: 'warning' },
-    { component: 'Tinker', message: 'Training epoch 1/3 complete', type: 'default' },
+    { component: 'Tinker', message: 'Simulating Tinker job submission', type: 'default' },
+    { component: 'Tinker', message: 'Simulation accepted job and reserved a GPU slot', type: 'success' },
+    { component: 'CostManager', message: 'Simulated budget reserve: $14.20', type: 'warning' },
+    { component: 'Tinker', message: 'Simulated training epoch 1/3 complete', type: 'default' },
   ],
   [
-    { component: 'AutoResearch', message: 'PROPOSE: creating eval suite and recording baseline', type: 'default' },
-    { component: 'AutoResearch', message: 'Hypothesis: decrease learning_rate 3e-4→1.5e-4 (local ±20%)', type: 'default' },
-    { component: 'AutoResearch', message: 'KEPT — val_loss improved 0.312→0.289 (+7.4%)', type: 'success' },
-    { component: 'AutoResearch', message: 'Hypothesis: increase lora_rank 16→32 (random search)', type: 'default' },
-    { component: 'AutoResearch', message: 'KEPT — F1 improved 0.871→0.901 (+3.4%)', type: 'success' },
-    { component: 'AutoResearch', message: 'Hypothesis: increase learning_rate 1.5e-4→6e-4 (local ±20%)', type: 'default' },
-    { component: 'AutoResearch', message: 'REVERTED — loss spiked 0.289→0.334, patch rolled back', type: 'warning' },
-    { component: 'CostManager', message: 'Cumulative spend approaching 60% of budget', type: 'warning' },
-    { component: 'AutoResearch', message: 'Best config committed: lora_rank=32, lr=1.5e-4, warmup=500', type: 'success' },
+    { component: 'AutoResearch', message: 'Simulating eval-suite creation and baseline recording', type: 'default' },
+    { component: 'AutoResearch', message: 'Simulated hypothesis: decrease learning_rate 3e-4→1.5e-4', type: 'default' },
+    { component: 'AutoResearch', message: 'Simulated KEPT decision: val_loss improved 0.312→0.289', type: 'success' },
+    { component: 'AutoResearch', message: 'Simulated hypothesis: increase lora_rank 16→32', type: 'default' },
+    { component: 'AutoResearch', message: 'Simulated KEPT decision: F1 improved 0.871→0.901', type: 'success' },
+    { component: 'AutoResearch', message: 'Simulated hypothesis: increase learning_rate 1.5e-4→6e-4', type: 'default' },
+    { component: 'AutoResearch', message: 'Simulated REVERTED decision: loss spiked 0.289→0.334', type: 'warning' },
+    { component: 'CostManager', message: 'Simulated budget reserve approaching 60% of cap', type: 'warning' },
+    { component: 'AutoResearch', message: 'Simulated best config: lora_rank=32, lr=1.5e-4, warmup=500', type: 'success' },
   ],
   [
-    { component: 'Manager', message: 'Collecting final metrics and artifacts', type: 'default' },
-    { component: 'Observability', message: 'Research diary serialized to JSON', type: 'success' },
-    { component: 'Manager', message: 'Training pipeline complete', type: 'success' },
+    { component: 'Manager', message: 'Collecting simulated final metrics and artifacts', type: 'default' },
+    { component: 'Observability', message: 'Simulated research diary serialized to JSON', type: 'success' },
+    { component: 'Manager', message: 'Simulation pipeline complete', type: 'success' },
   ],
 ];
 
@@ -64,37 +74,37 @@ const ITERATIONS: Array<Omit<Iteration, 'id'>> = [
   {
     experiment: 'Decrease learning_rate 3e-4→1.5e-4 to reduce loss spikes.',
     diff: '- learning_rate: 0.0003\n+ learning_rate: 0.00015',
-    loss: 0.289, f1: 0.871, status: 'KEPT',
+    loss: 0.289, f1: 0.871, primaryMetric: 0.871, primaryMetricLabel: 'F1', status: 'KEPT',
   },
   {
     experiment: 'Increase lora_rank 16→32 to expand model capacity for task.',
     diff: '- lora_rank: 16\n+ lora_rank: 32',
-    loss: 0.271, f1: 0.901, status: 'KEPT',
+    loss: 0.271, f1: 0.901, primaryMetric: 0.901, primaryMetricLabel: 'F1', status: 'KEPT',
   },
   {
     experiment: 'Increase learning_rate 1.5e-4→6.1e-4 (local ±20% perturbation).',
     diff: '- learning_rate: 0.00015\n+ learning_rate: 0.00061',
-    loss: 0.334, f1: 0.862, status: 'REVERTED',
+    loss: 0.334, f1: 0.862, primaryMetric: 0.862, primaryMetricLabel: 'F1', status: 'REVERTED',
   },
   {
     experiment: 'Increase warmup_steps 100→500 to stabilize early training.',
     diff: '- warmup_steps: 100\n+ warmup_steps: 500',
-    loss: 0.248, f1: 0.914, status: 'KEPT',
+    loss: 0.248, f1: 0.914, primaryMetric: 0.914, primaryMetricLabel: 'F1', status: 'KEPT',
   },
   {
     experiment: 'Decrease dropout 0.1→0.06 (local ±20% perturbation).',
     diff: '- dropout: 0.1\n+ dropout: 0.06',
-    loss: 0.243, f1: 0.917, status: 'KEPT',
+    loss: 0.243, f1: 0.917, primaryMetric: 0.917, primaryMetricLabel: 'F1', status: 'KEPT',
   },
   {
     experiment: 'Increase num_epochs 3→4 to allow longer convergence.',
     diff: '- num_epochs: 3\n+ num_epochs: 4',
-    loss: 0.261, f1: 0.908, status: 'REVERTED',
+    loss: 0.261, f1: 0.908, primaryMetric: 0.908, primaryMetricLabel: 'F1', status: 'REVERTED',
   },
   {
     experiment: 'Decrease learning_rate 1.5e-4→1.2e-4 (local ±20% perturbation).',
     diff: '- learning_rate: 0.00015\n+ learning_rate: 0.00012',
-    loss: 0.231, f1: 0.923, status: 'KEPT',
+    loss: 0.231, f1: 0.923, primaryMetric: 0.923, primaryMetricLabel: 'F1', status: 'KEPT',
   },
 ];
 
@@ -105,11 +115,15 @@ export function useTrainingSimulation() {
     prompt: '',
     budget: 50,
     taskType: 'classification',
+    dataPath: null,
     costSpent: 0,
     metrics: [],
     iterations: [],
     logs: [],
     stages: makeStages(),
+    artifacts: null,
+    result: null,
+    provenance: null,
   });
 
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -131,7 +145,8 @@ export function useTrainingSimulation() {
     });
   }, []);
 
-  const start = useCallback((prompt: string, budget: number, taskType: TrainingState['taskType']) => {
+  const start = useCallback<StartTraining>((prompt, budget, taskType, dataPath = null) => {
+    const normalizedDataPath = dataPath?.trim() || null;
     clearTimers();
     setState({
       status: 'running',
@@ -139,11 +154,15 @@ export function useTrainingSimulation() {
       prompt,
       budget,
       taskType,
+      dataPath: normalizedDataPath,
       costSpent: 0,
       metrics: [],
       iterations: [],
       logs: [],
       stages: makeStages(),
+      artifacts: null,
+      result: null,
+      provenance: SIMULATION_PROVENANCE,
     });
 
     let cursor = 0; // ms elapsed
@@ -177,7 +196,16 @@ export function useTrainingSimulation() {
           schedule(() => {
             setState(prev => ({
               ...prev,
-              metrics: [...prev.metrics, { loss, accuracy, iteration: prev.metrics.length + 1 }],
+              metrics: [
+                ...prev.metrics,
+                {
+                  loss,
+                  accuracy,
+                  primaryMetric: accuracy,
+                  primaryMetricLabel: 'Accuracy',
+                  iteration: prev.metrics.length + 1,
+                },
+              ],
             }));
           }, stageStart + t * 500 + 200);
         }
@@ -237,7 +265,7 @@ export function useTrainingSimulation() {
 
     // Mark complete
     schedule(() => {
-      setState(prev => ({ ...prev, status: 'complete', stage: 5 }));
+      setState(prev => ({ ...prev, status: 'complete', stage: 5, provenance: SIMULATION_PROVENANCE }));
     }, cursor + 100);
   }, [schedule, appendLog]);
 
@@ -249,13 +277,34 @@ export function useTrainingSimulation() {
       prompt: '',
       budget: 50,
       taskType: 'classification',
+      dataPath: null,
       costSpent: 0,
       metrics: [],
       iterations: [],
       logs: [],
       stages: makeStages(),
+      artifacts: null,
+      result: null,
+      provenance: null,
     });
   }, []);
 
-  return { state, start, reset };
+  const cancel = useCallback(() => {
+    clearTimers();
+    setState(prev => ({
+      ...prev,
+      status: prev.status === 'running' ? 'cancelled' : prev.status,
+      logs: [
+        {
+          time: new Date().toLocaleTimeString('en-US', { hour12: false }),
+          component: 'Manager',
+          message: 'Run cancelled',
+          type: 'warning',
+        },
+        ...prev.logs,
+      ],
+    }));
+  }, []);
+
+  return { state, start, reset, cancel };
 }

@@ -1,7 +1,15 @@
-export type StageStatus = 'pending' | 'in-progress' | 'complete';
+export type StageStatus = 'pending' | 'in-progress' | 'complete' | 'failed' | 'cancelled';
 export type TaskType = 'classification' | 'regression' | 'fine-tuning';
-export type LogType = 'default' | 'success' | 'warning';
+export type LogType = 'default' | 'success' | 'warning' | 'error';
 export type IterationStatus = 'KEPT' | 'REVERTED' | 'PENDING';
+export type RunStatus = 'idle' | 'running' | 'cancelling' | 'cancelled' | 'complete' | 'failed';
+
+export type StartTraining = (
+  prompt: string,
+  budget: number,
+  taskType: TaskType,
+  dataPath?: string | null
+) => void | Promise<void>;
 
 export interface PipelineStage {
   id: number;
@@ -12,6 +20,8 @@ export interface PipelineStage {
 export interface MetricPoint {
   loss: number;
   accuracy: number;
+  primaryMetric?: number | null;
+  primaryMetricLabel?: string | null;
   iteration: number;
 }
 
@@ -21,6 +31,8 @@ export interface Iteration {
   diff?: string;
   loss: number;
   f1: number;
+  primaryMetric?: number | null;
+  primaryMetricLabel?: string | null;
   status: IterationStatus;
 }
 
@@ -31,15 +43,50 @@ export interface LogEntry {
   type: LogType;
 }
 
+export interface ArtifactFile {
+  name: string;
+  label: string;
+  path?: string | null;
+  exists: boolean;
+  sizeBytes?: number | null;
+  contentType: string;
+  downloadPath?: string | null;
+}
+
+export interface RunArtifacts {
+  modelPath?: string | null;
+  checkpoints: Record<string, unknown>;
+  metrics?: Record<string, unknown> | null;
+  sample?: Record<string, unknown> | null;
+  files: ArtifactFile[];
+}
+
+export interface RunProvenance {
+  spendMode: string;
+  trainingBackend?: string | null;
+  dataMode?: string | null;
+  modeCFallback?: string | null;
+  budgetPreflightSkipped: boolean;
+  budgetSkipReason?: string | null;
+  liveServices: string[];
+  evidence: string[];
+}
+
 export interface TrainingState {
-  status: 'idle' | 'running' | 'complete';
+  status: RunStatus;
   stage: number;
   prompt: string;
   budget: number;
   taskType: TaskType;
+  dataPath?: string | null;
   costSpent: number;
   metrics: MetricPoint[];
   iterations: Iteration[];
   logs: LogEntry[];
   stages: PipelineStage[];
+  artifacts?: RunArtifacts | null;
+  provenance?: RunProvenance | null;
+  result?: Record<string, unknown> | null;
+  error?: string | null;
+  runId?: string;
 }
