@@ -4,11 +4,15 @@ All tests mock the `tinker` package so the suite runs without the SDK
 installed (CI / dev environments).
 """
 
+import builtins
 import sys
 import types as builtin_types
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+
+_MISSING = object()
 
 
 # ---------------------------------------------------------------------------
@@ -47,18 +51,45 @@ def _remove_tinker_mock():
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(autouse=True)
-def fresh_tinker_state():
+def fresh_tinker_state(monkeypatch):
     """Each test gets a clean tinker mock and a fresh import of the wrapper module."""
+    monkeypatch.delenv("NO_SPEND", raising=False)
+    monkeypatch.delenv("TINKER_BACKEND", raising=False)
+
+    parent_package = sys.modules.get("src.tinker_api")
+    previous_package_attr = (
+        getattr(parent_package, "tinker_api", _MISSING)
+        if parent_package is not None
+        else _MISSING
+    )
+    previous_modules = {
+        name: sys.modules.get(name, _MISSING)
+        for name in ("tinker", "tinker.types", "src.tinker_api.tinker_api")
+    }
+
     tinker_mod, types_mod = _make_tinker_mock()
     _install_tinker_mock(tinker_mod, types_mod)
 
     # Force re-import so the module picks up the mocked tinker
     sys.modules.pop("src.tinker_api.tinker_api", None)
+    if parent_package is not None and hasattr(parent_package, "tinker_api"):
+        delattr(parent_package, "tinker_api")
 
     yield tinker_mod, types_mod
 
     _remove_tinker_mock()
     sys.modules.pop("src.tinker_api.tinker_api", None)
+    for name, module in previous_modules.items():
+        if module is _MISSING:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = module
+    if parent_package is not None:
+        if previous_package_attr is _MISSING:
+            if hasattr(parent_package, "tinker_api"):
+                delattr(parent_package, "tinker_api")
+        else:
+            setattr(parent_package, "tinker_api", previous_package_attr)
 
 
 def _api():
@@ -298,6 +329,147 @@ def test_save_weights_calls_save_for_sampler(fresh_tinker_state):
     tc = MagicMock()
     api.save_weights(tc, name="v1")
     tc.save_weights_for_sampler.assert_called_once_with(name="v1")
+
+
+# ---------------------------------------------------------------------------
+# NO_SPEND / dry-run guards
+# ---------------------------------------------------------------------------
+
+def _assert_live_tinker_call_blocked(api, call, reason):
+    with pytest.raises(api.TinkerAPIError) as excinfo:
+        call()
+    message = str(excinfo.value)
+    assert "live Tinker API calls are disabled" in message
+    assert reason in message
+
+
+@pytest.mark.parametrize(
+    ("env_name", "env_value", "reason"),
+    [
+        ("NO_SPEND", "1", "NO_SPEND=1"),
+        ("NO_SPEND", "true", "NO_SPEND=1"),
+        ("NO_SPEND", "on", "NO_SPEND=1"),
+        ("TINKER_BACKEND", "dry_run", "TINKER_BACKEND=dry_run"),
+        ("TINKER_BACKEND", "dry-run", "TINKER_BACKEND=dry_run"),
+    ],
+)
+def test_no_spend_guards_block_sdk_helpers_before_construction_or_use(
+    fresh_tinker_state, monkeypatch, env_name, env_value, reason
+):
+    tinker_mod, types_mod = fresh_tinker_state
+    api = _api()
+    monkeypatch.setenv(env_name, env_value)
+
+    _assert_live_tinker_call_blocked(api, api.create_service_client, reason)
+    tinker_mod.ServiceClient.assert_not_called()
+
+    service_client = MagicMock()
+    _assert_live_tinker_call_blocked(
+        api,
+        lambda: api.create_lora_training_client(
+            service_client, base_model="meta-llama/Llama-3.2-1B", rank=16
+        ),
+        reason,
+    )
+    service_client.create_lora_training_client.assert_not_called()
+
+    training_client = _make_training_client(types_mod)
+    _assert_live_tinker_call_blocked(
+        api, lambda: api.get_tokenizer(training_client), reason
+    )
+    training_client.get_tokenizer.assert_not_called()
+
+    _assert_live_tinker_call_blocked(api, lambda: api.make_datum([1, 2, 3]), reason)
+    types_mod.ModelInput.from_ints.assert_not_called()
+    types_mod.Datum.assert_not_called()
+
+    batch = _make_batch(types_mod, n_batches=1, tokens_each=3)
+    _assert_live_tinker_call_blocked(
+        api,
+        lambda: api.run_training_step(
+            training_client, batch, learning_rate=1e-4, job_id="blocked-job"
+        ),
+        reason,
+    )
+    training_client.forward_backward.assert_not_called()
+    training_client.optim_step.assert_not_called()
+    types_mod.AdamParams.assert_not_called()
+    assert "blocked-job" not in api._token_ledger
+
+    _assert_live_tinker_call_blocked(
+        api,
+        lambda: api.run_training_loop(
+            training_client, [batch], learning_rate=1e-4, job_id="blocked-loop"
+        ),
+        reason,
+    )
+    training_client.forward_backward.assert_not_called()
+    training_client.optim_step.assert_not_called()
+    training_client.save_weights_for_sampler.assert_not_called()
+    assert "blocked-loop" not in api._token_ledger
+
+    _assert_live_tinker_call_blocked(
+        api, lambda: api.save_checkpoint(training_client, name="ckpt"), reason
+    )
+    training_client.save_weights_and_get_sampling_client.assert_not_called()
+
+    _assert_live_tinker_call_blocked(
+        api, lambda: api.save_weights(training_client, name="weights"), reason
+    )
+    training_client.save_weights_for_sampler.assert_not_called()
+
+    sampling_client = MagicMock()
+    _assert_live_tinker_call_blocked(
+        api, lambda: api.sample(sampling_client, prompt_tokens=[1, 2, 3]), reason
+    )
+    sampling_client.sample.assert_not_called()
+    types_mod.ModelInput.from_ints.assert_not_called()
+    types_mod.SamplingParams.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("env_name", "env_value"),
+    [
+        ("NO_SPEND", "1"),
+        ("NO_SPEND", "true"),
+        ("TINKER_BACKEND", "dry_run"),
+        ("TINKER_BACKEND", "dry-run"),
+    ],
+)
+def test_no_spend_guards_allow_ledger_and_cancel_helpers(
+    fresh_tinker_state, monkeypatch, env_name, env_value
+):
+    api = _api()
+    monkeypatch.setenv(env_name, env_value)
+
+    api.record_tokens("guarded-job", 250_000)
+    api.record_tokens("guarded-job", 250_000)
+    assert api.get_cumulative_spend("guarded-job") == pytest.approx(0.20)
+
+    api.cancel_job("guarded-job")
+    assert api.is_cancelled("guarded-job")
+
+
+def test_no_spend_guard_does_not_import_tinker_sdk(monkeypatch):
+    _remove_tinker_mock()
+    sys.modules.pop("src.tinker_api.tinker_api", None)
+    monkeypatch.setenv("NO_SPEND", "1")
+
+    real_import = builtins.__import__
+
+    def fail_tinker_import(name, *args, **kwargs):
+        if name == "tinker" or name.startswith("tinker."):
+            raise AssertionError("no-spend guard should not import tinker")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fail_tinker_import)
+
+    import importlib
+
+    api = importlib.import_module("src.tinker_api.tinker_api")
+    assert api._TINKER_AVAILABLE is None
+    _assert_live_tinker_call_blocked(api, api.create_service_client, "NO_SPEND=1")
+    assert api._TINKER_AVAILABLE is None
 
 
 # ---------------------------------------------------------------------------
