@@ -8,7 +8,11 @@ from src.types import HFCandidate, OrchestrationConfig, RawData
 
 
 def parse_explicit_hf_dataset_ids(config: OrchestrationConfig, data_path: str | None = None) -> list[str]:
-    """Extract explicit HF dataset IDs from config/prompt/path."""
+    """
+        scanning the orchestrator-provided inputs for any explicit Hugging Face dataset references and converting 
+        them into a clean list of dataset IDs.
+        produce something normalized like: ["stanfordnlp/imdb", "ag_news/ag_news"]
+    """
     raw_items: list[str] = []
 
     for key in ("hf_dataset_ids", "hf_dataset_urls", "explicit_hf_datasets", "dataset_ids", "sources"):
@@ -21,7 +25,6 @@ def parse_explicit_hf_dataset_ids(config: OrchestrationConfig, data_path: str | 
             value = tp.get(key)
             raw_items.extend(_coerce_source_tokens(value))
 
-    # New orchestrator envelope format support.
     data_request = config.get("data_request")  # type: ignore[arg-type]
     if isinstance(data_request, dict):
         raw_items.extend(_coerce_source_tokens(data_request.get("sources")))

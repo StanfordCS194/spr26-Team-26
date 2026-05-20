@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from src.data_generator.artifacts import save_subagent2_artifacts
-from src.data_generator.graph import invoke_data_generator_graph
+from src.data_generator.graph import build_data_generator_graph, invoke_data_generator_graph
 
 
 def _base_config() -> dict:
@@ -59,6 +59,10 @@ def _test_artifact_dir(test_name: str) -> Path:
     return Path("artifacts") / "data_generator" / test_name
 
 
+def _fake_user_data_dir(name: str) -> Path:
+    return Path("artifacts") / "fake_user_data" / name
+
+
 def _assert_saved_artifacts(out_dir: Path, expected_mode: str) -> dict:
     manifest_path = out_dir / "artifact_manifest.json"
     assert manifest_path.exists(), f"Missing manifest artifact: {manifest_path}"
@@ -83,25 +87,66 @@ def _assert_saved_artifacts(out_dir: Path, expected_mode: str) -> dict:
     return handoff
 
 
-def test_mode_a_saves_deployment_style_handoff_artifacts(monkeypatch, tmp_path: Path):
-    monkeypatch.setenv(
-        "DATA_GENERATOR_ARTIFACT_DIR",
-        str(_test_artifact_dir("test_mode_a_saves_deployment_style_handoff_artifacts")),
-    )
+def test_mode_a_fake_user_data(monkeypatch):
+    artifact_dir = _test_artifact_dir("test_mode_a_fake_user_data")
+    monkeypatch.setenv("DATA_GENERATOR_ARTIFACT_DIR", str(artifact_dir))
 
-    data_path = tmp_path / "mode_a_input.csv"
-    data_path.write_text("input,output\nhello,world\nfoo,bar\n", encoding="utf-8")
+    data_dir = _fake_user_data_dir("mode_a_rich_input")
+    assert data_dir.exists(), f"Missing fake user data directory: {data_dir}"
 
-    handoff = invoke_data_generator_graph(config=_mode_a_orchestrator_config(), data_path=str(data_path))
+    graph = build_data_generator_graph()
+    initial_state = {
+        "config": _mode_a_orchestrator_config(),
+        "data_path": str(data_dir),
+        "mode": None,
+        "raw_data": None,
+        "hf_candidates": [],
+        "selected_candidate": None,
+        "schema": None,
+        "dataset": None,
+        "validation_report": None,
+        "handoff": None,
+        "web_plan": None,
+        "web_search_results": [],
+        "web_pages": [],
+        "human_readable": None,
+    }
+
+    final_state = graph.invoke(initial_state)
+    handoff = final_state["handoff"]
+    save_subagent2_artifacts(handoff)
 
     assert handoff["mode_used"] == "A"
-    assert handoff["raw_data"]["records"]
-    artifact_dir = _test_artifact_dir("test_mode_a_saves_deployment_style_handoff_artifacts")
+    assert handoff["source_metadata"]["data_path"] == str(data_dir)
+    assert handoff["raw_data"]["format_meta"]["file_type"] == "directory"
+    assert len(handoff["raw_data"]["records"]) == 7
+
     saved_handoff = _assert_saved_artifacts(artifact_dir, "A")
-    assert saved_handoff["curation_payload"]["records"][0]["input"] == "hello"
+    curation_payload = saved_handoff["curation_payload"]
+    assert curation_payload["record_count"] == 21
+    assert curation_payload["format_meta"]["file_type"] == "directory"
+    assert curation_payload["provenance_summary"]["data_path"] == str(data_dir)
+    assert any(rec["metadata"].get("container_file_type") == "tsv" for rec in curation_payload["records"])
+    assert any(rec["metadata"].get("container_file_type") == "json" for rec in curation_payload["records"])
+    assert any(rec["source_locator"].endswith("reference.png") for rec in curation_payload["records"])
+    assert any("ticket_id" in rec["input"] or rec["metadata"].get("source_path", "").endswith("support.jsonl") for rec in curation_payload["records"])
+
     source_report = artifact_dir / "source_human_readable.md"
-    assert source_report.exists()
-    assert "Mode A Local Data Acquisition Report" in source_report.read_text(encoding="utf-8")
+    source_report_text = source_report.read_text(encoding="utf-8")
+    assert "Detected file type: directory" in source_report_text
+    assert "Records loaded: 7" in source_report_text
+    assert "source file:" in source_report_text
+    assert "reference.png" in source_report_text
+
+    curation_report = artifact_dir / "human_readable.md"
+    curation_report_text = curation_report.read_text(encoding="utf-8")
+    assert "Record count: 21" in curation_report_text
+    assert "Mode hint: A" in curation_report_text
+    assert "kind=local" in curation_report_text
+
+    latest_pointer = Path("artifacts") / "data_generator" / "latest_run.json"
+    latest = json.loads(latest_pointer.read_text(encoding="utf-8"))
+    assert latest["artifact_dir"] == str(artifact_dir)
 
 
 def test_mode_b_saves_deployment_style_handoff_artifacts(monkeypatch, tmp_path: Path):

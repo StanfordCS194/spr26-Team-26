@@ -15,6 +15,8 @@ from src.types import DataGenState
 
 def route_node(state: DataGenState) -> dict:
     """
+    orchestrator-to-data-generator communication happens when the initial state is created (spec from orchestrator is in state)
+    state containes data_path and config
     First sub-agent router:
     - Mode A: local user data_path exists
     - Mode B: explicit HF dataset IDs/URLs exist
@@ -22,10 +24,15 @@ def route_node(state: DataGenState) -> dict:
     """
     path = state.get("data_path")
     if path and Path(path).exists():
+        #If state contains data-path
         return {"mode": "A"}
 
+
+        
+    #  looks inside state["config"] and also optionally at path to see whether the orchestrator specified explicit Hugging Face dataset references.
     explicit_ids = parse_explicit_hf_dataset_ids(state["config"], path)
     if explicit_ids:
+
         return {"mode": "B"}
 
     return {"mode": "C"}
@@ -118,6 +125,9 @@ def build_curation_payload(state: DataGenState, raw_data: dict[str, Any]) -> dic
 
 
 def normalize_records_for_curation(mode: str, records: list[Any]) -> list[dict[str, Any]]:
+    """
+    Takes the raw records and converts them into a normalized (consistent) format
+    """
     normalized: list[dict[str, Any]] = []
     counter = 0
 
