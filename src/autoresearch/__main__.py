@@ -47,6 +47,10 @@ _RED    = "\033[31m"
 _BLUE   = "\033[34m"
 
 
+def _env_truthy(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 # ─── Claude strategy wrapper ──────────────────────────────────────────────────
 
 class ClaudeProposalStrategy(ProposalStrategy):
@@ -65,6 +69,8 @@ class ClaudeProposalStrategy(ProposalStrategy):
         }
 
     def propose(self, config: TrainingConfig, history: list[IterationRecord]) -> Proposal:
+        if _env_truthy("NO_SPEND"):
+            raise RuntimeError("Claude proposal strategy is disabled when NO_SPEND=1")
         from src.autoresearch.autoresearch import propose_hypothesis
         hypothesis = propose_hypothesis(config.to_dict(), history, self._task)
         patch_dict = json.loads(hypothesis["patch"])
@@ -225,6 +231,10 @@ def main() -> None:
         return
 
     if args.strategy == "claude":
+        if _env_truthy("NO_SPEND"):
+            print(f"{_RED}Error: --strategy claude is disabled when NO_SPEND=1.{_RESET}")
+            print("Use --strategy local or --strategy random, or unset NO_SPEND for a live run.")
+            sys.exit(1)
         if not os.getenv("ANTHROPIC_API_KEY"):
             print(f"{_RED}Error: ANTHROPIC_API_KEY is not set.{_RESET}")
             print(f"Export it and re-run:")

@@ -132,21 +132,21 @@ class AutoResearchLoop:
 
     def run_experiment(self, config: TrainingConfig) -> None:
         """
-        TODO: Submit job to Tinker and block until completion.
+        TODO: Run a bounded SDK-native Tinker experiment and block until completion.
 
         Not implemented in the PROPOSE-only phase.
 
         When RUN is ready, this should:
-          1. Serialise config to a temp JSON and pass to tinker_api.submit_job().
-          2. Poll tinker_api.get_job_status(job_id) until COMPLETED or FAILED.
+          1. Build a TrainingConfig from the candidate config.
+          2. Call run_tinker_sft_experiment() and collect ExperimentResult artifacts.
           3. Respect Cost Manager (F4): if CostManager signals budget exceeded,
-             call tinker_api.cancel_job(job_id) and raise BudgetExceededError.
+             call tinker_api.cancel_job(run_id) and raise BudgetExceededError.
           4. Return ExperimentResult (job_id, metrics, model_path, cost_usd).
 
         See: src/tinker_api/tinker_api.py, src/cost_manager/cost_manager.py.
         """
         raise NotImplementedError(
-            "run_experiment not yet implemented. Requires Tinker job submission (F4)."
+            "run_experiment not yet implemented. Requires the Tinker SFT runner (F4)."
         )
 
     # ──────────────────────────────────────────────────────────────────────────

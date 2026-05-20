@@ -47,9 +47,13 @@ from src.autoresearch.proposer import (
 
 # ─── Markers ─────────────────────────────────────────────────────────────────
 
+def _env_truthy(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 integration = pytest.mark.skipif(
-    not os.getenv("ANTHROPIC_API_KEY"),
-    reason="ANTHROPIC_API_KEY not set — skipping live API test",
+    _env_truthy("NO_SPEND") or not os.getenv("ANTHROPIC_API_KEY"),
+    reason="NO_SPEND=1 or ANTHROPIC_API_KEY not set — skipping live API test",
 )
 
 

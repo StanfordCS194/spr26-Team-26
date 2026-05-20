@@ -12,15 +12,27 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal, Mapping
+from uuid import uuid4
 
 import anthropic
 
+from src.autoresearch.config import TrainingConfig
+from src.autoresearch.proposer import LocalPerturbationProposalStrategy, ProposalStrategy
 from src.observability.observability import log_event
+from src.runtime_context import raise_if_cancelled, resolve_output_path
+from src.tinker_api.sft_runner import (
+    DEFAULT_LIVE_SMOKE_STEPS,
+    DEFAULT_TINKER_MODEL,
+    SUPPORTED_TINKER_TUNABLES,
+    run_tinker_sft_experiment,
+)
 from src.types import (
     AgentName,
     AutoResearchState,
+    BudgetStatus,
     CostBreakdown,
     DatasetResult,
     EvalScore,
@@ -28,7 +40,6 @@ from src.types import (
     ExperimentResult,
     Hypothesis,
     IterationRecord,
-    JobConfig,
     JobStatus,
     LogLevel,
     OrchestrationConfig,
@@ -44,6 +55,39 @@ _DIARY_PATH = Path("outputs/logs/research_diary.jsonl")
 _CONFIG_PATH = Path("configs/current.json")  # the JSON file apply_patch/revert_patch target
 _MAX_NO_IMPROVE = 3   # halt after this many consecutive non-improving iterations
 _MAX_ITERATIONS = 20  # hard cap on total iterations regardless of improvement
+_MIN_RELATIVE_IMPROVEMENT_PCT = 1.0
+_MIN_ABSOLUTE_IMPROVEMENT = 1e-9
+_BUDGET_SKIPPED_LOSS = 1_000_000_000.0
+_EXPERIMENT_CACHE: dict[str, ExperimentResult] = {}
+_TINKER_HYPERPARAMETER_ALIASES = {
+    "epochs": "num_epochs",
+    "max_seq_len": "max_seq_length",
+}
+_EVAL_ADAPTATION_ENV = "AUTORESEARCH_EVAL_ADAPTATION"
+_PROPOSER_ENV = "AUTORESEARCH_PROPOSER"
+_NO_SPEND_ENV = "NO_SPEND"
+
+
+def _env_truthy(name: str) -> bool:
+    """Return True for conventional truthy environment flag values."""
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _diary_path() -> Path:
+    return resolve_output_path(_DIARY_PATH, "logs", "research_diary.jsonl")
+
+
+def _config_path() -> Path:
+    return resolve_output_path(_CONFIG_PATH, "configs", "current.json")
+
+
+def _experiments_output_dir() -> Path:
+    return resolve_output_path(Path("outputs/experiments"), "experiments")
+
+
+def _raise_if_no_spend_live_llm(operation: str) -> None:
+    if _env_truthy(_NO_SPEND_ENV):
+        raise RuntimeError(f"{operation} is disabled when {_NO_SPEND_ENV}=1")
 
 
 def _patch_to_diff(patch_dict: dict, current_config: dict) -> str:
@@ -54,6 +98,122 @@ def _patch_to_diff(patch_dict: dict, current_config: dict) -> str:
         lines.append(f"- {key}: {old_val}")
         lines.append(f"+ {key}: {new_val}")
     return "\n".join(lines)
+
+
+def _canonicalize_tinker_hyperparameters(config: Mapping[str, Any]) -> dict[str, Any]:
+    """Return Tinker V1 hyperparameters with legacy Manager aliases removed."""
+    canonical = dict(config)
+    for legacy_key, canonical_key in _TINKER_HYPERPARAMETER_ALIASES.items():
+        if legacy_key in canonical and canonical_key not in canonical:
+            canonical[canonical_key] = canonical[legacy_key]
+        canonical.pop(legacy_key, None)
+    return canonical
+
+
+def _eval_adaptation_setting() -> Literal["auto", "off", "required"]:
+    """Return the configured eval-suite adaptation mode."""
+    raw = os.getenv(_EVAL_ADAPTATION_ENV, "auto").strip().lower()
+    if raw in {"", "auto"}:
+        return "auto"
+    if raw in {"0", "false", "no", "off", "disabled"}:
+        return "off"
+    if raw in {"1", "true", "yes", "on", "required"}:
+        return "required"
+    raise ValueError(
+        f"{_EVAL_ADAPTATION_ENV} must be one of: auto, off, required"
+    )
+
+
+def _eval_adaptation_skip_reason() -> str | None:
+    """Return None when LLM eval adaptation may run, otherwise a skip reason."""
+    setting = _eval_adaptation_setting()
+    if setting == "off":
+        return f"{_EVAL_ADAPTATION_ENV}=off"
+    if _env_truthy(_NO_SPEND_ENV):
+        return f"{_NO_SPEND_ENV}=1"
+    if setting == "auto" and not os.getenv("ANTHROPIC_API_KEY"):
+        return "ANTHROPIC_API_KEY is not configured"
+    return None
+
+
+def _proposer_setting() -> Literal["auto", "local", "claude"]:
+    """Return the configured hypothesis proposer mode."""
+    raw = os.getenv(_PROPOSER_ENV, "auto").strip().lower()
+    if raw in {"", "auto"}:
+        return "auto"
+    if raw in {"local", "offline", "deterministic"}:
+        return "local"
+    if raw in {"claude", "anthropic", "required"}:
+        return "claude"
+    raise ValueError(
+        f"{_PROPOSER_ENV} must be one of: auto, local, claude"
+    )
+
+
+def _use_claude_proposer() -> bool:
+    """Return True when propose_node should call the live Claude proposer."""
+    setting = _proposer_setting()
+    if _env_truthy(_NO_SPEND_ENV):
+        return False
+    if setting == "claude":
+        return True
+    if setting == "local":
+        return False
+    return bool(os.getenv("ANTHROPIC_API_KEY"))
+
+
+def _current_config_for_plan(
+    plan: TrainingPlan,
+    config: OrchestrationConfig,
+) -> dict[str, Any]:
+    current_config = dict(config["training_procedure"]["hyperparameters"])
+    if plan.get("backend") == "tinker_sft":
+        return _canonicalize_tinker_hyperparameters(current_config)
+    return current_config
+
+
+def _training_config_for_proposal(state: AutoResearchState) -> TrainingConfig:
+    """Build a TrainingConfig snapshot from graph state hyperparameters."""
+    current_config = dict(state["current_config"])
+    if state["plan"].get("backend") == "tinker_sft":
+        current_config = _canonicalize_tinker_hyperparameters(current_config)
+
+    current_config.setdefault(
+        "model_name",
+        state["config"]["training_procedure"].get("base_model")
+        or state["plan"].get("base_model")
+        or DEFAULT_TINKER_MODEL,
+    )
+    return TrainingConfig.from_dict(current_config)
+
+
+def _local_proposal_strategy(state: AutoResearchState) -> ProposalStrategy:
+    """Return the deterministic offline proposer used by LangGraph local mode."""
+    return LocalPerturbationProposalStrategy(
+        seed=int(state["iteration"]),
+        backend=state["plan"].get("backend"),
+    )
+
+
+def _local_propose_hypothesis(
+    state: AutoResearchState,
+    task: TaskAnalysis,
+) -> Hypothesis:
+    """Generate a Hypothesis from ProposalStrategy without constructing Anthropic."""
+    proposal = _local_proposal_strategy(state).propose(
+        _training_config_for_proposal(state),
+        state["diary"],
+    )
+    param = proposal.metadata.get("param")
+    return Hypothesis(
+        description=proposal.hypothesis,
+        patch=json.dumps(proposal.patch),
+        expected_effect=(
+            f"Refine {task['eval_metric']} by testing a deterministic local "
+            f"perturbation of {param or 'one hyperparameter'}."
+        ),
+        search_strategy="local",
+    )
 
 
 # ─── GRAPH BUILDER ────────────────────────────────────────────────────────────
@@ -77,7 +237,11 @@ def build_autoresearch_graph():
     # Linear entry path
     graph.set_entry_point("init")
     graph.add_edge("init", "baseline")
-    graph.add_edge("baseline", "propose")
+    graph.add_conditional_edges(
+        "baseline",
+        continue_edge,
+        {"propose": "propose", "__end__": END},
+    )
 
     # Cyclic core: propose → run → (early-stop check) → evaluate → (keep/revert) → log → ...
     graph.add_edge("propose", "run")
@@ -114,14 +278,16 @@ def invoke_autoresearch_graph(
     initial_state: AutoResearchState = {
         "plan": plan,
         "config": config,
+        "cost_manager": cost_manager,
         "eval_suite": None,
         "current_script": plan["training_script_path"],
-        "current_config": config["training_procedure"]["hyperparameters"],
+        "current_config": _current_config_for_plan(plan, config),
         "current_patch": None,
         "last_description": None,
         "original_content": None,
         "diary": [],
         "baseline_score": None,
+        "baseline_result": None,
         "best_score": None,
         "best_script": plan["training_script_path"],
         "last_result": None,
@@ -132,24 +298,19 @@ def invoke_autoresearch_graph(
         "should_stop": False,
     }
 
+    raise_if_cancelled()
     final_state = graph.invoke(initial_state)
+    raise_if_cancelled()
 
-    total_cost = sum(r["cost_usd"] for r in final_state["diary"])
-    termination = "budget_limit" if final_state["should_stop"] else "training_complete"
-    cost_breakdown: CostBreakdown = {
-        "data_gen_usd": 0.0,
-        "training_usd": total_cost,
-        "llm_calls_usd": 0.0,
-        "total_usd": total_cost,
-        "termination_reason": termination,
-    }
+    termination = "budget_limit" if _budget_exhausted(final_state) else "training_complete"
+    cost_breakdown = _cost_breakdown_from_state(final_state, termination)
 
     return {
         "weights_path": final_state["best_script"],
         "metrics": final_state["best_score"],
         "cost": cost_breakdown,
         "n_iterations": final_state["iteration"],
-        "research_diary_path": str(_DIARY_PATH),
+        "research_diary_path": str(_diary_path()),
     }
 
 
@@ -157,6 +318,8 @@ def invoke_autoresearch_graph(
 
 def init_node(state: AutoResearchState) -> dict:
     """LangGraph node. Calls create_eval_suite(). Returns: { eval_suite, current_script, current_config, iteration: 0 }."""
+    raise_if_cancelled()
+    _write_current_config(_training_config_from_state(state))
     task_analysis: TaskAnalysis = {
         "task_type": state["config"]["training_procedure"]["task_type"],
         "modality": "text",
@@ -164,25 +327,7 @@ def init_node(state: AutoResearchState) -> dict:
         "eval_metric": state["plan"]["eval_metric"],
         "complexity": "medium",
     }
-    # Construct a minimal DatasetResult so create_eval_suite can derive the test path.
-    # The real dataset path comes from DataGen (F2); we point at the standard test split location.
-    script_dir = str(Path(state["plan"]["training_script_path"]).parent)
-    dataset_result: DatasetResult = {
-        "dataset": {
-            "path": script_dir,
-            "format": "jsonl",
-            "train_size": 0,
-            "val_size": 0,
-            "test_size": 0,
-        },
-        "mode_used": "A",
-        "quality_notes": "",
-        "validation_report": {
-            "passed": True,
-            "issues": [],
-            "sample_accuracy_estimate": 0.0,
-        },
-    }
+    dataset_result = _dataset_result_from_plan(state["plan"])
 
     eval_suite = create_eval_suite(task_analysis, dataset_result)
 
@@ -200,41 +345,48 @@ def init_node(state: AutoResearchState) -> dict:
     return {
         "eval_suite": eval_suite,
         "current_script": state["plan"]["training_script_path"],
-        "current_config": state["config"]["training_procedure"]["hyperparameters"],
+        "current_config": _current_config_for_plan(state["plan"], state["config"]),
         "iteration": 0,
     }
 
 
 def baseline_node(state: AutoResearchState) -> dict:
     """LangGraph node. Submits and evaluates the unmodified baseline script. Returns: { baseline_score, best_score }."""
+    raise_if_cancelled()
     log_event(
         AgentName.AUTORESEARCH,
         LogLevel.INFO,
         "BASELINE: submitting unmodified training script",
     )
 
-    job_id = submit_experiment(state["plan"]["training_script_path"], state["plan"])
-    timeout = int(state["config"]["training_procedure"].get("timeout_min", 5))
-    experiment = wait_for_experiment(job_id, timeout)
+    experiment = _run_tinker_experiment_for_state(state, phase="baseline")
+    budget_status = _record_experiment_cost(state, experiment)
+    raise_if_cancelled()
     baseline_score = run_evals(experiment["model_path"], state["eval_suite"])
 
     log_event(
         AgentName.AUTORESEARCH,
         LogLevel.INFO,
         f"BASELINE: scalar={baseline_score['scalar']:.4f}",
-        metadata={"score": baseline_score, "job_id": job_id},
+        metadata={"score": baseline_score, "job_id": experiment["job_id"]},
     )
 
     return {
         "baseline_score": baseline_score,
+        "baseline_result": experiment,
         "best_score": baseline_score,
-        "best_script": state["plan"]["training_script_path"],
+        "best_script": experiment["model_path"],
         "last_result": experiment,
+        "should_stop": (
+            budget_status == BudgetStatus.EXCEEDED
+            or experiment["status"] == JobStatus.CANCELLED
+        ),
     }
 
 
 def propose_node(state: AutoResearchState) -> dict:
     """LangGraph node. Calls propose_hypothesis() and apply_patch(). Returns: { current_script, current_patch, last_description, original_content }."""
+    raise_if_cancelled()
     task_analysis: TaskAnalysis = {
         "task_type": state["config"]["training_procedure"]["task_type"],
         "modality": "text",
@@ -248,10 +400,24 @@ def propose_node(state: AutoResearchState) -> dict:
         f"PROPOSE: generating hypothesis for iteration {state['iteration'] + 1}",
         metadata={"iteration": state["iteration"] + 1},
     )
-    hypothesis = propose_hypothesis(state["current_config"], state["diary"], task_analysis)
+    allowed_params = (
+        sorted(SUPPORTED_TINKER_TUNABLES)
+        if state["plan"].get("backend") == "tinker_sft"
+        else None
+    )
+    if _use_claude_proposer():
+        hypothesis = propose_hypothesis(
+            state["current_config"],
+            state["diary"],
+            task_analysis,
+            allowed_params=allowed_params,
+        )
+    else:
+        hypothesis = _local_propose_hypothesis(state, task_analysis)
+    raise_if_cancelled()
 
     # Bug fix: patch the config JSON, not the training script (.py files are not patchable).
-    original_content = apply_patch(str(_CONFIG_PATH), hypothesis["patch"])
+    original_content = apply_patch(str(_config_path()), hypothesis["patch"])
 
     log_event(
         AgentName.AUTORESEARCH,
@@ -275,7 +441,8 @@ def propose_node(state: AutoResearchState) -> dict:
 
 
 def run_node(state: AutoResearchState) -> dict:
-    """LangGraph node. Calls submit_experiment() and wait_for_experiment(). Returns: { last_result }."""
+    """LangGraph node. Runs a bounded SDK-native Tinker experiment. Returns: { last_result }."""
+    raise_if_cancelled()
     log_event(
         AgentName.AUTORESEARCH,
         LogLevel.INFO,
@@ -283,62 +450,60 @@ def run_node(state: AutoResearchState) -> dict:
         metadata={"iteration": state["iteration"] + 1},
     )
 
-    timeout = int(state["config"]["training_procedure"].get("timeout_min", 5))
-    job_id = submit_experiment(state["plan"]["training_script_path"], state["plan"], timeout)
-    result = wait_for_experiment(job_id, timeout)
+    result = _run_tinker_experiment_for_state(state, phase="iteration")
+    budget_status = _record_experiment_cost(state, result)
 
     log_event(
         AgentName.AUTORESEARCH,
         LogLevel.INFO,
-        f"RUN: job {job_id} finished — status={result['status']}",
-        metadata={"job_id": job_id, "cost_usd": result["cost_usd"]},
+        f"RUN: job {result['job_id']} finished — status={result['status']}",
+        metadata={"job_id": result["job_id"], "cost_usd": result["cost_usd"]},
     )
+    raise_if_cancelled()
 
-    return {"last_result": result}
+    return {
+        "last_result": result,
+        "should_stop": (
+            budget_status == BudgetStatus.EXCEEDED
+            or result["status"] == JobStatus.CANCELLED
+        ),
+    }
 
 
 def revert_and_continue_node(state: AutoResearchState) -> dict:
-    """LangGraph node (early stop path). Calls revert_patch(), logs REVERTED, increments iteration. Returns: { current_script, diary, iteration }."""
-    revert_patch(state["plan"]["training_script_path"], state["original_content"])
+    """LangGraph node (early stop path). Reverts the patch before normal logging."""
+    raise_if_cancelled()
+    revert_patch(str(_config_path()), state["original_content"])
 
+    budget_skipped = _last_result_was_budget_skipped(state)
+    reason = (
+        "budget preflight skipped iteration"
+        if budget_skipped
+        else "catastrophic failure"
+    )
     log_event(
         AgentName.AUTORESEARCH,
         LogLevel.WARN,
-        f"REVERTED (early-stop): catastrophic failure on iteration {state['iteration'] + 1}",
+        f"REVERTED (early-stop): {reason} on iteration {state['iteration'] + 1}",
         metadata={
             "iteration": state["iteration"] + 1,
             "metrics": state["last_result"]["metrics"] if state.get("last_result") else {},
         },
     )
 
-    # Build and persist the diary entry for this early-stopped iteration.
-    # last_result always exists here because run_node already wrote it.
-    patch_dict = json.loads(state.get("current_patch", "{}"))
-    diff = _patch_to_diff(patch_dict, state["current_config"])
-    record: IterationRecord = {
-        "iteration": state["iteration"] + 1,
-        "hypothesis": state.get("last_description", str(patch_dict)),
-        "patch": diff,
-        "cost_usd": state["last_result"]["cost_usd"],
-        "metrics": state["last_result"]["metrics"],
-        "decision": "REVERTED",
-        "notes": "Early-stopped: catastrophic failure (NaN/exploding loss/accuracy collapse)",
-    }
-    updated_diary = log_iteration(state["diary"], record)
-
     return {
         "current_script": state["plan"]["training_script_path"],
         "original_content": None,
-        "last_delta": None,  # signals early-stop path to log_node
-        "diary": updated_diary,
-        "iteration": state["iteration"] + 1,
+        "last_delta": None,  # signals early-stop path to log_node.
     }
 
 
 def evaluate_node(state: AutoResearchState) -> dict:
     """LangGraph node. Calls run_evals(), compare_scores(), flag_regression(). Returns: { last_score, last_delta }."""
+    raise_if_cancelled()
     last_score = run_evals(state["last_result"]["model_path"], state["eval_suite"])
-    last_delta = compare_scores(last_score, state["baseline_score"])
+    reference_score = state.get("best_score") or state["baseline_score"]
+    last_delta = compare_scores(last_score, reference_score)
     regressed = flag_regression(last_delta)
 
     log_event(
@@ -349,6 +514,7 @@ def evaluate_node(state: AutoResearchState) -> dict:
         + ("  ⚠ REGRESSION" if regressed else ""),
         metadata={
             "score": last_score,
+            "reference_score": reference_score,
             "delta": last_delta,
             "regression": regressed,
         },
@@ -368,6 +534,7 @@ def evaluate_node(state: AutoResearchState) -> dict:
 
 def keep_node(state: AutoResearchState) -> dict:
     """LangGraph node. Updates best_score and best_script. Resets no_improve_streak. Returns: { best_score, best_script, no_improve_streak: 0 }."""
+    raise_if_cancelled()
     log_event(
         AgentName.AUTORESEARCH,
         LogLevel.INFO,
@@ -379,10 +546,12 @@ def keep_node(state: AutoResearchState) -> dict:
     # call to propose_hypothesis() sees the real current state, not the original baseline.
     patch_dict = json.loads(state.get("current_patch", "{}"))
     updated_config = {**state["current_config"], **patch_dict}
+    if state["plan"].get("backend") == "tinker_sft":
+        updated_config = _canonicalize_tinker_hyperparameters(updated_config)
 
     return {
         "best_score": state["last_score"],
-        "best_script": state["plan"]["training_script_path"],
+        "best_script": state["last_result"]["model_path"],
         "current_config": updated_config,
         "no_improve_streak": 0,
     }
@@ -390,7 +559,8 @@ def keep_node(state: AutoResearchState) -> dict:
 
 def revert_node(state: AutoResearchState) -> dict:
     """LangGraph node. Calls revert_patch(). Increments no_improve_streak. Returns: { current_script, no_improve_streak }."""
-    revert_patch(str(_CONFIG_PATH), state["original_content"])
+    raise_if_cancelled()
+    revert_patch(str(_config_path()), state["original_content"])
 
     new_streak = state["no_improve_streak"] + 1
     log_event(
@@ -400,7 +570,7 @@ def revert_node(state: AutoResearchState) -> dict:
         metadata={"iteration": state["iteration"] + 1, "streak": new_streak},
     )
     return {
-        "current_script": state["best_script"],
+        "current_script": state["plan"]["training_script_path"],
         "original_content": None,
         "no_improve_streak": new_streak,
     }
@@ -408,6 +578,7 @@ def revert_node(state: AutoResearchState) -> dict:
 
 def log_node(state: AutoResearchState) -> dict:
     """LangGraph node. Calls log_iteration(). Calls adapt_eval_suite() every 10 iters. Returns: { diary, eval_suite, iteration }."""
+    raise_if_cancelled()
     iteration_number = state["iteration"] + 1
 
     # revert_and_continue_node already logged its entry and updated state["diary"].
@@ -419,6 +590,13 @@ def log_node(state: AutoResearchState) -> dict:
         if state["last_delta"] is not None and state["last_delta"]["improved"]:
             decision = "KEPT"
             notes = f"+{state['last_delta']['relative_pct']:.1f}% on {state['eval_suite']['primary_metric']}"
+        elif _last_result_was_early_stopped(state):
+            decision = "REVERTED"
+            notes = (
+                "Skipped: budget preflight rejected the Tinker run"
+                if _last_result_was_budget_skipped(state)
+                else "Early-stopped: catastrophic failure (NaN/Inf loss or primary metric collapse)"
+            )
         else:
             decision = "REVERTED"
             delta_pct = state["last_delta"]["relative_pct"] if state["last_delta"] else 0.0
@@ -430,7 +608,7 @@ def log_node(state: AutoResearchState) -> dict:
             else {"train_loss": 0.0, "val_loss": 0.0, "test_loss": 0.0, "primary_metric": 0.0}
         )
         patch_dict = json.loads(state.get("current_patch", "{}"))
-        diff = _patch_to_diff(patch_dict, state["current_config"])
+        diff = _patch_to_diff(patch_dict, _pre_patch_config_from_state(state))
         record: IterationRecord = {
             "iteration": iteration_number,
             "hypothesis": state.get("last_description", str(patch_dict)),
@@ -453,13 +631,22 @@ def log_node(state: AutoResearchState) -> dict:
         ]
         if recent_reverts:
             weaknesses = [r["notes"] for r in recent_reverts]
-            updated_suite = adapt_eval_suite(state["eval_suite"], weaknesses)
-            log_event(
-                AgentName.AUTORESEARCH,
-                LogLevel.INFO,
-                f"ADAPT: eval suite updated after {iteration_number} iterations",
-                metadata={"weaknesses": weaknesses},
-            )
+            skip_reason = _eval_adaptation_skip_reason()
+            if skip_reason:
+                log_event(
+                    AgentName.AUTORESEARCH,
+                    LogLevel.WARN,
+                    f"ADAPT: skipped eval suite update after {iteration_number} iterations",
+                    metadata={"reason": skip_reason, "weaknesses": weaknesses},
+                )
+            else:
+                updated_suite = adapt_eval_suite(state["eval_suite"], weaknesses)
+                log_event(
+                    AgentName.AUTORESEARCH,
+                    LogLevel.INFO,
+                    f"ADAPT: eval suite updated after {iteration_number} iterations",
+                    metadata={"weaknesses": weaknesses},
+                )
 
     return {
         "diary": updated_diary,
@@ -474,11 +661,39 @@ def early_stop_edge(state: AutoResearchState) -> Literal["evaluate", "revert_and
     """After run_node. Returns 'revert_and_continue' on catastrophic failure, 'evaluate' otherwise."""
     if state["last_result"] is None:
         return "revert_and_continue"
-    if state["last_result"]["status"] == JobStatus.FAILED:
+    if state["last_result"]["status"] in {JobStatus.FAILED, JobStatus.CANCELLED}:
         return "revert_and_continue"
     if check_early_stop(state["last_result"]["metrics"]):
         return "revert_and_continue"
     return "evaluate"
+
+
+def _last_result_was_early_stopped(state: AutoResearchState) -> bool:
+    if state.get("last_delta") is not None:
+        return False
+    last_result = state.get("last_result")
+    if last_result is None:
+        return True
+    if last_result["status"] in {JobStatus.FAILED, JobStatus.CANCELLED}:
+        return True
+    return check_early_stop(last_result["metrics"])
+
+
+def _last_result_was_budget_skipped(state: AutoResearchState) -> bool:
+    last_result = state.get("last_result")
+    if not last_result:
+        return False
+    try:
+        manifest_path = Path(last_result["model_path"]) / "manifest.json"
+    except (KeyError, TypeError):
+        return False
+    if not manifest_path.exists():
+        return False
+    try:
+        manifest = json.loads(manifest_path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return False
+    return bool(manifest.get("budget_preflight_skipped"))
 
 
 def decision_edge(state: AutoResearchState) -> Literal["keep", "revert"]:
@@ -489,12 +704,13 @@ def decision_edge(state: AutoResearchState) -> Literal["keep", "revert"]:
 
 def continue_edge(state: AutoResearchState) -> Literal["propose", "__end__"]:
     """After log_node. Returns '__end__' if budget exhausted / convergence, else 'propose' to loop."""
+    raise_if_cancelled()
     if state["should_stop"]:
         return "__end__"
 
     budget = state["config"].get("compute_budget", float("inf"))
-    spent = sum(r["cost_usd"] for r in state["diary"])
-    if spent >= budget:
+    spent = _spent_usd_from_state(state)
+    if _budget_exhausted(state):
         log_event(
             AgentName.AUTORESEARCH,
             LogLevel.INFO,
@@ -521,24 +737,100 @@ def continue_edge(state: AutoResearchState) -> Literal["propose", "__end__"]:
     return "propose"
 
 
+def _pre_patch_config_from_state(state: AutoResearchState) -> dict[str, Any]:
+    original_content = state.get("original_content")
+    if original_content:
+        try:
+            original_config = json.loads(original_content)
+        except json.JSONDecodeError:
+            original_config = None
+        if isinstance(original_config, dict):
+            return original_config
+    return state["current_config"]
+
+
+def _spent_usd_from_state(state: AutoResearchState) -> float:
+    cost_manager = state.get("cost_manager")
+    if cost_manager is not None and hasattr(cost_manager, "spent_usd"):
+        return float(cost_manager.spent_usd)
+    baseline_cost = (
+        state.get("baseline_result", {}).get("cost_usd", 0.0)
+        if state.get("baseline_result")
+        else 0.0
+    )
+    return baseline_cost + sum(r["cost_usd"] for r in state["diary"])
+
+
+def _budget_exhausted(state: AutoResearchState) -> bool:
+    if state.get("should_stop"):
+        return True
+    cost_manager = state.get("cost_manager")
+    if cost_manager is not None and getattr(cost_manager, "status", None) == BudgetStatus.EXCEEDED:
+        return True
+    budget = state["config"].get("compute_budget", float("inf"))
+    return _spent_usd_from_state(state) >= budget
+
+
+def _cost_breakdown_from_state(
+    state: AutoResearchState,
+    termination_reason: str,
+) -> CostBreakdown:
+    cost_manager = state.get("cost_manager")
+    if cost_manager is not None and hasattr(cost_manager, "cost_breakdown"):
+        return cost_manager.cost_breakdown(termination_reason=termination_reason)
+
+    total_cost = _spent_usd_from_state(state)
+    return {
+        "data_gen_usd": 0.0,
+        "training_usd": total_cost,
+        "llm_calls_usd": 0.0,
+        "total_usd": total_cost,
+        "termination_reason": termination_reason,
+    }
+
+
 # ─── PROPOSE HELPERS ──────────────────────────────────────────────────────────
 
 def propose_hypothesis(
     current_config: dict,
     diary: ResearchDiary,
     task: TaskAnalysis,
+    allowed_params: list[str] | None = None,
 ) -> Hypothesis:
     """Calls Claude API (claude-haiku-4-5-20251001) to generate a single testable hypothesis as a code/config diff."""
+    _raise_if_no_spend_live_llm("Claude hypothesis proposal")
     client = anthropic.Anthropic()
     recent = diary[-5:] if len(diary) > 5 else diary
+    prompt_config = (
+        _canonicalize_tinker_hyperparameters(current_config)
+        if allowed_params
+        else current_config
+    )
 
     system = (
         "You are an ML hyperparameter optimization assistant for the AutoResearch Loop. "
         "You propose exactly ONE config-level change per iteration, grounded in the "
         "experiment history. Return only valid JSON — no prose, no markdown fences."
     )
+    change_rule = (
+        f"Change exactly ONE of these supported hyperparameters: {', '.join(allowed_params)}."
+        if allowed_params
+        else "Change exactly ONE hyperparameter."
+    )
+    if allowed_params:
+        bounds_rule = (
+            "Stay within safe bounds: learning_rate [1e-6, 1e-2], batch_size [4, 8192], "
+            "max_seq_length [128, 4096], lora_rank in [4,8,16,32,64,128], "
+            "num_epochs [1, 100]."
+        )
+    else:
+        bounds_rule = (
+            "Stay within safe bounds: learning_rate [1e-6, 1e-2], batch_size [4, 8192], "
+            "max_seq_length [128, 4096], lora_rank in [4,8,16,32,64,128], "
+            "warmup_steps [0, 2000], dropout [0, 0.5]."
+        )
     user = f"""Current training configuration:
-{json.dumps(current_config, indent=2)}
+{json.dumps(prompt_config, indent=2)}
 
 Task:
 - type: {task['task_type']}
@@ -549,10 +841,8 @@ Recent experiment history ({len(recent)} entries):
 {json.dumps(recent, indent=2) if recent else "No history yet — this is the first iteration."}
 
 Rules:
-- Change exactly ONE hyperparameter.
-- Stay within safe bounds: learning_rate [1e-6, 1e-2], batch_size [4, 8192],
-  max_seq_length [128, 4096], lora_rank in [4,8,16,32,64,128],
-  warmup_steps [0, 2000], dropout [0, 0.5].
+- {change_rule}
+- {bounds_rule}
 - Avoid repeating a change that recently caused a REVERTED outcome.
 - Prefer evidence-based choices over random exploration when history exists.
 
@@ -578,9 +868,18 @@ Respond with this JSON object and nothing else:
             if not line.startswith("```")
         )
     parsed = json.loads(raw)
+    patch = parsed["patch"]
+    if allowed_params:
+        patch = _canonicalize_tinker_hyperparameters(patch)
+        unsupported = [key for key in patch if key not in set(allowed_params)]
+        if unsupported:
+            raise ValueError(
+                f"Unsupported Tinker SFT hyperparameter(s): {unsupported}. "
+                f"Allowed: {allowed_params}"
+            )
     return Hypothesis(
         description=parsed["description"],
-        patch=json.dumps(parsed["patch"]),
+        patch=json.dumps(patch),
         expected_effect=parsed["expected_effect"],
         search_strategy=parsed["search_strategy"],
     )
@@ -602,7 +901,7 @@ def apply_patch(script_path: str, patch: str) -> str:
     if path.suffix == ".json":
         config_dict = json.loads(original)
         patch_dict = json.loads(patch)
-        config_dict.update(patch_dict)
+        config_dict = TrainingConfig.from_dict(config_dict).apply_patch(patch_dict).to_dict()
         # Write atomically via a temp file + rename so a crash mid-write
         # never leaves a partially-written config on disk.
         tmp = path.with_suffix(".json.tmp")
@@ -616,7 +915,7 @@ def apply_patch(script_path: str, patch: str) -> str:
         #     raise RuntimeError(f"patch failed: {result.stderr}")
         raise NotImplementedError(
             "Script-level patching not yet implemented. "
-            "Requires RUN phase and Tinker job submission."
+            "The Tinker SFT v1 path patches JSON config only."
         )
     else:
         raise ValueError(f"Unsupported file type for patching: {path.suffix!r}")
@@ -631,84 +930,357 @@ def revert_patch(script_path: str, original_content: str) -> None:
 
 # ─── RUN HELPERS ──────────────────────────────────────────────────────────────
 
+def _dataset_result_from_plan(plan: TrainingPlan) -> DatasetResult:
+    dataset_meta = plan.get("dataset")
+    if isinstance(dataset_meta, Mapping):
+        dataset_path = str(
+            dataset_meta.get("path")
+            or plan.get("dataset_path")
+            or Path(plan["training_script_path"]).parent
+        )
+        dataset_format = str(dataset_meta.get("format") or "jsonl")
+        train_size = max(0, int(dataset_meta.get("train_size") or 0))
+        val_size = max(0, int(dataset_meta.get("val_size") or 0))
+        test_size = max(0, int(dataset_meta.get("test_size") or 0))
+    else:
+        dataset_path = plan.get("dataset_path") or str(
+            Path(plan["training_script_path"]).parent
+        )
+        dataset_format = "jsonl"
+        train_size = 0
+        val_size = 0
+        test_size = 0
+
+    return {
+        "dataset": {
+            "path": dataset_path,
+            "format": dataset_format,
+            "train_size": train_size,
+            "val_size": val_size,
+            "test_size": test_size,
+        },
+        "mode_used": "A",
+        "quality_notes": "AutoResearch Tinker SFT dataset",
+        "validation_report": {
+            "passed": True,
+            "issues": [],
+            "sample_accuracy_estimate": 0.0,
+        },
+    }
+
+
+def _training_config_from_state(
+    state: AutoResearchState,
+    *,
+    include_pending_patch: bool = False,
+) -> TrainingConfig:
+    data: dict[str, Any] = (
+        _canonicalize_tinker_hyperparameters(state["current_config"])
+        if state["plan"].get("backend") == "tinker_sft"
+        else dict(state["current_config"])
+    )
+    data.setdefault("model_name", state["plan"].get("base_model") or DEFAULT_TINKER_MODEL)
+    lora = state["plan"].get("lora_config")
+    if lora and "lora_rank" not in data:
+        data["lora_rank"] = lora["rank"]
+    if lora and "lora_alpha" not in data:
+        data["lora_alpha"] = lora["alpha"]
+    config = TrainingConfig.from_dict(data)
+    if include_pending_patch and state.get("current_patch"):
+        config = config.apply_patch(json.loads(state["current_patch"]))
+    return config
+
+
+def _write_current_config(config: TrainingConfig) -> None:
+    config.save(_config_path())
+
+
+def _training_config_from_plan(plan: TrainingPlan) -> TrainingConfig:
+    config_path = _config_path()
+    if config_path.exists():
+        data = TrainingConfig.load(config_path).to_dict()
+    else:
+        data = {"model_name": plan.get("base_model") or DEFAULT_TINKER_MODEL}
+    data["model_name"] = plan.get("base_model") or data.get("model_name") or DEFAULT_TINKER_MODEL
+    lora = plan.get("lora_config")
+    if lora:
+        data.setdefault("lora_rank", lora["rank"])
+        data.setdefault("lora_alpha", lora["alpha"])
+    return TrainingConfig.from_dict(data)
+
+
+def _max_steps_from_state(state: AutoResearchState) -> int:
+    procedure = state["config"].get("training_procedure", {})
+    hyperparameters = procedure.get("hyperparameters", {})
+    for source in (state["current_config"], hyperparameters, procedure):
+        value = source.get("max_steps") if isinstance(source, dict) else None
+        if value is not None:
+            return max(1, int(value))
+    return DEFAULT_LIVE_SMOKE_STEPS
+
+
+def _estimated_run_cost_from_state(state: AutoResearchState) -> float:
+    """Returns the best available USD estimate for the next Tinker launch."""
+    plan = state.get("plan", {})
+    procedure = state.get("config", {}).get("training_procedure", {})
+    hyperparameters = (
+        procedure.get("hyperparameters", {})
+        if isinstance(procedure, Mapping)
+        else {}
+    )
+    candidates = (
+        plan.get("estimated_run_cost_usd"),
+        hyperparameters.get("estimated_run_cost_usd")
+        if isinstance(hyperparameters, Mapping)
+        else None,
+    )
+    for value in candidates:
+        if value is None:
+            continue
+        try:
+            return max(0.0, float(value))
+        except (TypeError, ValueError):
+            continue
+    return 0.0
+
+
+def _remaining_budget_from_state(state: AutoResearchState) -> float:
+    cost_manager = state.get("cost_manager")
+    if cost_manager is not None and hasattr(cost_manager, "remaining_budget"):
+        try:
+            return max(0.0, float(cost_manager.remaining_budget))
+        except (TypeError, ValueError):
+            pass
+
+    budget = state.get("config", {}).get("compute_budget", float("inf"))
+    try:
+        return max(0.0, float(budget) - _spent_usd_from_state(state))
+    except (TypeError, ValueError):
+        return float("inf")
+
+
+def _budget_preflight_skip_reason(
+    state: AutoResearchState,
+    estimated_cost: float,
+) -> str | None:
+    cost_manager = state.get("cost_manager")
+    remaining = _remaining_budget_from_state(state)
+
+    if cost_manager is not None and hasattr(cost_manager, "can_start_run"):
+        can_start = cost_manager.can_start_run(estimated_cost)
+    else:
+        can_start = remaining > 0 and estimated_cost <= remaining
+
+    if can_start:
+        return None
+    if remaining <= 0:
+        return "remaining budget is exhausted before launch"
+    if estimated_cost > remaining:
+        return (
+            f"estimated run cost ${estimated_cost:.2f} exceeds remaining "
+            f"budget ${remaining:.2f}"
+        )
+    return "budget preflight rejected launch"
+
+
+def _budget_limited_experiment_result(
+    run_id: str,
+    *,
+    reason: str,
+    estimated_cost: float,
+    remaining_budget: float,
+    output_dir: str = "outputs/experiments",
+) -> ExperimentResult:
+    run_dir = Path(output_dir) / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    metrics: TrainingMetrics = {
+        "train_loss": _BUDGET_SKIPPED_LOSS,
+        "val_loss": _BUDGET_SKIPPED_LOSS,
+        "test_loss": _BUDGET_SKIPPED_LOSS,
+        "primary_metric": 0.0,
+    }
+    metrics_row = {
+        "step": 0,
+        **metrics,
+        "budget_preflight_skipped": True,
+        "reason": reason,
+    }
+    metrics_path = run_dir / "metrics.jsonl"
+    metrics_path.write_text(json.dumps(metrics_row, allow_nan=False) + "\n")
+    (run_dir / "metrics.json").write_text(json.dumps(metrics, indent=2, allow_nan=False))
+    (run_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "status": JobStatus.CANCELLED,
+                "backend": "tinker_sft",
+                "budget_preflight_skipped": True,
+                "budget_skip_reason": reason,
+                "estimated_cost_usd": round(float(estimated_cost), 6),
+                "remaining_budget_usd": round(float(remaining_budget), 6),
+                "completed_steps": 0,
+                "checkpoints": {},
+            },
+            indent=2,
+        )
+    )
+    (run_dir / "sample.json").write_text(
+        json.dumps({"prompt": [], "text": "", "tokens": [], "error": reason}, indent=2)
+    )
+    return {
+        "job_id": run_id,
+        "status": JobStatus.CANCELLED,
+        "metrics": metrics,
+        "model_path": str(run_dir),
+        "cost_usd": 0.0,
+        "logs_path": str(metrics_path),
+    }
+
+
+def _run_tinker_experiment_for_state(
+    state: AutoResearchState,
+    *,
+    phase: str,
+) -> ExperimentResult:
+    run_id = f"autoresearch-{phase}-{state['iteration']}-{uuid4().hex[:8]}"
+    estimated_cost = _estimated_run_cost_from_state(state)
+    remaining_budget = _remaining_budget_from_state(state)
+    skip_reason = _budget_preflight_skip_reason(state, estimated_cost)
+    if skip_reason:
+        log_event(
+            AgentName.AUTORESEARCH,
+            LogLevel.WARN,
+            "BUDGET: skipped Tinker launch before spend",
+            metadata={
+                "run_id": run_id,
+                "phase": phase,
+                "estimated_cost_usd": estimated_cost,
+                "remaining_budget_usd": remaining_budget,
+                "reason": skip_reason,
+            },
+        )
+        return _budget_limited_experiment_result(
+            run_id,
+            reason=skip_reason,
+            estimated_cost=estimated_cost,
+            remaining_budget=remaining_budget,
+            output_dir=str(_experiments_output_dir()),
+        )
+
+    cost_manager = state.get("cost_manager")
+    if cost_manager is not None and hasattr(cost_manager, "start"):
+        cost_manager.start(run_id)
+    try:
+        return run_tinker_sft_experiment(
+            _training_config_from_state(
+                state,
+                include_pending_patch=phase == "iteration",
+            ),
+            _dataset_result_from_plan(state["plan"]),
+            run_id=run_id,
+            max_steps=_max_steps_from_state(state),
+            output_dir=str(_experiments_output_dir()),
+        )
+    finally:
+        if cost_manager is not None and hasattr(cost_manager, "stop"):
+            cost_manager.stop()
+
+
+def _record_experiment_cost(
+    state: AutoResearchState,
+    result: ExperimentResult,
+    category: str = "training",
+) -> str | None:
+    cost_manager = state.get("cost_manager")
+    if cost_manager is None or not hasattr(cost_manager, "record_spend"):
+        return None
+    accounted_cost = _accounted_experiment_cost(state, result)
+    result["cost_usd"] = accounted_cost
+    return cost_manager.record_spend(accounted_cost, category=category)
+
+
+def _accounted_experiment_cost(
+    state: AutoResearchState,
+    result: ExperimentResult,
+) -> float:
+    actual_cost = max(0.0, float(result.get("cost_usd", 0.0)))
+    if _experiment_result_was_budget_skipped(result):
+        return actual_cost
+    return max(actual_cost, _estimated_run_cost_from_state(state))
+
+
+def _experiment_result_was_budget_skipped(result: ExperimentResult) -> bool:
+    try:
+        manifest_path = Path(result["model_path"]) / "manifest.json"
+    except (KeyError, TypeError):
+        return False
+    if not manifest_path.exists():
+        return False
+    try:
+        manifest = json.loads(manifest_path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return False
+    return bool(manifest.get("budget_preflight_skipped"))
+
+
 def submit_experiment(
     script_path: str,
     plan: TrainingPlan,
     timeout_min: int = 5,
 ) -> str:
-    """Submits a constrained training run to Tinker. Returns the Tinker job ID."""
-    # Translate our TrainingPlan into a Tinker JobConfig.
-    # GPU allocation is kept minimal: single A100 with the plan's time budget.
-    from src.tinker_api.tinker_api import submit_job
+    """Run a constrained SDK-native Tinker experiment and return its run ID.
 
-    job_config: JobConfig = {
-        "gpu_type": "A100",
-        "num_gpus": 1,
-        "timeout_min": timeout_min,
-        "env_vars": {},
-        "output_dir": "outputs/experiments",
-    }
-    return submit_job(script_path, job_config)
+    Kept as a compatibility wrapper for older call sites; it no longer submits
+    a REST job.
+    """
+    _ = script_path, timeout_min
+    result = run_tinker_sft_experiment(
+        _training_config_from_plan(plan),
+        _dataset_result_from_plan(plan),
+        max_steps=DEFAULT_LIVE_SMOKE_STEPS,
+        output_dir=str(_experiments_output_dir()),
+    )
+    _EXPERIMENT_CACHE[result["job_id"]] = result
+    return result["job_id"]
 
 
 def wait_for_experiment(job_id: str, timeout_min: int) -> ExperimentResult:
-    """Polls Tinker for job completion. Raises TimeoutError if timeout_min exceeded."""
-    import time
-    from src.tinker_api.tinker_api import get_job_status, get_cumulative_spend
+    """Return a completed SDK-native Tinker experiment result."""
+    _ = timeout_min
+    if job_id in _EXPERIMENT_CACHE:
+        return _EXPERIMENT_CACHE[job_id]
 
-    deadline = time.time() + timeout_min * 60
-    poll_interval = 15  # seconds between status checks
-
-    while time.time() < deadline:
-        status = get_job_status(job_id)
-        if status == JobStatus.COMPLETED:
-            cost = get_cumulative_spend(job_id)
-            # Tinker writes metrics to outputs/experiments/<job_id>/metrics.json.
-            metrics_path = Path("outputs/experiments") / job_id / "metrics.json"
-            metrics: TrainingMetrics = json.loads(metrics_path.read_text())
-            model_path = str(Path("outputs/experiments") / job_id / "model")
-            return {
-                "job_id": job_id,
-                "status": status,
-                "metrics": metrics,
-                "model_path": model_path,
-                "cost_usd": cost,
-                "logs_path": str(Path("outputs/experiments") / job_id / "logs.txt"),
-            }
-        if status == JobStatus.FAILED:
-            return {
-                "job_id": job_id,
-                "status": status,
-                "metrics": {
-                    "train_loss": float("nan"),
-                    "val_loss": float("nan"),
-                    "test_loss": float("nan"),
-                    "primary_metric": 0.0,
-                },
-                "model_path": "",
-                "cost_usd": get_cumulative_spend(job_id),
-                "logs_path": str(Path("outputs/experiments") / job_id / "logs.txt"),
-            }
-        time.sleep(poll_interval)
-
-    raise TimeoutError(
-        f"Tinker job {job_id} did not finish within {timeout_min} minutes"
-    )
+    run_dir = _experiments_output_dir() / job_id
+    metrics_path = run_dir / "metrics.json"
+    if not metrics_path.exists():
+        raise TimeoutError(f"Tinker run {job_id} has no metrics artifact")
+    metrics: TrainingMetrics = json.loads(metrics_path.read_text())
+    manifest_path = run_dir / "manifest.json"
+    status = JobStatus.COMPLETED
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text())
+        status = manifest.get("status", status)
+    return {
+        "job_id": job_id,
+        "status": status,
+        "metrics": metrics,
+        "model_path": str(run_dir),
+        "cost_usd": 0.0,
+        "logs_path": str(run_dir / "metrics.jsonl"),
+    }
 
 
 def check_early_stop(metrics: TrainingMetrics) -> bool:
-    """Returns True on catastrophic failure: exploding loss (>10× baseline), NaN, or accuracy collapse."""
+    """Returns True on catastrophic failure: non-finite loss or primary metric collapse."""
     for key in ("train_loss", "val_loss"):
         val = metrics.get(key)
         if val is not None and (math.isnan(val) or math.isinf(val)):
             return True
 
-    train_loss = metrics.get("train_loss")
-    if train_loss is not None and train_loss > 10.0:
-        return True
-
     primary = metrics.get("primary_metric")
-    if primary is not None and primary < 0.01:
+    if primary is not None and (
+        math.isnan(primary) or math.isinf(primary) or primary < 0.01
+    ):
         return True
 
     return False
@@ -717,21 +1289,25 @@ def check_early_stop(metrics: TrainingMetrics) -> bool:
 # ─── EVALUATE HELPERS ─────────────────────────────────────────────────────────
 
 def run_evals(model_path: str, eval_suite: EvalSuite) -> EvalScore:
-    """Runs the evaluation suite against the model and returns a scalar score + per-metric breakdown."""
-    # Wire-in point for the model inference layer (transformers / PEFT / Tinker artifacts).
-    #
-    # Expected implementation:
-    #   1. Load the model from model_path (AutoModelForSequenceClassification or equivalent).
-    #   2. Load the test split from eval_suite["test_split_path"].
-    #   3. Run inference and compute each metric in eval_suite["metrics"].
-    #   4. If eval_suite["use_llm_grading"], call Claude to score free-form outputs.
-    #   5. Return EvalScore with scalar = primary metric value, metrics = per-metric dict.
-    #
-    # Blocked on: transformers model loading + Tinker artifact download (F4).
-    raise NotImplementedError(
-        "run_evals not yet implemented. "
-        "Requires model loading from Tinker artifacts and inference infrastructure."
-    )
+    """Score Tinker SFT artifacts using val loss as the v1 proxy metric."""
+    _ = eval_suite
+    metrics_path = Path(model_path) / "metrics.json"
+    if not metrics_path.exists():
+        raise FileNotFoundError(f"Missing Tinker metrics artifact: {metrics_path}")
+    raw_metrics = json.loads(metrics_path.read_text())
+    val_loss = float(raw_metrics.get("val_loss", raw_metrics.get("train_loss", float("nan"))))
+    scalar = 0.0 if not math.isfinite(val_loss) or val_loss < 0 else 1.0 / (1.0 + val_loss)
+    metrics = {
+        "train_loss": float(raw_metrics.get("train_loss", val_loss)),
+        "val_loss": val_loss,
+        "test_loss": float(raw_metrics.get("test_loss", val_loss)),
+        "primary_metric": scalar,
+    }
+    return {
+        "scalar": scalar,
+        "metrics": metrics,
+        "critique": "Tinker SFT v1 score uses primary_metric = 1 / (1 + val_loss).",
+    }
 
 
 def compare_scores(new_score: EvalScore, baseline_score: EvalScore) -> ScoreDelta:
@@ -740,10 +1316,17 @@ def compare_scores(new_score: EvalScore, baseline_score: EvalScore) -> ScoreDelt
     base_val = baseline_score["scalar"]
     absolute = new_val - base_val
     relative_pct = (absolute / base_val * 100.0) if base_val != 0.0 else 0.0
+    if base_val == 0.0:
+        improved = absolute > _MIN_ABSOLUTE_IMPROVEMENT
+    else:
+        improved = (
+            absolute > _MIN_ABSOLUTE_IMPROVEMENT
+            and relative_pct >= _MIN_RELATIVE_IMPROVEMENT_PCT
+        )
     return {
         "absolute": absolute,
         "relative_pct": relative_pct,
-        "improved": absolute > 0.0,
+        "improved": improved,
     }
 
 
@@ -756,8 +1339,9 @@ def decide_keep_or_revert(delta: ScoreDelta) -> Literal["KEEP", "REVERT"]:
 
 def log_iteration(diary: ResearchDiary, record: IterationRecord) -> ResearchDiary:
     """Appends an IterationRecord to the research diary and writes to disk as JSONL."""
-    _DIARY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(_DIARY_PATH, "a") as f:
+    diary_path = _diary_path()
+    diary_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(diary_path, "a") as f:
         f.write(json.dumps(record) + "\n")
     return [*diary, record]
 
@@ -803,6 +1387,7 @@ def create_eval_suite(task: TaskAnalysis, dataset: DatasetResult) -> EvalSuite:
 
 def adapt_eval_suite(suite: EvalSuite, weaknesses: list[str]) -> EvalSuite:
     """Adds harder eval examples targeting systematic weaknesses detected across recent iterations."""
+    _raise_if_no_spend_live_llm("Claude eval suite adaptation")
     client = anthropic.Anthropic()
 
     user = f"""You are an ML evaluation expert reviewing an AutoResearch experiment loop.
