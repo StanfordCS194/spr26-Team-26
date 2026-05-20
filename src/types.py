@@ -6,7 +6,7 @@ See spec-site/content/spec.ts for the canonical definitions.
 
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import Any, NotRequired, TypedDict
 
 
 # ENUMS
@@ -138,7 +138,7 @@ class CostEstimate(TypedDict):
     confidence: str  # 'low' | 'medium' | 'high'
 
 
-class TrainingPlan(TypedDict):
+class _TrainingPlanRequired(TypedDict):
     strategy: str           # 'fine-tune' | 'pre-train'
     base_model: str | None
     lora_config: LoRAConfig | None
@@ -146,6 +146,13 @@ class TrainingPlan(TypedDict):
     estimated_time_min: int
     training_script_path: str
     eval_metric: str
+
+
+class TrainingPlan(_TrainingPlanRequired, total=False):
+    backend: str            # 'tinker_sft' for the SDK-native Tinker v1 path
+    dataset_path: str       # Local JSONL path consumed by the Tinker SFT runner
+    dataset: StandardDataset  # Aggregate dataset metadata, including split counts
+    estimated_run_cost_usd: float  # Optional per-AutoResearch-launch budget guard
 
 
 class EvalScore(TypedDict):
@@ -250,27 +257,39 @@ class ManagerState(TypedDict):
     budget: float
     data_path: str | None
     has_data: bool
+    interactive_data_prompt: NotRequired[bool]
+    task_type_hint: NotRequired[str | None]
     task_reasoning: TaskReasoning | None
     config: OrchestrationConfig | None
     result: TrainedModel | None
 
 
-class DataGenState(TypedDict):
+class DataGenState(TypedDict, total=False):
     config: OrchestrationConfig
     data_path: str | None
-    mode: str | None           # 'A' | 'B' | 'C'
+    mode: str | None
     raw_data: RawData | None
     hf_candidates: list[HFCandidate]
     selected_candidate: HFCandidate | None
-    schema: DataSchema | None
-    dataset: StandardDataset | None
-    validation_report: ValidationReport | None
+    schema: dict | None
+    dataset: dict | None
+    validation_report: dict | None
     handoff: dict | None
+
+    # Mode C web acquisition fields
+    web_plan: dict | None
+    web_search_results: list[dict]
+    web_pages: list[dict]
+    human_readable: str | None
+    mode_c_fallback: str | None
+    mode_c_backend: str | None
+    web_acquisition_error: str | None
 
 
 class AutoResearchState(TypedDict):
     plan: TrainingPlan
     config: OrchestrationConfig
+    cost_manager: Any
     eval_suite: EvalSuite | None
     current_script: str        # path to the training script (never mutated by PROPOSE)
     current_config: dict       # live hyperparams; updated by keep_node after each KEPT patch
@@ -279,6 +298,7 @@ class AutoResearchState(TypedDict):
     original_content: str | None
     diary: ResearchDiary
     baseline_score: EvalScore | None
+    baseline_result: ExperimentResult | None
     best_score: EvalScore | None
     best_script: str
     last_result: ExperimentResult | None

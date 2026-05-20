@@ -14,16 +14,13 @@ Reference: https://docs.tinkerlabs.ai/sdk
 
 from __future__ import annotations
 
+import importlib
+import os
 from typing import Any
 
-try:
-    import tinker                        # pip install tinker
-    from tinker import types as tinker_types
-    _TINKER_AVAILABLE = True
-except ImportError:                      # graceful degradation in test / CI envs
-    tinker = None          # type: ignore[assignment]
-    tinker_types = None    # type: ignore[assignment]
-    _TINKER_AVAILABLE = False
+tinker: Any | None = None
+tinker_types: Any | None = None
+_TINKER_AVAILABLE: bool | None = None
 
 # ── Pricing constant ───────────────────────────────────────────────────────────
 _COST_PER_MILLION_TOKENS: float = 0.40   # USD
@@ -47,9 +44,45 @@ class TinkerAPIError(Exception):
 
 
 def _require_tinker() -> None:
-    if not _TINKER_AVAILABLE:
+    global tinker, tinker_types, _TINKER_AVAILABLE
+    if _TINKER_AVAILABLE is True:
+        return
+    if _TINKER_AVAILABLE is False:
         raise TinkerAPIError(
             "tinker package not installed — run: pip install tinker",
+            status_code=0,
+        )
+    try:
+        tinker = importlib.import_module("tinker")
+        tinker_types = importlib.import_module("tinker.types")
+        _TINKER_AVAILABLE = True
+    except ImportError as exc:           # graceful degradation in test / CI envs
+        tinker = None
+        tinker_types = None
+        _TINKER_AVAILABLE = False
+        raise TinkerAPIError(
+            "tinker package not installed — run: pip install tinker",
+            status_code=0,
+        ) from exc
+
+
+def _env_flag_enabled(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _live_tinker_block_reason() -> str | None:
+    if _env_flag_enabled("NO_SPEND"):
+        return "NO_SPEND=1"
+    if os.getenv("TINKER_BACKEND", "").strip().lower().replace("-", "_") == "dry_run":
+        return "TINKER_BACKEND=dry_run"
+    return None
+
+
+def _require_live_tinker_allowed(operation: str) -> None:
+    reason = _live_tinker_block_reason()
+    if reason:
+        raise TinkerAPIError(
+            f"{operation} is blocked because live Tinker API calls are disabled by {reason}",
             status_code=0,
         )
 
@@ -61,6 +94,7 @@ def create_service_client() -> Any:
 
     Reads TINKER_API_KEY from the environment automatically.
     """
+    _require_live_tinker_allowed("create_service_client")
     _require_tinker()
     try:
         return tinker.ServiceClient()
@@ -77,6 +111,7 @@ def create_lora_training_client(
 
     Returns a client with forward_backward / optim_step / save_weights methods.
     """
+    _require_live_tinker_allowed("create_lora_training_client")
     _require_tinker()
     try:
         return service_client.create_lora_training_client(
@@ -91,6 +126,7 @@ def create_lora_training_client(
 
 def get_tokenizer(training_client: Any) -> Any:
     """Returns the tokeniser for the training client's base model."""
+    _require_live_tinker_allowed("get_tokenizer")
     return training_client.get_tokenizer()
 
 
@@ -105,6 +141,7 @@ def make_datum(
     input  = input_tokens[:-1]
     target = input_tokens[1:]
     """
+    _require_live_tinker_allowed("make_datum")
     _require_tinker()
     if target_tokens is None:
         target_tokens = input_tokens[1:]
@@ -130,6 +167,7 @@ def run_training_step(
     Optionally records token usage to the ledger under *job_id*.
     Returns ``{"tokens_processed": int, "loss": float | None}``.
     """
+    _require_live_tinker_allowed("run_training_step")
     _require_tinker()
     try:
         fwdbwd_result = training_client.forward_backward(
@@ -165,6 +203,7 @@ def run_training_loop(
     Saves a final checkpoint when done or cancelled.
     Returns ``{"steps": int, "tokens": int, "cancelled": bool}``.
     """
+    _require_live_tinker_allowed("run_training_loop")
     steps = 0
     total_tokens = 0
     cancelled = False
@@ -193,6 +232,7 @@ def run_training_loop(
 
 def save_checkpoint(training_client: Any, name: str) -> Any:
     """Saves weights and returns a SamplingClient for inference against this checkpoint."""
+    _require_live_tinker_allowed("save_checkpoint")
     _require_tinker()
     try:
         return training_client.save_weights_and_get_sampling_client(name=name)
@@ -202,6 +242,7 @@ def save_checkpoint(training_client: Any, name: str) -> Any:
 
 def save_weights(training_client: Any, name: str) -> None:
     """Saves weights without returning a sampling client (fire-and-forget)."""
+    _require_live_tinker_allowed("save_weights")
     _require_tinker()
     try:
         training_client.save_weights_for_sampler(name=name)
@@ -220,6 +261,7 @@ def sample(
 
     Returns a list of token-id lists (one per sample).
     """
+    _require_live_tinker_allowed("sample")
     _require_tinker()
     try:
         model_input = tinker_types.ModelInput.from_ints(prompt_tokens)
