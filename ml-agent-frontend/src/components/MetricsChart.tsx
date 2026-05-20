@@ -9,6 +9,7 @@ import {
   Legend,
 } from 'recharts';
 import type { MetricPoint } from '../types';
+import { formatPrimaryMetric, metricPointValue, primaryMetricLabel } from '../utils/metricDisplay';
 import TooltipInfo from './Tooltip';
 
 interface Props {
@@ -24,10 +25,11 @@ const tooltipStyle: React.CSSProperties = {
 };
 
 export default function MetricsChart({ metrics }: Props) {
+  const latestLabel = primaryMetricLabel(metrics[metrics.length - 1]?.primaryMetricLabel);
   const data = metrics.map(m => ({
     iter: m.iteration,
     loss: m.loss,
-    accuracy: +(m.accuracy * 100).toFixed(2),
+    primaryScore: metricPointValue(m) ?? 0,
   }));
 
   return (
@@ -45,7 +47,7 @@ export default function MetricsChart({ metrics }: Props) {
         <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Training Curves</p>
         <TooltipInfo
           label="Training Curves"
-          body="Plots loss and accuracy together over time. Diverging curves (loss up, accuracy down) signal overfitting; converging curves signal healthy learning."
+          body="Plots loss and the primary evaluation score together over time. Tinker SFT score is normalized from validation loss, so higher is better."
         />
       </div>
       {data.length === 0 ? (
@@ -73,23 +75,25 @@ export default function MetricsChart({ metrics }: Props) {
             <YAxis
               yAxisId="acc"
               orientation="right"
-              domain={[70, 100]}
+              domain={[0, 1]}
               tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
               tickLine={false}
               axisLine={{ stroke: 'var(--border)' }}
-              tickFormatter={v => `${v}%`}
+              tickFormatter={v => formatPrimaryMetric(Number(v), latestLabel)}
             />
             <Tooltip
               contentStyle={tooltipStyle}
               labelFormatter={v => `Iteration ${v}`}
               formatter={(value, name) => {
                 const v = Number(value);
-                return name === 'loss' ? [v.toFixed(4), 'Loss'] : [`${v.toFixed(1)}%`, 'Accuracy'];
+                return name === 'loss'
+                  ? [v.toFixed(4), 'Loss']
+                  : [formatPrimaryMetric(v, latestLabel), latestLabel];
               }}
             />
             <Legend
               wrapperStyle={{ fontSize: '11px', color: 'var(--text-muted)' }}
-              formatter={(value) => value === 'loss' ? 'Training Loss' : 'Val Accuracy'}
+              formatter={(value) => value === 'loss' ? 'Training Loss' : latestLabel}
             />
             <Line
               yAxisId="loss"
@@ -103,7 +107,7 @@ export default function MetricsChart({ metrics }: Props) {
             <Line
               yAxisId="acc"
               type="monotone"
-              dataKey="accuracy"
+              dataKey="primaryScore"
               stroke="var(--success)"
               strokeWidth={1.5}
               dot={false}

@@ -1,4 +1,12 @@
+import { resolveApiHref } from '../api/runs';
 import type { TrainingState } from '../types';
+import {
+  formatPrimaryMetric,
+  iterationMetricValue,
+  metricPointValue,
+  primaryMetricLabel,
+  shortMetricLabel,
+} from '../utils/metricDisplay';
 import Tooltip from './Tooltip';
 
 interface Props {
@@ -7,48 +15,74 @@ interface Props {
 }
 
 const RESULT_TOOLTIPS: Record<string, { label: string; body: string }> = {
-  'Final F1': {
-    label: 'Final F1 Score',
-    body: 'Balances precision and recall into one number. Ranges from 0 to 1 — higher is better, especially useful when classes are imbalanced.',
+  score: {
+    label: 'Primary Metric',
+    body: 'The higher-is-better score returned by the evaluation step. Tinker SFT runs report the normalized primary score derived from validation loss.',
   },
-  'Val Accuracy': {
-    label: 'Validation Accuracy',
-    body: 'The model\'s correct-prediction rate on held-out data it has never seen. This is the more honest measure of real-world performance.',
-  },
-  'Total Cost': {
-    label: 'Total Compute Cost',
-    body: 'The full cost of this training run across all pipeline stages, billed against your original budget cap.',
+  'Budget Used': {
+    label: 'Budget Accounted',
+    body: 'The amount counted against this run\'s budget cap. Dry-run and no-spend runs use reserved or estimated budget, not provider-billed spend.',
   },
 };
+type ResultTooltipKey = keyof typeof RESULT_TOOLTIPS;
 
 export default function FinalResults({ state, onReset }: Props) {
   const lastMetric = state.metrics[state.metrics.length - 1];
   const bestIter = state.iterations.find(i => i.status === 'KEPT') ?? state.iterations[0];
+  const artifactFiles = state.artifacts?.files.filter(file => file.exists) ?? [];
+  const checkpointEntries = Object.entries(state.artifacts?.checkpoints ?? {}).filter(([, value]) => value);
+  const bestLabel = primaryMetricLabel(bestIter?.primaryMetricLabel ?? lastMetric?.primaryMetricLabel);
+  const finalScoreLabel = `Final ${shortMetricLabel(bestLabel)}`;
+  const latestLabel = primaryMetricLabel(lastMetric?.primaryMetricLabel ?? bestLabel);
+  const finalScoreValue = bestIter ? iterationMetricValue(bestIter) : metricPointValue(lastMetric);
+  const diaryArtifact = artifactFiles.find(file => file.name === 'diary' && file.downloadPath);
+  const diaryHref = resolveApiHref(diaryArtifact?.downloadPath);
 
-  const handleExportDiary = () => {
-    const diary = {
+  const handleExportSnapshot = () => {
+    const snapshot = {
       prompt: state.prompt,
       budget: state.budget,
       taskType: state.taskType,
+      dataPath: state.dataPath ?? null,
       costSpent: state.costSpent,
       iterations: state.iterations,
       metrics: state.metrics,
       logs: state.logs,
+      artifacts: state.artifacts ?? null,
+      result: state.result ?? null,
     };
-    const blob = new Blob([JSON.stringify(diary, null, 2)], { type: 'application/json' });
+    if (state.provenance) {
+      Object.assign(snapshot, { provenance: state.provenance });
+    }
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'research-diary.json';
+    a.download = 'run-snapshot.json';
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  const results = [
-    { label: 'Final F1', value: bestIter ? bestIter.f1.toFixed(3) : '—' },
-    { label: 'Val Accuracy', value: lastMetric ? `${(lastMetric.accuracy * 100).toFixed(1)}%` : '—' },
-    { label: 'Total Cost', value: `$${state.costSpent.toFixed(2)}` },
+  const results: Array<{ key: string; label: string; value: string; tooltipKey: ResultTooltipKey }> = [
+    {
+      key: 'final-score',
+      label: finalScoreLabel,
+      value: formatPrimaryMetric(finalScoreValue, bestLabel),
+      tooltipKey: 'score',
+    },
+    {
+      key: 'latest-primary-score',
+      label: latestLabel,
+      value: formatPrimaryMetric(metricPointValue(lastMetric), latestLabel),
+      tooltipKey: 'score',
+    },
+    { key: 'budget-used', label: 'Budget Used', value: `$${state.costSpent.toFixed(2)}`, tooltipKey: 'Budget Used' },
   ];
+  const compactPath = (value?: string | null) => {
+    if (!value) return '—';
+    if (value.length <= 72) return value;
+    return `…${value.slice(-69)}`;
+  };
 
   return (
     <section
@@ -90,10 +124,10 @@ export default function FinalResults({ state, onReset }: Props) {
         gap: '12px',
         marginBottom: '1.5rem',
       }}>
-        {results.map(({ label, value }) => {
-          const tip = RESULT_TOOLTIPS[label];
+        {results.map(({ key, label, value, tooltipKey }) => {
+          const tip = RESULT_TOOLTIPS[tooltipKey];
           return (
-            <div key={label} style={{
+            <div key={key} style={{
               background: 'var(--bg-elevated)',
               border: '0.5px solid var(--border)',
               borderRadius: '6px',
@@ -109,46 +143,111 @@ export default function FinalResults({ state, onReset }: Props) {
         })}
       </div>
 
+      {state.artifacts && (
+        <div style={{
+          borderTop: '0.5px solid var(--border)',
+          paddingTop: '1rem',
+          marginBottom: '1.5rem',
+          textAlign: 'left',
+        }}>
+          <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+            Artifacts
+          </p>
+          <div style={{ display: 'grid', gap: '0.4rem' }}>
+            {state.artifacts.modelPath && (
+              <div style={{ display: 'grid', gridTemplateColumns: '96px 1fr', gap: '0.75rem', alignItems: 'center' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Model</span>
+                <code style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {compactPath(state.artifacts.modelPath)}
+                </code>
+              </div>
+            )}
+            {artifactFiles.map(file => {
+              const href = resolveApiHref(file.downloadPath);
+              return (
+                <div
+                  key={file.downloadPath ?? file.path ?? file.name}
+                  style={{ display: 'grid', gridTemplateColumns: '96px 1fr auto', gap: '0.75rem', alignItems: 'center' }}
+                >
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{file.label}</span>
+                  <code style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {compactPath(file.path)}
+                  </code>
+                  {href && (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ fontSize: '11px', color: 'var(--accent)', textDecoration: 'none' }}
+                    >
+                      Open
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+            {checkpointEntries.map(([key, value]) => (
+              <div key={key} style={{ display: 'grid', gridTemplateColumns: '96px 1fr', gap: '0.75rem', alignItems: 'center' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{key}</span>
+                <code style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {String(value)}
+                </code>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
         <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-          <button
-            onClick={handleExportDiary}
-            style={{
-              padding: '0.5rem 1rem',
-              background: 'var(--accent-dim)',
-              border: '0.5px solid var(--accent)',
-              borderRadius: '6px',
-              color: 'var(--accent)',
-              fontSize: '13px',
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-            aria-label="Export research diary as JSON"
-          >
-            Export Research Diary
-          </button>
+          {diaryHref ? (
+            <a
+              href={diaryHref}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                padding: '0.5rem 1rem',
+                background: 'var(--accent-dim)',
+                border: '0.5px solid var(--accent)',
+                borderRadius: '6px',
+                color: 'var(--accent)',
+                fontSize: '13px',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                textDecoration: 'none',
+              }}
+              aria-label="Open backend research diary artifact"
+            >
+              Open Research Diary
+            </a>
+          ) : (
+            <button
+              onClick={handleExportSnapshot}
+              style={{
+                padding: '0.5rem 1rem',
+                background: 'var(--accent-dim)',
+                border: '0.5px solid var(--accent)',
+                borderRadius: '6px',
+                color: 'var(--accent)',
+                fontSize: '13px',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+              aria-label="Export run snapshot as JSON"
+            >
+              Export Run Snapshot
+            </button>
+          )}
           <Tooltip
-            label="Export Research Diary"
-            body="Downloads a JSON file with every experiment, metric, and log event from this run. Useful for reproducibility and offline analysis."
+            label={diaryHref ? 'Research Diary' : 'Run Snapshot'}
+            body={
+              diaryHref
+                ? 'Opens the backend research diary artifact produced by AutoResearch for this run.'
+                : 'Exports the visible run state as JSON. This is a UI snapshot, not a backend research diary artifact.'
+            }
             placement="top"
           />
         </span>
-        <button
-          onClick={() => alert('Deploy endpoint: configure in production')}
-          style={{
-            padding: '0.5rem 1rem',
-            background: 'var(--success-dim)',
-            border: '0.5px solid var(--success)',
-            borderRadius: '6px',
-            color: 'var(--success)',
-            fontSize: '13px',
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-          }}
-          aria-label="Deploy model"
-        >
-          Deploy Model
-        </button>
         <button
           onClick={onReset}
           style={{

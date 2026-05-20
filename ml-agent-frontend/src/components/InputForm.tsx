@@ -1,9 +1,13 @@
 import { useState } from 'react';
-import type { TaskType } from '../types';
+import type { StartTraining, TaskType } from '../types';
 
 interface Props {
-  onStart: (prompt: string, budget: number, taskType: TaskType) => void;
+  onStart: StartTraining;
 }
+
+const MIN_BUDGET = 1;
+const MAX_BUDGET = 500;
+const DEFAULT_BUDGET = '50';
 
 const styles: Record<string, React.CSSProperties> = {
   wrapper: {
@@ -144,27 +148,30 @@ const styles: Record<string, React.CSSProperties> = {
 
 export default function InputForm({ onStart }: Props) {
   const [prompt, setPrompt] = useState('');
-  const [budget, setBudget] = useState(50);
+  const [budgetInput, setBudgetInput] = useState(DEFAULT_BUDGET);
   const [taskType, setTaskType] = useState<TaskType>('classification');
+  const [dataPath, setDataPath] = useState('');
   const [error, setError] = useState('');
 
   const handleSubmit = () => {
+    const budget = Number(budgetInput);
     if (prompt.trim().length < 10) {
       setError('Prompt must be at least 10 characters.');
       return;
     }
-    if (budget < 10 || budget > 500) {
-      setError('Budget must be between $10 and $500.');
+    if (!Number.isFinite(budget) || budget < MIN_BUDGET || budget > MAX_BUDGET) {
+      setError(`Budget must be between $${MIN_BUDGET} and $${MAX_BUDGET}.`);
       return;
     }
     setError('');
-    onStart(prompt.trim(), budget, taskType);
+    onStart(prompt.trim(), budget, taskType, dataPath.trim() || null);
   };
 
   const handleReset = () => {
     setPrompt('');
-    setBudget(50);
+    setBudgetInput(DEFAULT_BUDGET);
     setTaskType('classification');
+    setDataPath('');
     setError('');
   };
 
@@ -194,6 +201,20 @@ export default function InputForm({ onStart }: Props) {
             </span>
           </div>
 
+          <div style={styles.field}>
+            <label style={styles.label} htmlFor="dataPath">Dataset Source</label>
+            <input
+              id="dataPath"
+              type="text"
+              style={styles.input}
+              placeholder="/data/train.jsonl or hf://SetFit/sst2"
+              value={dataPath}
+              onChange={e => setDataPath(e.target.value)}
+              maxLength={1000}
+              aria-label="Dataset source"
+            />
+          </div>
+
           <div style={styles.row}>
             <div style={styles.field}>
               <label style={styles.label} htmlFor="budget">Budget Cap (USD)</label>
@@ -201,11 +222,11 @@ export default function InputForm({ onStart }: Props) {
                 id="budget"
                 type="number"
                 style={styles.input}
-                value={budget}
-                min={10}
-                max={500}
-                step={5}
-                onChange={e => setBudget(Number(e.target.value))}
+                value={budgetInput}
+                min={MIN_BUDGET}
+                max={MAX_BUDGET}
+                step={0.5}
+                onChange={e => setBudgetInput(e.target.value)}
                 aria-label="Budget cap in dollars"
               />
             </div>

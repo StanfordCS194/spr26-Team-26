@@ -1,4 +1,5 @@
 import type { Iteration } from '../types';
+import { formatPrimaryMetric, iterationMetricValue, shortMetricLabel } from '../utils/metricDisplay';
 import Tooltip from './Tooltip';
 
 interface Props {
@@ -79,7 +80,7 @@ export default function IterationsList({ iterations }: Props) {
         >
           {iterations.map((iter, idx) => (
             <div
-              key={iter.id}
+              key={`${iter.id}:${idx}`}
               role="listitem"
               style={{
                 display: 'flex',
@@ -102,7 +103,7 @@ export default function IterationsList({ iterations }: Props) {
                   L {iter.loss.toFixed(3)}
                 </span>
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
-                  F1 {iter.f1.toFixed(3)}
+                  {shortMetricLabel(iter.primaryMetricLabel)} {formatPrimaryMetric(iterationMetricValue(iter), iter.primaryMetricLabel)}
                 </span>
                 <StatusBadge status={iter.status} />
               </div>

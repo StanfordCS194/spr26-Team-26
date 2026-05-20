@@ -8,8 +8,13 @@ interface Props {
 const typeColor: Record<LogEntry['type'], string> = {
   success: 'var(--success)',
   warning: 'var(--warning)',
+  error: 'var(--danger)',
   default: 'var(--text-muted)',
 };
+
+function logKey(entry: LogEntry, index: number): string {
+  return [entry.time, entry.component, entry.type, entry.message, index].join('|');
+}
 
 export default function ActivityLog({ logs }: Props) {
   return (
@@ -46,7 +51,7 @@ export default function ActivityLog({ logs }: Props) {
           <span style={{ color: 'var(--text-muted)' }}>Waiting for pipeline to start…</span>
         )}
         {logs.map((entry, i) => (
-          <div key={i} style={{ display: 'flex', gap: '0.625rem' }}>
+          <div key={logKey(entry, i)} style={{ display: 'flex', gap: '0.625rem' }}>
             <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>[{entry.time}]</span>
             <span style={{ color: 'var(--accent)', flexShrink: 0 }}>{entry.component}:</span>
             <span style={{ color: typeColor[entry.type] }}>{entry.message}</span>
